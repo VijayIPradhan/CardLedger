@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest run --reporter=verbose",
+    "start": "dotenv -e ../../.env -- node dist/index.js",
+    "test": "dotenv -e ../../.env -- vitest run --reporter=verbose",
     "db:generate": "dotenv -e ../../.env -- drizzle-kit generate:pg",
     "db:migrate": "dotenv -e ../../.env -- tsx src/db/migrate.ts"
   },

@@ -10,6 +10,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/app/package.json ./packages/app/package.json
 
+ENV HUSKY=0
 RUN pnpm install --frozen-lockfile
 
 COPY packages/shared ./packages/shared

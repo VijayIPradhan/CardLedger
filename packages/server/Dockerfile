@@ -10,6 +10,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/server/package.json ./packages/server/package.json
 
+ENV HUSKY=0
 RUN pnpm install --frozen-lockfile
 
 # Copy source
@@ -31,7 +32,8 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/server/package.json ./packages/server/package.json
 
-# Production deps only
+# Production deps only (HUSKY=0 skips the prepare hook — no git in Docker)
+ENV HUSKY=0
 RUN pnpm install --frozen-lockfile --prod
 
 # Copy compiled output
