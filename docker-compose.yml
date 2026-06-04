@@ -5,8 +5,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-cardledger}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cardledger}
       POSTGRES_DB: ${POSTGRES_DB:-cardledger}
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,8 +25,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
       PORT: 3001
       DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-changeme123}
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     depends_on:
       postgres:
         condition: service_healthy
