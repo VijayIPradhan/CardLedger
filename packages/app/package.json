@@ -6,8 +6,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "cap:sync": "cap sync",
-    "cap:android": "cap open android"
+    "cap:init": "cap add android",
+    "cap:build": "pnpm build && cap sync android",
+    "cap:apk": "cd android && ./gradlew assembleDebug",
+    "cap:install": "adb install android/app/build/outputs/apk/debug/app-debug.apk",
+    "cap:run": "pnpm cap:build && pnpm cap:apk && pnpm cap:install"
   },
   "dependencies": {
     "@cardledger/shared": "workspace:*",
