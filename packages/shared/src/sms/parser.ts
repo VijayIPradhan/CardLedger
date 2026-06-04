@@ -4,7 +4,7 @@ import { PARSER_RULES, FALLBACK_RULE } from './parserRules.js';
 import { normalizeAmount, normalizeDate, normalizeMerchant } from './normalize.js';
 import { dedupeHash as computeHash } from './dedupeHash.js';
 
-const OTP_RE = /\bOTP\b|one.time.pass|verification code/i;
+const OTP_RE = /\bOTP\b|one[-\s]?time[-\s]?pass|verification code/i;
 
 export async function parseSms(input: SmsInput): Promise<ParseResult | null> {
   // Step 1: Reject OTP / non-transaction messages immediately
@@ -28,7 +28,7 @@ export async function parseSms(input: SmsInput): Promise<ParseResult | null> {
       // Must capture at least an amount to be a transaction
       if (!rawAmt) continue;
 
-      const isFallback = rule.bank === 'UNKNOWN';
+      const isFallback = rule === FALLBACK_RULE;
       const hasAll = !!(rawAmt && last4 && rawDate && rawMerchant);
       const confidence: 'high' | 'low' = !isFallback && hasAll ? 'high' : 'low';
 
