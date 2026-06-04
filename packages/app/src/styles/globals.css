@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: #0A0A0A;
+  color: #FFFFFF;
+  font-family: 'Inter var', Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+::-webkit-scrollbar { display: none; }
