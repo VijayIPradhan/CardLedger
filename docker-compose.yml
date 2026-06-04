@@ -15,6 +15,8 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      - dokploy-network
 
   server:
     build:
@@ -31,7 +33,9 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-
+    networks:
+      - dokploy-network
+      
   app:
     build:
       context: .
@@ -41,6 +45,12 @@ services:
     depends_on:
       - server
     restart: unless-stopped
+    networks:
+      - dokploy-network
 
 volumes:
   pgdata:
+
+networks:
+  dokploy-network:
+    external: true
