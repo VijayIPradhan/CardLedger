@@ -9,5 +9,38 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cardledger}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-cardledger}:${POSTGRES_PASSWORD:-cardledger}@postgres:5432/${POSTGRES_DB:-cardledger}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
+      PORT: 3001
+      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-changeme123}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: packages/app/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
 volumes:
   pgdata:

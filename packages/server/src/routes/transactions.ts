@@ -42,9 +42,10 @@ export async function transactionRoutes(app: FastifyInstance) {
       return reply.status(422).send({ error: 'No holder assignment found for txn_date' });
     }
 
+    const { amount, ...rest } = parsed.data;
     const [txn] = await db
       .insert(transactions)
-      .values({ ...parsed.data, holder_id_at_time: holderId })
+      .values({ ...rest, amount: String(amount), holder_id_at_time: holderId })
       .returning();
     return reply.status(201).send(txn);
   });

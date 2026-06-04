@@ -20,16 +20,23 @@ export async function cardRoutes(app: FastifyInstance) {
   app.post('/', auth, async (req, reply) => {
     const parsed = CreateCardSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    const [card] = await db.insert(cards).values(parsed.data).returning();
+    const { credit_limit, ...rest } = parsed.data;
+    const [card] = await db
+      .insert(cards)
+      .values({ ...rest, credit_limit: String(credit_limit) })
+      .returning();
     return reply.status(201).send(card);
   });
 
   app.patch<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
     const parsed = UpdateCardSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const { credit_limit, ...rest } = parsed.data;
+    const update =
+      credit_limit !== undefined ? { ...rest, credit_limit: String(credit_limit) } : rest;
     const [card] = await db
       .update(cards)
-      .set(parsed.data)
+      .set(update)
       .where(eq(cards.id, req.params.id))
       .returning();
     if (!card) return reply.status(404).send({ error: 'Not found' });
