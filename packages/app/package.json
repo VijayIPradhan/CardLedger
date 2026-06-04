@@ -20,7 +20,8 @@
     "axios": "^1.7.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/android": "^6.0.0",
-    "capacitor-biometric-auth": "^0.1.1"
+    "@aparajita/capacitor-biometric-auth": "^7.0.0",
+    "@capacitor/app": "^6.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",

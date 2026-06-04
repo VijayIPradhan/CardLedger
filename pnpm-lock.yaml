@@ -35,9 +35,15 @@ importers:
 
   packages/app:
     dependencies:
+      '@aparajita/capacitor-biometric-auth':
+        specifier: ^7.0.0
+        version: 7.2.0
       '@capacitor/android':
         specifier: ^6.0.0
         version: 6.2.1(@capacitor/core@6.2.1)
+      '@capacitor/app':
+        specifier: ^6.0.0
+        version: 6.0.3(@capacitor/core@6.2.1)
       '@capacitor/core':
         specifier: ^6.0.0
         version: 6.2.1
@@ -50,9 +56,6 @@ importers:
       axios:
         specifier: ^1.7.0
         version: 1.17.0
-      capacitor-biometric-auth:
-        specifier: ^0.1.1
-        version: 0.1.1
       framer-motion:
         specifier: ^11.2.0
         version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -171,6 +174,10 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
+  '@aparajita/capacitor-biometric-auth@7.2.0':
+    resolution: {integrity: sha512-piU8bSB/tJPVRPCAhreC5cioM0CM5Hv6xADXBp6BcUz0n0YLI2TXykUHS+j1WMnhxxdsi4W1flCdQz0zz/K9Gg==}
+    engines: {node: '>=18'}
+
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
     engines: {node: '>=6.9.0'}
@@ -254,21 +261,41 @@ packages:
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
 
+  '@capacitor/android@5.7.8':
+    resolution: {integrity: sha512-ooWclwcuW0dy3YfqgoozkHkjatX8H2fb2/RwRsJa3cew1P1lUXIXri3Dquuy4LdqFAJA7UHcJ19Bl/6UKdsZYA==}
+    peerDependencies:
+      '@capacitor/core': ^5.7.0
+
   '@capacitor/android@6.2.1':
     resolution: {integrity: sha512-8gd4CIiQO5LAIlPIfd5mCuodBRxMMdZZEdj8qG8m+dQ1sQ2xyemVpzHmRK8qSCHorsBUCg3D62j2cp6bEBAkdw==}
     peerDependencies:
       '@capacitor/core': ^6.2.0
+
+  '@capacitor/app@5.0.8':
+    resolution: {integrity: sha512-ClUPJG6Awkf5HncVCZQwLrnuugjU8TnACSJ1dKJb6QNCHv2jQzmXvB3KvTvxTZyWbh5EVvlla0qlobYyU1lb6A==}
+    peerDependencies:
+      '@capacitor/core': ^5.0.0
+
+  '@capacitor/app@6.0.3':
+    resolution: {integrity: sha512-4gFUCbcVz0N/YYN32OBFerocWXslIv3Nc90gDiRsBkJc0plwK6kIUT6PKa5WtW2kfhteUeCVXQbvArH2fH+0Ug==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
 
   '@capacitor/cli@6.2.1':
     resolution: {integrity: sha512-JKl0FpFge8PgQNInw12kcKieQ4BmOyazQ4JGJOfEpVXlgrX1yPhSZTPjngupzTCiK3I7q7iGG5kjun0fDqgSCA==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
+  '@capacitor/core@5.7.8':
+    resolution: {integrity: sha512-rrZcm/2vJM0WdWRQup1TUidbjQV9PfIadSkV4rAGLD7R6PuzZSMPGT0gmoZzCRlXkqrazrWWDkurei3ozU02FA==}
+
   '@capacitor/core@6.2.1':
     resolution: {integrity: sha512-urZwxa7hVE/BnA18oCFAdizXPse6fCKanQyEqpmz6cBJ2vObwMpyJDG5jBeoSsgocS9+Ax+9vb4ducWJn0y2qQ==}
 
-  '@capacitor/core@8.4.0':
-    resolution: {integrity: sha512-LrS1xPIrqLtJABBIPDGXxxKmI9OyesrzWw8DiHbxhSC9JoiLUleUAJlX1a0LWIVLRbuY4Szgf9huFeRqYH2SAQ==}
+  '@capacitor/ios@5.7.8':
+    resolution: {integrity: sha512-XhGrziBnlRmCJ97LdPXOJquHPpYTwSJZIxYSXuPl7SDDuAEve8vs2wY76gLdaaFH2Z6ctdugUX+jR6VNu+ds+w==}
+    peerDependencies:
+      '@capacitor/core': ^5.7.0
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
@@ -1537,9 +1564,6 @@ packages:
 
   caniuse-lite@1.0.30001793:
     resolution: {integrity: sha512-iwSsYWaCOoh26cV8NwNRViHlrfUvYsHDfRVcbtmw0Kg6PJIZZXwMkj1442FYLBGkeUf1juAsU3DTfxW579mrPA==}
-
-  capacitor-biometric-auth@0.1.1:
-    resolution: {integrity: sha512-LZnYs5nG7dW+dnGu4rI1WotFgsZJq5hwFO6Q6TNO/AZV4UFZDEGYg5e3Z6qUdnKUjVr/NRJfxdLWVt2em83KOA==}
 
   chai@4.5.0:
     resolution: {integrity: sha512-RITGBfijLkBddZvnn8jdqoTypxvqbOLYQkGGxXzeFjVHvudaPw0HNFD9x928/eUwYWd2dPCugVqspGALTZZQKw==}
@@ -3345,6 +3369,13 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
+  '@aparajita/capacitor-biometric-auth@7.2.0':
+    dependencies:
+      '@capacitor/android': 5.7.8(@capacitor/core@5.7.8)
+      '@capacitor/app': 5.0.8(@capacitor/core@5.7.8)
+      '@capacitor/core': 5.7.8
+      '@capacitor/ios': 5.7.8(@capacitor/core@5.7.8)
+
   '@babel/code-frame@7.29.7':
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
@@ -3457,7 +3488,19 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
+  '@capacitor/android@5.7.8(@capacitor/core@5.7.8)':
+    dependencies:
+      '@capacitor/core': 5.7.8
+
   '@capacitor/android@6.2.1(@capacitor/core@6.2.1)':
+    dependencies:
+      '@capacitor/core': 6.2.1
+
+  '@capacitor/app@5.0.8(@capacitor/core@5.7.8)':
+    dependencies:
+      '@capacitor/core': 5.7.8
+
+  '@capacitor/app@6.0.3(@capacitor/core@6.2.1)':
     dependencies:
       '@capacitor/core': 6.2.1
 
@@ -3483,13 +3526,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@capacitor/core@5.7.8':
+    dependencies:
+      tslib: 2.8.1
+
   '@capacitor/core@6.2.1':
     dependencies:
       tslib: 2.8.1
 
-  '@capacitor/core@8.4.0':
+  '@capacitor/ios@5.7.8(@capacitor/core@5.7.8)':
     dependencies:
-      tslib: 2.8.1
+      '@capacitor/core': 5.7.8
 
   '@esbuild-kit/core-utils@3.3.2':
     dependencies:
@@ -4523,10 +4570,6 @@ snapshots:
   camelcase@7.0.1: {}
 
   caniuse-lite@1.0.30001793: {}
-
-  capacitor-biometric-auth@0.1.1:
-    dependencies:
-      '@capacitor/core': 8.4.0
 
   chai@4.5.0:
     dependencies:
