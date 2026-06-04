@@ -1,2 +1,43 @@
 import type { FastifyInstance } from 'fastify';
-export async function cardRoutes(_app: FastifyInstance) {}
+import { db } from '../db/index.js';
+import { cards } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
+import { CreateCardSchema, UpdateCardSchema } from '@cardledger/shared';
+
+export async function cardRoutes(app: FastifyInstance) {
+  const auth = { onRequest: [app.authenticate] };
+
+  app.get('/', auth, async () => {
+    return db.select().from(cards).orderBy(cards.created_at);
+  });
+
+  app.get<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
+    const [card] = await db.select().from(cards).where(eq(cards.id, req.params.id));
+    if (!card) return reply.status(404).send({ error: 'Not found' });
+    return card;
+  });
+
+  app.post('/', auth, async (req, reply) => {
+    const parsed = CreateCardSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const [card] = await db.insert(cards).values(parsed.data).returning();
+    return reply.status(201).send(card);
+  });
+
+  app.patch<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
+    const parsed = UpdateCardSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const [card] = await db
+      .update(cards)
+      .set(parsed.data)
+      .where(eq(cards.id, req.params.id))
+      .returning();
+    if (!card) return reply.status(404).send({ error: 'Not found' });
+    return card;
+  });
+
+  app.delete<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
+    await db.delete(cards).where(eq(cards.id, req.params.id));
+    return reply.status(204).send();
+  });
+}
