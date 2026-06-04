@@ -1,5 +1,7 @@
+// packages/app/src/screens/SettingsScreen.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { BottomNav } from '../components/BottomNav.js';
@@ -7,15 +9,23 @@ import { PinPad } from '../components/PinPad.js';
 import { logout } from '../data/apiClient.js';
 import { useUiStore } from '../store/uiStore.js';
 import { isPinSet, setupPin } from '../lib/pin.js';
+import { isBiometricEnabled, setBiometricEnabled } from '../lib/biometric.js';
 
 export default function SettingsScreen() {
   const nav = useNavigate();
   const lock = useUiStore((s) => s.lock);
   const [changingPin, setChangingPin] = useState(false);
+  const [biometricOn, setBiometricOn] = useState(isBiometricEnabled);
 
   function handleLockNow() {
     lock();
     nav('/lock', { replace: true });
+  }
+
+  function toggleBiometric() {
+    const next = !biometricOn;
+    setBiometricEnabled(next);
+    setBiometricOn(next);
   }
 
   return (
@@ -38,6 +48,28 @@ export default function SettingsScreen() {
             <span className="text-sm">{isPinSet() ? 'Change PIN' : 'Set PIN'}</span>
             <span className="text-muted">→</span>
           </button>
+          {Capacitor.isNativePlatform() && (
+            <>
+              <div className="h-px bg-elevated" />
+              <button
+                onClick={toggleBiometric}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-elevated transition-colors"
+              >
+                <span className="text-sm">Biometric unlock</span>
+                <span
+                  className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${
+                    biometricOn ? 'bg-gold' : 'bg-elevated'
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                      biometricOn ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </span>
+              </button>
+            </>
+          )}
         </div>
 
         {changingPin && (
