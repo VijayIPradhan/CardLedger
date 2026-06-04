@@ -27,25 +27,29 @@ export default function CardDetailScreen() {
   }
 
   const holderMap = Object.fromEntries(holders.map((h: Holder) => [h.id, h]));
-  const today = new Date().toISOString().split('T')[0];
 
-  const cycles = ([-2, -1, 0] as const).map((offset) => {
-    const refDate = new Date();
-    refDate.setMonth(refDate.getMonth() + offset);
-    const ref = refDate.toISOString().split('T')[0];
-    const { start, end } = getCycleRange(card.billing_cycle_day, ref);
-    const txns = transactions.filter(
-      (t: Transaction) => t.txn_date >= start && t.txn_date <= end,
-    );
-    return { label: `${start} – ${end}`, txns };
-  }).filter((c) => c.txns.length > 0);
+  const cycles = ([-2, -1, 0] as const)
+    .map((offset) => {
+      const refDate = new Date();
+      refDate.setMonth(refDate.getMonth() + offset);
+      const ref = refDate.toISOString().split('T')[0];
+      const { start, end } = getCycleRange(card.billing_cycle_day, ref);
+      const txns = transactions.filter(
+        (t: Transaction) => t.txn_date >= start && t.txn_date <= end,
+      );
+      return { label: `${start} – ${end}`, txns };
+    })
+    .filter((c) => c.txns.length > 0);
 
   const activeAssignment = assignments.find((a: Assignment) => !a.returned_date);
   const currentHolder = activeAssignment
     ? holderMap[activeAssignment.holder_id]
     : holders.find((h: Holder) => h.relationship === 'me');
   const cycleSpend =
-    cycles[cycles.length - 1]?.txns.reduce((s: number, t: Transaction) => s + Number(t.amount), 0) ?? 0;
+    cycles[cycles.length - 1]?.txns.reduce(
+      (s: number, t: Transaction) => s + Number(t.amount),
+      0,
+    ) ?? 0;
 
   return (
     <Screen className="pb-24">
