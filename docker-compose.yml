@@ -37,7 +37,7 @@ services:
       context: .
       dockerfile: packages/app/Dockerfile
     ports:
-      - "3006:80"
+      - "${APP_PORT:-3007}:80"
     depends_on:
       - server
     restart: unless-stopped
