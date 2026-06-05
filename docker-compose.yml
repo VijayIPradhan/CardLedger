@@ -10,10 +10,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cardledger}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cardledger} && psql -U ${POSTGRES_USER:-cardledger} -d ${POSTGRES_DB:-cardledger} -c 'SELECT 1' > /dev/null 2>&1"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 10s
     restart: unless-stopped
     networks:
       - dokploy-network
