@@ -9,8 +9,34 @@ import { holderRoutes } from './routes/holders.js';
 import { assignmentRoutes } from './routes/assignments.js';
 import { transactionRoutes } from './routes/transactions.js';
 
+const isTest = process.env.NODE_ENV === 'test';
+
 export async function buildApp() {
-  const app = Fastify({ logger: false });
+  const app = Fastify({
+    logger: isTest
+      ? false
+      : {
+          level: process.env.LOG_LEVEL ?? 'info',
+          // JSON in production (structured logs); readable serializers for requests
+          serializers: {
+            req(req) {
+              return { method: req.method, url: req.url, ip: req.ip };
+            },
+            res(res) {
+              return { statusCode: res.statusCode };
+            },
+          },
+        },
+  });
+
+  // Global error handler — logs full error before sending 500
+  app.setErrorHandler((err, req, reply) => {
+    app.log.error({ err, method: req.method, url: req.url }, 'Unhandled error');
+    const status = err.statusCode ?? 500;
+    reply.status(status).send({
+      error: status < 500 ? err.message : 'Internal Server Error',
+    });
+  });
 
   await app.register(fastifyCors, { origin: true });
   await app.register(fastifyRateLimit, {

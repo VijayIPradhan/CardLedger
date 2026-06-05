@@ -9,14 +9,19 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 await migrate(db, { migrationsFolder: resolve(__dirname, '../drizzle') });
-console.log('Migrations complete');
 
 const app = await buildApp();
+app.log.info('Migrations complete');
+
 await seed();
-await app.listen({ port: Number(process.env.PORT ?? 3001), host: '0.0.0.0' });
-console.log(`Server listening on port ${process.env.PORT ?? 3001}`);
+app.log.info('Seed complete');
+
+const port = Number(process.env.PORT ?? 3001);
+await app.listen({ port, host: '0.0.0.0' });
+// Fastify pino logs the address automatically — no extra console.log needed
 
 process.on('SIGTERM', async () => {
+  app.log.info('SIGTERM received — shutting down');
   await app.close();
   await pool.end();
   process.exit(0);
