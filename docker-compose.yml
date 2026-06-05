@@ -17,14 +17,19 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - dokploy-network
+      dokploy-network:
+        # Unique alias — the bare name `postgres` collides with other stacks
+        # on the shared external dokploy-network, causing the pool to round-robin
+        # into a foreign database (intermittent 28P01 auth failures).
+        aliases:
+          - cardledger-postgres
 
   server:
     build:
       context: .
       dockerfile: packages/server/Dockerfile
     environment:
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-cardledger}:${POSTGRES_PASSWORD:-cardledger}@postgres:5432/${POSTGRES_DB:-cardledger}
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-cardledger}:${POSTGRES_PASSWORD:-cardledger}@cardledger-postgres:5432/${POSTGRES_DB:-cardledger}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
       PORT: 3001
       DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-changeme123}
