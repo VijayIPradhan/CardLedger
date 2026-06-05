@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const BASE = (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL ?? 'http://localhost:3001';
+// In Docker (VITE_API_URL=""), falls back to '/api' → nginx proxies /api/* to server:3001/*
+// In local dev set VITE_API_URL=http://localhost:3001 to hit server directly
+const BASE =
+  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL || '/api';
 
 export const api = axios.create({ baseURL: BASE });
 
