@@ -8,7 +8,25 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-await migrate(db, { migrationsFolder: resolve(__dirname, '../drizzle') });
+// Retry DB connection with exponential backoff — avoids crash-loop when
+// Postgres passes pg_isready but auth isn't fully initialised yet.
+async function migrateWithRetry(migrationsFolder: string, maxAttempts = 10) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await migrate(db, { migrationsFolder });
+      return;
+    } catch (err) {
+      if (attempt === maxAttempts) throw err;
+      const delayMs = Math.min(1000 * attempt, 8000); // 1s, 2s, 3s … 8s cap
+      console.error(
+        `DB connect failed (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms…`,
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
+await migrateWithRetry(resolve(__dirname, '../drizzle'));
 
 const app = await buildApp();
 app.log.info('Migrations complete');
