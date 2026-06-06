@@ -36,8 +36,19 @@ export const CreateTransactionSchema = z.object({
   merchant: z.string().min(1).max(200),
   txn_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   source: TransactionSourceSchema,
+  holder_id_at_time: z.string().uuid().optional(), // "who used" — manual override
   raw_sms_encrypted: z.string().nullable().optional(),
   dedupe_hash: z.string().nullable().optional(),
+});
+
+export const UpdateTransactionSchema = z.object({
+  amount: z.number().positive().optional(),
+  merchant: z.string().min(1).max(200).optional(),
+  txn_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  holder_id_at_time: z.string().uuid().optional(),
 });
 
 export const LoginSchema = z.object({
