@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Screen } from '../components/Screen.js';
@@ -12,6 +13,7 @@ import { useHolders } from '../data/hooks/useHolders.js';
 import { useAssignments } from '../data/hooks/useAssignments.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
 import { useUiStore } from '../store/uiStore.js';
+import { scheduleDueReminders } from '../lib/notifications.js';
 import {
   getCycleRange,
   getCardUtilization,
@@ -33,6 +35,19 @@ export default function HomeScreen() {
   const holderMap = Object.fromEntries(holders.map((h: Holder) => [h.id, h]));
   const cardList = cards as Card[];
   const today = todayISO();
+
+  useEffect(() => {
+    if (cardList.length) {
+      scheduleDueReminders(
+        cardList.map((c) => ({
+          id: c.id,
+          nickname: c.nickname,
+          payment_due_day: c.payment_due_day,
+        })),
+      );
+    }
+    // schedule whenever the number of cards changes
+  }, [cardList.length]);
 
   // current-cycle spend per card
   const spendByCard: Record<string, number> = {};

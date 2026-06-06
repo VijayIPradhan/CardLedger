@@ -1,4 +1,3 @@
-// packages/app/src/screens/SettingsScreen.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
@@ -10,12 +9,24 @@ import { logout } from '../data/apiClient.js';
 import { useUiStore } from '../store/uiStore.js';
 import { isPinSet, setupPin } from '../lib/pin.js';
 import { isBiometricEnabled, setBiometricEnabled } from '../lib/biometric.js';
+import { useCards } from '../data/hooks/useCards.js';
+import {
+  isReminderEnabled,
+  setReminderEnabled,
+  getReminderDaysBefore,
+  setReminderDaysBefore,
+  scheduleDueReminders,
+} from '../lib/notifications.js';
+import type { Card } from '@cardledger/shared';
 
 export default function SettingsScreen() {
   const nav = useNavigate();
   const lock = useUiStore((s) => s.lock);
+  const { data: cards = [] } = useCards();
   const [changingPin, setChangingPin] = useState(false);
   const [biometricOn, setBiometricOn] = useState(isBiometricEnabled);
+  const [remindersOn, setRemindersOn] = useState(isReminderEnabled);
+  const [daysBefore, setDaysBefore] = useState(getReminderDaysBefore);
 
   function handleLockNow() {
     lock();
@@ -26,6 +37,29 @@ export default function SettingsScreen() {
     const next = !biometricOn;
     setBiometricEnabled(next);
     setBiometricOn(next);
+  }
+
+  function reschedule() {
+    scheduleDueReminders(
+      (cards as Card[]).map((c) => ({
+        id: c.id,
+        nickname: c.nickname,
+        payment_due_day: c.payment_due_day,
+      })),
+    );
+  }
+
+  function toggleReminders() {
+    const next = !remindersOn;
+    setReminderEnabled(next);
+    setRemindersOn(next);
+    reschedule();
+  }
+
+  function changeDays(n: number) {
+    setReminderDaysBefore(n);
+    setDaysBefore(n);
+    reschedule();
   }
 
   return (
@@ -68,6 +102,44 @@ export default function SettingsScreen() {
                   />
                 </span>
               </button>
+              <div className="h-px bg-elevated" />
+              <button
+                onClick={toggleReminders}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-elevated transition-colors"
+              >
+                <span className="text-sm">Due-date reminders</span>
+                <span
+                  className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${
+                    remindersOn ? 'bg-gold' : 'bg-elevated'
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                      remindersOn ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </span>
+              </button>
+              {remindersOn && (
+                <div className="px-5 py-4 flex items-center justify-between">
+                  <span className="text-sm text-muted">Remind days before</span>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 5, 7].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => changeDays(n)}
+                        className={`w-8 h-8 rounded-chip text-xs ${
+                          daysBefore === n
+                            ? 'bg-gold text-base font-semibold'
+                            : 'bg-elevated text-muted'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
