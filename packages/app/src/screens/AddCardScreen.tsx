@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
-import { useCreateCard } from '../data/hooks/useCards.js';
+import { useCard, useCreateCard, useUpdateCard } from '../data/hooks/useCards.js';
 import type { Network } from '@cardledger/shared';
 
 const NETWORKS: Network[] = ['Visa', 'Mastercard', 'RuPay', 'Amex'];
@@ -12,7 +12,11 @@ const INPUT_CLS =
 
 export default function AddCardScreen() {
   const nav = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const isEdit = !!id;
+  const { data: existing } = useCard(id ?? '');
   const createCard = useCreateCard();
+  const updateCard = useUpdateCard();
   const [form, setForm] = useState({
     last4: '',
     network: 'Visa' as Network,
@@ -24,6 +28,20 @@ export default function AddCardScreen() {
   });
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        last4: existing.last4,
+        network: existing.network,
+        bank: existing.bank,
+        nickname: existing.nickname,
+        billing_cycle_day: existing.billing_cycle_day,
+        payment_due_day: existing.payment_due_day,
+        credit_limit: Number(existing.credit_limit),
+      });
+    }
+  }, [existing]);
+
   function setField(field: string, value: unknown) {
     setForm((f) => ({ ...f, [field]: value }));
   }
@@ -32,16 +50,22 @@ export default function AddCardScreen() {
     e.preventDefault();
     setError('');
     try {
-      await createCard.mutateAsync(form);
+      if (isEdit && id) {
+        await updateCard.mutateAsync({ id, ...form });
+      } else {
+        await createCard.mutateAsync(form);
+      }
       nav('/', { replace: true });
     } catch {
       setError('Failed to save card — check all fields');
     }
   }
 
+  const saving = createCard.isPending || updateCard.isPending;
+
   return (
     <Screen className="pb-10">
-      <TopBar title="Add Card" back />
+      <TopBar title={isEdit ? 'Edit Card' : 'Add Card'} back />
       <form onSubmit={submit} className="px-6 flex flex-col gap-4">
         <input
           value={form.last4}
@@ -109,10 +133,10 @@ export default function AddCardScreen() {
         {error && <p className="text-sm text-danger">{error}</p>}
         <button
           type="submit"
-          disabled={createCard.isPending}
+          disabled={saving}
           className="bg-gold text-base font-semibold py-3 rounded-input mt-2 hover:bg-gold-hi transition-colors disabled:opacity-50"
         >
-          {createCard.isPending ? 'Saving…' : 'Add Card'}
+          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Card'}
         </button>
       </form>
     </Screen>

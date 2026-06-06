@@ -26,6 +26,7 @@ export default function App() {
             <Route path="/" element={<HomeScreen />} />
             <Route path="/cards/new" element={<AddCardScreen />} />
             <Route path="/cards/:id" element={<CardDetailScreen />} />
+            <Route path="/cards/:id/edit" element={<AddCardScreen />} />
             <Route path="/holders" element={<HolderViewScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />
             <Route path="/sms" element={<SmsImportScreen />} />
