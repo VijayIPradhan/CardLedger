@@ -1,7 +1,8 @@
 # ── Build stage ──────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Node 22: pnpm 11.x requires Node >=22.13 (uses node:sqlite)
+FROM node:22-alpine AS builder
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11.5.1
 
 WORKDIR /app
 

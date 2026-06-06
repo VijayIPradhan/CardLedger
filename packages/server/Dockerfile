@@ -1,7 +1,8 @@
 # ── Build stage ──────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Node 22: pnpm 11.x requires Node >=22.13 (uses node:sqlite)
+FROM node:22-alpine AS builder
 
-RUN apk add --no-cache python3 make g++ && npm install -g pnpm
+RUN apk add --no-cache python3 make g++ && npm install -g pnpm@11.5.1
 
 WORKDIR /app
 
@@ -22,9 +23,9 @@ RUN cd packages/shared && pnpm build
 RUN cd packages/server && pnpm build
 
 # ── Production stage ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
-RUN apk add --no-cache python3 make g++ && npm install -g pnpm
+RUN apk add --no-cache python3 make g++ && npm install -g pnpm@11.5.1
 
 WORKDIR /app
 
