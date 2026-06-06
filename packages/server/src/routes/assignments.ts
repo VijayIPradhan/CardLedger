@@ -35,4 +35,9 @@ export async function assignmentRoutes(app: FastifyInstance) {
     if (!a) return reply.status(404).send({ error: 'Not found' });
     return a;
   });
+
+  app.delete<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
+    await db.delete(assignments).where(eq(assignments.id, req.params.id));
+    return reply.status(204).send();
+  });
 }

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { cards } from '../db/schema.js';
+import { cards, transactions, assignments } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { CreateCardSchema, UpdateCardSchema } from '@cardledger/shared';
 
@@ -44,6 +44,15 @@ export async function cardRoutes(app: FastifyInstance) {
   });
 
   app.delete<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
+    const [txn] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.card_id, req.params.id))
+      .limit(1);
+    if (txn) {
+      return reply.status(409).send({ error: 'Card has transactions' });
+    }
+    await db.delete(assignments).where(eq(assignments.card_id, req.params.id));
     await db.delete(cards).where(eq(cards.id, req.params.id));
     return reply.status(204).send();
   });
