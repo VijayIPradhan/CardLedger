@@ -1,5 +1,5 @@
 // packages/app/src/screens/AddCardScreen.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
@@ -35,6 +35,7 @@ export default function AddCardScreen() {
     credit_limit: 100000,
   });
   const [error, setError] = useState('');
+  const lastDetectedBin = useRef('');
 
   useEffect(() => {
     // Only seed in edit mode. In add mode useCard('') hits the list endpoint
@@ -62,11 +63,21 @@ export default function AddCardScreen() {
   // used only here and is never stored or submitted.
   async function handleDetect() {
     const digits = sanitizeCardNumber(cardNumber);
-    if (digits.length < 6) return;
+    // Only detect on a plausibly-complete number (13–19 digits). This avoids
+    // setting last4 from a partial entry like "4532 1234" → wrong last4.
+    if (digits.length < 13) return;
     const bin = extractBin(digits);
     const last4 = extractLast4(digits);
+    // Skip a repeat lookup for the same BIN (saves the binlist rate limit).
+    if (bin === lastDetectedBin.current) {
+      setForm((f) => ({ ...f, bin, last4 }));
+      return;
+    }
+    lastDetectedBin.current = bin;
     setDetectMsg('Detecting…');
     const info = await lookupBin(bin);
+    // Discard a stale result if the user changed the number while we awaited.
+    if (extractBin(sanitizeCardNumber(cardNumber)) !== bin) return;
     setForm((f) => ({
       ...f,
       bin,
@@ -125,6 +136,7 @@ export default function AddCardScreen() {
             onChange={(e) => setCardNumber(e.target.value)}
             onBlur={handleDetect}
             inputMode="numeric"
+            maxLength={19}
             placeholder="Optional — autofills network & bank"
             className={INPUT_CLS}
           />
