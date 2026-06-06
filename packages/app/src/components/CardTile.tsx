@@ -4,6 +4,7 @@ import { getDaysUntilDue } from '@cardledger/shared';
 import { SpendRing } from './SpendRing.js';
 import { DueDateChip } from './DueDateChip.js';
 import { HolderBadge } from './HolderBadge.js';
+import { networkLogo } from '../lib/networkLogo.js';
 
 const NETWORK_COLORS: Record<string, string> = {
   Visa: 'from-[#1a237e] to-[#283593]',
@@ -33,12 +34,20 @@ export function CardTile({ card, holder, cycleSpend, onClick }: CardTileProps) {
     >
       <div className="absolute inset-0 rounded-card bg-black/10" />
       <div className="relative flex flex-col justify-between h-full">
-        <div className="flex justify-between items-start">
-          <div>
+        <div className="flex justify-between items-start gap-3">
+          <div className="flex-1 min-w-0">
             <p className="text-xs text-white/60 mb-1">{card.bank}</p>
-            <p className="text-lg font-semibold">{card.nickname}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-lg font-semibold truncate">{card.nickname}</p>
+              {holder && <HolderBadge holder={holder} />}
+            </div>
+            {card.variant && <p className="text-xs text-white/60 mt-0.5">{card.variant}</p>}
           </div>
-          {holder && <HolderBadge holder={holder} />}
+          <img
+            src={networkLogo(card.network)}
+            alt={card.network}
+            className="h-6 w-auto object-contain shrink-0"
+          />
         </div>
         <div className="flex justify-between items-end">
           <div>
