@@ -13,12 +13,7 @@ import { useAssignments } from '../data/hooks/useAssignments.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
 import { useUiStore } from '../store/uiStore.js';
 import { scheduleDueReminders } from '../lib/notifications.js';
-import {
-  getCycleRange,
-  getCardUtilization,
-  getTotalUtilization,
-  getUpcomingDues,
-} from '@cardledger/shared';
+import { getCardUtilization, getTotalUtilization, getUpcomingDues } from '@cardledger/shared';
 import type { Card, Holder, Transaction, Assignment } from '@cardledger/shared';
 
 const todayISO = () => new Date().toISOString().split('T')[0];
@@ -76,12 +71,11 @@ export default function HomeScreen() {
     child?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }
 
-  // current-cycle spend per card
+  // Usage = all unpaid spend per card (all-time), regardless of cycle or who used it.
   const spendByCard: Record<string, number> = {};
   for (const card of cardList) {
-    const { start, end } = getCycleRange(card.billing_cycle_day, today);
     spendByCard[card.id] = (transactions as Transaction[])
-      .filter((t) => t.card_id === card.id && t.txn_date >= start && t.txn_date <= end)
+      .filter((t) => t.card_id === card.id)
       .reduce((s, t) => s + Number(t.amount), 0);
   }
 
