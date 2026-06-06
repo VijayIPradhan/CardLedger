@@ -12,6 +12,11 @@ export const CreateCardSchema = z.object({
   billing_cycle_day: z.number().int().min(1).max(28),
   payment_due_day: z.number().int().min(1).max(28),
   credit_limit: z.number().positive(),
+  bin: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
+  variant: z.string().max(100).optional(),
 });
 
 export const UpdateCardSchema = CreateCardSchema.partial();

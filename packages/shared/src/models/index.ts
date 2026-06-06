@@ -12,6 +12,8 @@ export interface Card {
   billing_cycle_day: number;
   payment_due_day: number;
   credit_limit: number;
+  bin: string | null;
+  variant: string | null;
   created_at: string;
 }
 
