@@ -1,6 +1,7 @@
 {
   "name": "cardledger",
   "private": true,
+  "packageManager": "pnpm@11.5.1",
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
