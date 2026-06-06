@@ -6,6 +6,8 @@ interface UiState {
   openSheet: string | null;
   openBottomSheet: (id: string) => void;
   closeBottomSheet: () => void;
+  addTxnCardId: string | null; // pre-selected card for the add-txn sheet
+  setAddTxnCardId: (id: string | null) => void;
   locked: boolean;
   lock: () => void;
   unlock: () => void;
@@ -17,6 +19,8 @@ export const useUiStore = create<UiState>((set) => ({
   openSheet: null,
   openBottomSheet: (id) => set({ openSheet: id }),
   closeBottomSheet: () => set({ openSheet: null }),
+  addTxnCardId: null,
+  setAddTxnCardId: (id) => set({ addTxnCardId: id }),
   locked: false,
   lock: () => set({ locked: true }),
   unlock: () => set({ locked: false }),
