@@ -85,26 +85,53 @@ export default function HomeScreen() {
 
   return (
     <Screen className="pb-24">
-      <TopBar title="CardLedger" />
+      <TopBar
+        title="CardLedger"
+        action={
+          <button
+            onClick={() => nav('/cards/new')}
+            className="w-8 h-8 rounded-full bg-elevated text-gold flex items-center justify-center text-xl leading-none"
+            aria-label="Add card"
+          >
+            +
+          </button>
+        }
+      />
+
+      {/* Empty state — no cards yet */}
+      {cardList.length === 0 && (
+        <div className="flex flex-col items-center justify-center text-muted gap-3 px-6 py-20">
+          <p className="text-4xl">◎</p>
+          <p className="text-center text-sm">No cards yet. Tap + to add your first card.</p>
+          <button
+            onClick={() => nav('/cards/new')}
+            className="mt-2 bg-gold text-base font-semibold px-6 py-3 rounded-input"
+          >
+            Add card
+          </button>
+        </div>
+      )}
 
       {/* Portfolio summary */}
-      <div className="px-4 mb-5">
-        <div className="bg-surface rounded-card p-5 flex items-center gap-5">
-          <div className="relative flex items-center justify-center">
-            <SpendRing spent={total.spend} limit={total.limit} size={72} />
-            <span className="absolute text-sm font-semibold">{total.percent}%</span>
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-muted">Total utilization</p>
-            <p className="text-lg font-semibold">
-              ₹{total.spend.toLocaleString('en-IN')}{' '}
-              <span className="text-muted text-sm font-normal">
-                / ₹{total.limit.toLocaleString('en-IN')}
-              </span>
-            </p>
+      {cardList.length > 0 && (
+        <div className="px-4 mb-5">
+          <div className="bg-surface rounded-card p-5 flex items-center gap-5">
+            <div className="relative flex items-center justify-center">
+              <SpendRing spent={total.spend} limit={total.limit} size={72} />
+              <span className="absolute text-sm font-semibold">{total.percent}%</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted">Total utilization</p>
+              <p className="text-lg font-semibold">
+                ₹{total.spend.toLocaleString('en-IN')}{' '}
+                <span className="text-muted text-sm font-normal">
+                  / ₹{total.limit.toLocaleString('en-IN')}
+                </span>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Upcoming dues */}
       {dues.length > 0 && (
@@ -131,38 +158,40 @@ export default function HomeScreen() {
       )}
 
       {/* Card carousel */}
-      <div className="relative h-56 mb-2">
-        <AnimatePresence initial={false}>
-          {cardList.map((card, i) => {
-            const offset = i - activeCardIndex;
-            if (Math.abs(offset) > 2) return null;
-            const util = getCardUtilization(Number(card.credit_limit), spendByCard[card.id] ?? 0);
-            return (
-              <motion.div
-                key={card.id}
-                className="absolute inset-x-4"
-                style={{ zIndex: 10 - Math.abs(offset) }}
-                initial={{ opacity: 0, y: 40, scale: 0.9 }}
-                animate={{
-                  opacity: offset === 0 ? 1 : 0.4,
-                  y: offset * 14,
-                  scale: 1 - Math.abs(offset) * 0.05,
-                }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                onClick={() => (offset === 0 ? nav(`/cards/${card.id}`) : setActiveCardIndex(i))}
-              >
-                <CardTile
-                  card={card}
-                  holder={getCardHolder(card.id)}
-                  cycleSpend={spendByCard[card.id] ?? 0}
-                />
-                <p className="text-center text-xs text-muted mt-2">{util.percent}% utilized</p>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+      {cardList.length > 0 && (
+        <div className="relative h-56 mb-2">
+          <AnimatePresence initial={false}>
+            {cardList.map((card, i) => {
+              const offset = i - activeCardIndex;
+              if (Math.abs(offset) > 2) return null;
+              const util = getCardUtilization(Number(card.credit_limit), spendByCard[card.id] ?? 0);
+              return (
+                <motion.div
+                  key={card.id}
+                  className="absolute inset-x-4"
+                  style={{ zIndex: 10 - Math.abs(offset) }}
+                  initial={{ opacity: 0, y: 40, scale: 0.9 }}
+                  animate={{
+                    opacity: offset === 0 ? 1 : 0.4,
+                    y: offset * 14,
+                    scale: 1 - Math.abs(offset) * 0.05,
+                  }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  onClick={() => (offset === 0 ? nav(`/cards/${card.id}`) : setActiveCardIndex(i))}
+                >
+                  <CardTile
+                    card={card}
+                    holder={getCardHolder(card.id)}
+                    cycleSpend={spendByCard[card.id] ?? 0}
+                  />
+                  <p className="text-center text-xs text-muted mt-2">{util.percent}% utilized</p>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Dot indicators */}
       {cardList.length > 1 && (
