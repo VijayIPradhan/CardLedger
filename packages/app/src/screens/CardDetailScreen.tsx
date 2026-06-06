@@ -69,9 +69,14 @@ export default function CardDetailScreen() {
 
   async function handleDeleteTxn() {
     if (!selectedTxn) return;
-    await deleteTxn.mutateAsync(selectedTxn.id);
-    setSelectedTxn(null);
-    closeBottomSheet();
+    setError('');
+    try {
+      await deleteTxn.mutateAsync(selectedTxn.id);
+      setSelectedTxn(null);
+      closeBottomSheet();
+    } catch {
+      setError('Could not delete transaction.');
+    }
   }
 
   function openTxnActions(t: Transaction) {

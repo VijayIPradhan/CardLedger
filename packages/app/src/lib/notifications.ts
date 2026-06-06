@@ -63,6 +63,9 @@ export async function scheduleDueReminders(cards: ReminderCard[]): Promise<void>
       const at = new Date();
       at.setDate(at.getDate() + fireInDays);
       at.setHours(9, 0, 0, 0);
+      // Skip if the 9 AM slot has already passed today — Android fires
+      // past-dated notifications immediately, which is jarring at app open.
+      if (at.getTime() <= Date.now()) return null;
       return {
         id: notifId(card.id),
         title: 'Payment due soon',

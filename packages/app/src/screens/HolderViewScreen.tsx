@@ -61,12 +61,17 @@ export default function HolderViewScreen() {
   }
 
   async function handleSubmit(data: { name: string; phone: string; relationship: 'friend' }) {
-    if (editing) {
-      await updateHolder.mutateAsync({ id: editing.id, ...data });
-    } else {
-      await createHolder.mutateAsync(data);
+    setError('');
+    try {
+      if (editing) {
+        await updateHolder.mutateAsync({ id: editing.id, ...data });
+      } else {
+        await createHolder.mutateAsync(data);
+      }
+      closeBottomSheet();
+    } catch {
+      setError('Could not save — check the name and phone number.');
     }
-    closeBottomSheet();
   }
 
   async function handleDelete(h: Holder) {

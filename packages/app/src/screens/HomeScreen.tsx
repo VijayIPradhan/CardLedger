@@ -46,8 +46,9 @@ export default function HomeScreen() {
         })),
       );
     }
-    // schedule whenever the number of cards changes
-  }, [cardList.length]);
+    // React Query uses structural sharing, so cardList is a new reference only
+    // when card data actually changes — this reschedules after edits too.
+  }, [cardList]);
 
   // current-cycle spend per card
   const spendByCard: Record<string, number> = {};
