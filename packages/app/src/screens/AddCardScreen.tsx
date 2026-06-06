@@ -29,7 +29,9 @@ export default function AddCardScreen() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (existing) {
+    // Only seed in edit mode. In add mode `useCard('')` hits the list endpoint
+    // and returns an array, which must NOT overwrite the blank form.
+    if (isEdit && existing && !Array.isArray(existing)) {
       setForm({
         last4: existing.last4,
         network: existing.network,
