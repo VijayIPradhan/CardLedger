@@ -3,3 +3,13 @@ dist/
 .env
 *.local
 .turbo/
+
+# Compiled TS accidentally emitted next to source (built fresh by tsc/vite)
+packages/app/src/*.js
+packages/app/src/**/*.js
+packages/app/src/*.js.map
+packages/app/src/**/*.js.map
+packages/shared/src/*.js
+packages/shared/src/**/*.js
+packages/shared/src/*.js.map
+packages/shared/src/**/*.js.map

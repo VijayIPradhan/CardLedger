@@ -9,6 +9,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
+    "noEmit": true,
     "paths": {
       "@cardledger/shared": ["../shared/src/index.ts"]
     }
