@@ -25,6 +25,8 @@ export default function AddCardScreen() {
     billing_cycle_day: 1,
     payment_due_day: 20,
     credit_limit: 100000,
+    bin: null as string | null,
+    variant: null as string | null,
   });
   const [error, setError] = useState('');
 
@@ -40,6 +42,8 @@ export default function AddCardScreen() {
         billing_cycle_day: existing.billing_cycle_day,
         payment_due_day: existing.payment_due_day,
         credit_limit: Number(existing.credit_limit),
+        bin: existing.bin ?? null,
+        variant: existing.variant ?? null,
       });
     }
   }, [existing]);
