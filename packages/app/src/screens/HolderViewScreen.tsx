@@ -1,16 +1,31 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { BottomNav } from '../components/BottomNav.js';
-import { useHolders } from '../data/hooks/useHolders.js';
+import { BottomSheet } from '../components/BottomSheet.js';
+import { HolderForm } from '../components/HolderForm.js';
+import {
+  useHolders,
+  useCreateHolder,
+  useUpdateHolder,
+  useDeleteHolder,
+} from '../data/hooks/useHolders.js';
 import { useCards } from '../data/hooks/useCards.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
+import { useUiStore } from '../store/uiStore.js';
 import type { Holder, Card, Transaction } from '@cardledger/shared';
 
 export default function HolderViewScreen() {
   const { data: holders = [] } = useHolders();
   const { data: cards = [] } = useCards();
   const { data: transactions = [] } = useTransactions();
+  const createHolder = useCreateHolder();
+  const updateHolder = useUpdateHolder();
+  const deleteHolder = useDeleteHolder();
+  const { openBottomSheet, closeBottomSheet } = useUiStore();
+  const [editing, setEditing] = useState<Holder | null>(null);
+  const [error, setError] = useState('');
 
   const cardMap = Object.fromEntries(cards.map((c: Card) => [c.id, c]));
   const friends = holders.filter((h: Holder) => h.relationship === 'friend');
@@ -33,13 +48,53 @@ export default function HolderViewScreen() {
       .filter((x): x is { card: Card; amount: number } => !!x.card);
   }
 
+  function openAdd() {
+    setEditing(null);
+    setError('');
+    openBottomSheet('holder-form');
+  }
+
+  function openEdit(h: Holder) {
+    setEditing(h);
+    setError('');
+    openBottomSheet('holder-form');
+  }
+
+  async function handleSubmit(data: { name: string; phone: string; relationship: 'friend' }) {
+    if (editing) {
+      await updateHolder.mutateAsync({ id: editing.id, ...data });
+    } else {
+      await createHolder.mutateAsync(data);
+    }
+    closeBottomSheet();
+  }
+
+  async function handleDelete(h: Holder) {
+    setError('');
+    try {
+      await deleteHolder.mutateAsync(h.id);
+    } catch {
+      setError(`Can't delete ${h.name} — they have transactions or assignments.`);
+    }
+  }
+
   return (
     <Screen className="pb-24">
       <TopBar title="Holders" />
       <div className="px-4 flex flex-col gap-4">
+        <button
+          onClick={openAdd}
+          className="w-full bg-surface border border-elevated rounded-card py-3 text-sm text-gold font-semibold"
+        >
+          + Add friend
+        </button>
+
+        {error && <p className="text-danger text-xs text-center">{error}</p>}
+
         {friends.length === 0 && (
           <p className="text-muted text-sm text-center py-16">No friends added yet</p>
         )}
+
         {friends.map((holder: Holder, i: number) => {
           const total = getTotal(holder);
           const breakdown = getBreakdown(holder);
@@ -84,10 +139,34 @@ export default function HolderViewScreen() {
                   <span className="text-sm text-danger">−₹{amount.toLocaleString('en-IN')}</span>
                 </div>
               ))}
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => openEdit(holder)}
+                  className="flex-1 bg-elevated py-2 rounded-input text-xs"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(holder)}
+                  className="flex-1 bg-elevated py-2 rounded-input text-xs text-danger"
+                >
+                  Delete
+                </button>
+              </div>
             </motion.div>
           );
         })}
       </div>
+
+      <BottomSheet id="holder-form" title={editing ? 'Edit friend' : 'Add friend'}>
+        <HolderForm
+          initial={editing ?? undefined}
+          submitting={createHolder.isPending || updateHolder.isPending}
+          onSubmit={handleSubmit}
+          onCancel={closeBottomSheet}
+        />
+      </BottomSheet>
+
       <BottomNav />
     </Screen>
   );
