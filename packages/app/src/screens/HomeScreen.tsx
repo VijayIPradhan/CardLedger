@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { BottomNav } from '../components/BottomNav.js';
@@ -49,6 +48,33 @@ export default function HomeScreen() {
     // React Query uses structural sharing, so cardList is a new reference only
     // when card data actually changes — this reschedules after edits too.
   }, [cardList]);
+
+  // Horizontal carousel scroll handling
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Update the active index (for dots + reminders) based on which card is centered
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const center = el.scrollLeft + el.clientWidth / 2;
+    let nearest = 0;
+    let best = Infinity;
+    Array.from(el.children).forEach((c, i) => {
+      const child = c as HTMLElement;
+      const childCenter = child.offsetLeft + child.offsetWidth / 2;
+      const dist = Math.abs(childCenter - center);
+      if (dist < best) {
+        best = dist;
+        nearest = i;
+      }
+    });
+    if (nearest !== activeCardIndex) setActiveCardIndex(nearest);
+  }
+
+  function scrollToCard(i: number) {
+    const child = scrollRef.current?.children[i] as HTMLElement | undefined;
+    child?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
 
   // current-cycle spend per card
   const spendByCard: Record<string, number> = {};
@@ -157,39 +183,29 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Card carousel */}
+      {/* Card carousel — horizontal snap scroll, every card reachable by swiping */}
       {cardList.length > 0 && (
-        <div className="relative h-56 mb-2">
-          <AnimatePresence initial={false}>
-            {cardList.map((card, i) => {
-              const offset = i - activeCardIndex;
-              if (Math.abs(offset) > 2) return null;
-              const util = getCardUtilization(Number(card.credit_limit), spendByCard[card.id] ?? 0);
-              return (
-                <motion.div
-                  key={card.id}
-                  className="absolute inset-x-4"
-                  style={{ zIndex: 10 - Math.abs(offset) }}
-                  initial={{ opacity: 0, y: 40, scale: 0.9 }}
-                  animate={{
-                    opacity: offset === 0 ? 1 : 0.4,
-                    y: offset * 14,
-                    scale: 1 - Math.abs(offset) * 0.05,
-                  }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  onClick={() => (offset === 0 ? nav(`/cards/${card.id}`) : setActiveCardIndex(i))}
-                >
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex overflow-x-auto snap-x snap-mandatory gap-4 px-4 pb-2 [&::-webkit-scrollbar]:hidden"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {cardList.map((card) => {
+            const util = getCardUtilization(Number(card.credit_limit), spendByCard[card.id] ?? 0);
+            return (
+              <div key={card.id} className="snap-center shrink-0 w-[85%]">
+                <div onClick={() => nav(`/cards/${card.id}`)}>
                   <CardTile
                     card={card}
                     holder={getCardHolder(card.id)}
                     cycleSpend={spendByCard[card.id] ?? 0}
                   />
-                  <p className="text-center text-xs text-muted mt-2">{util.percent}% utilized</p>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                </div>
+                <p className="text-center text-xs text-muted mt-2">{util.percent}% utilized</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -199,7 +215,7 @@ export default function HomeScreen() {
           {cardList.map((c, i) => (
             <button
               key={c.id}
-              onClick={() => setActiveCardIndex(i)}
+              onClick={() => scrollToCard(i)}
               className={`h-1.5 rounded-full transition-all ${
                 i === activeCardIndex ? 'w-5 bg-gold' : 'w-1.5 bg-elevated'
               }`}
