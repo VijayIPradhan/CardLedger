@@ -15,8 +15,9 @@ export const CreateCardSchema = z.object({
   bin: z
     .string()
     .regex(/^\d{6}$/)
+    .nullable()
     .optional(),
-  variant: z.string().max(100).optional(),
+  variant: z.string().max(100).nullable().optional(),
 });
 
 export const UpdateCardSchema = CreateCardSchema.partial();
