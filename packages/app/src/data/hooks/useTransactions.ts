@@ -10,11 +10,34 @@ export function useTransactions(params?: { card_id?: string; holder_id?: string 
   });
 }
 
+// holder_id_at_time is the optional "who used" override (manual entry)
+export type CreateTransactionInput = Omit<
+  Transaction,
+  'id' | 'created_at' | 'holder_id_at_time'
+> & { holder_id_at_time?: string };
+
 export function useCreateTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<Transaction, 'id' | 'created_at' | 'holder_id_at_time'>) =>
+    mutationFn: (data: CreateTransactionInput) =>
       api.post('/transactions', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
+  });
+}
+
+export function useUpdateTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<Transaction> & { id: string }) =>
+      api.patch(`/transactions/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
+  });
+}
+
+export function useDeleteTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/transactions/${id}`).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
   });
 }

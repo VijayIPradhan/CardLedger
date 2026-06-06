@@ -18,3 +18,20 @@ export function useCreateHolder() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['holders'] }),
   });
 }
+
+export function useUpdateHolder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<Holder> & { id: string }) =>
+      api.patch(`/holders/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['holders'] }),
+  });
+}
+
+export function useDeleteHolder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/holders/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['holders'] }),
+  });
+}

@@ -35,3 +35,11 @@ export function useUpdateCard() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cards'] }),
   });
 }
+
+export function useDeleteCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/cards/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cards'] }),
+  });
+}

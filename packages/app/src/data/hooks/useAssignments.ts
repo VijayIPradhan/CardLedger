@@ -6,7 +6,9 @@ export function useAssignments(cardId?: string) {
   return useQuery<Assignment[]>({
     queryKey: ['assignments', cardId],
     queryFn: () =>
-      api.get('/assignments', { params: cardId ? { card_id: cardId } : undefined }).then((r) => r.data),
+      api
+        .get('/assignments', { params: cardId ? { card_id: cardId } : undefined })
+        .then((r) => r.data),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -36,6 +38,14 @@ export function useReturnCard() {
   return useMutation({
     mutationFn: (assignmentId: string) =>
       api.post(`/assignments/${assignmentId}/return`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['assignments'] }),
+  });
+}
+
+export function useDeleteAssignment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/assignments/${id}`).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assignments'] }),
   });
 }
