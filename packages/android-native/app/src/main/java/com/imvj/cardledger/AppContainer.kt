@@ -18,4 +18,6 @@ class AppContainer(context: Context) {
     val holderRepo = HolderRepository(api)
     val assignmentRepo = AssignmentRepository(api)
     val transactionRepo = TransactionRepository(api)
+    val metadataRepo = MetadataRepository(api)
+    val paymentRepo = PaymentRepository(api)
 }

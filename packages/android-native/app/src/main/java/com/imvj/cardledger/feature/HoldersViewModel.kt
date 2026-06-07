@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 data class FriendRow(
     val holder: HolderDto,
     val total: Double,
+    val outstanding: Double,
     val breakdown: List<Pair<CardDto, Double>>,
 )
 
@@ -30,15 +31,28 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
             val holders = c.holderRepo.list().getOrElse { emptyList() }
             val cards = c.cardRepo.list().getOrElse { emptyList() }
             val txns = c.transactionRepo.list().getOrElse { emptyList() }
+            val payments = c.paymentRepo.list().getOrElse { emptyList() }
             val cardMap = cards.associateBy { it.id }
             val friends = holders.filter { it.relationship == "friend" }.map { h ->
                 val mine = txns.filter { it.holder_id_at_time == h.id }
+                val myPayments = payments.filter { it.holder_id == h.id }
                 val total = mine.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                val totalPaid = myPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                val outstanding = total - totalPaid
                 val byCard = mine.groupBy { it.card_id }
                     .mapNotNull { (cid, list) -> cardMap[cid]?.let { it to list.sumOf { t -> t.amount.toDoubleOrNull() ?: 0.0 } } }
-                FriendRow(h, total, byCard)
+                FriendRow(h, total, outstanding, byCard)
             }
             _state.value = HoldersUiState(false, friends)
+        }
+    }
+
+    fun recordPayment(holderId: String, amount: Double, onDone: () -> Unit) {
+        viewModelScope.launch {
+            val date = java.time.LocalDate.now().toString()
+            val dto = CreatePaymentDto(holderId, amount, date)
+            c.paymentRepo.create(dto).onSuccess { load(); onDone() }
+                .onFailure { _state.value = _state.value.copy(error = "Could not record payment") }
         }
     }
 

@@ -32,4 +32,9 @@ interface ApiService {
     @POST("transactions") suspend fun createTransaction(@Body body: CreateTransactionDto): TransactionDto
     @PATCH("transactions/{id}") suspend fun updateTransaction(@Path("id") id: String, @Body body: UpdateTransactionDto): TransactionDto
     @DELETE("transactions/{id}") suspend fun deleteTransaction(@Path("id") id: String): Response<Unit>
+
+    @GET("metadata/banks") suspend fun getBankMetadata(): BankVariantMetadataDto
+
+    @GET("payments") suspend fun getPayments(@Query("holder_id") holderId: String? = null): List<PaymentDto>
+    @POST("payments") suspend fun createPayment(@Body body: CreatePaymentDto): PaymentDto
 }

@@ -37,6 +37,7 @@ fun HoldersScreen(nav: NavHostController) {
 
     var showForm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<HolderDto?>(null) }
+    var paying by remember { mutableStateOf<HolderDto?>(null) }
 
     Scaffold(
         bottomBar = { BottomBar(nav, 0) },
@@ -95,8 +96,9 @@ fun HoldersScreen(nav: NavHostController) {
                                 Text(friendRow.holder.phone, color = Muted, fontSize = 12.sp)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("Total", color = Muted, fontSize = 11.sp)
-                                Text(money(friendRow.total), color = Gold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Outstanding", color = Muted, fontSize = 11.sp)
+                                val color = if (friendRow.outstanding > 0) Gold else androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                Text(money(friendRow.outstanding), color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             }
                         }
 
@@ -121,6 +123,15 @@ fun HoldersScreen(nav: NavHostController) {
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { paying = friendRow.holder },
+                                modifier = Modifier.weight(1.5f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Gold),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("Record Payment", color = Base, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
                             TextButton(
                                 onClick = { editing = friendRow.holder; showForm = true },
                                 modifier = Modifier.weight(1f),
@@ -187,6 +198,56 @@ fun HoldersScreen(nav: NavHostController) {
 
                 TextButton(
                     onClick = { showForm = false },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Cancel", color = Muted)
+                }
+            }
+        }
+    }
+
+    if (paying != null) {
+        var paymentAmount by remember { mutableStateOf("") }
+        ModalBottomSheet(onDismissRequest = { paying = null }) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Record Payment",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = OnDark,
+                    fontWeight = FontWeight.SemiBold,
+                )
+
+                Text("Record money paid by ${paying?.name}", color = Muted, fontSize = 14.sp)
+
+                OutlinedTextField(
+                    value = paymentAmount,
+                    onValueChange = { paymentAmount = it },
+                    label = { Text("Amount (₹)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                Button(
+                    onClick = {
+                        val amount = paymentAmount.toDoubleOrNull()
+                        if (amount != null && amount > 0) {
+                            vm.recordPayment(paying!!.id, amount) { paying = null }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold),
+                ) {
+                    Text("Save Payment", color = Base)
+                }
+
+                TextButton(
+                    onClick = { paying = null },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Cancel", color = Muted)

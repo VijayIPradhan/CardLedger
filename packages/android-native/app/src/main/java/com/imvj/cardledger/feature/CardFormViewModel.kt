@@ -25,12 +25,21 @@ data class CardFormState(
     val detectMsg: String? = null,
     val saving: Boolean = false,
     val error: String? = null,
+    val bankMetadata: com.imvj.cardledger.data.net.BankVariantMetadataDto? = null,
 )
 
 class CardFormViewModel(private val c: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(CardFormState())
     val state: StateFlow<CardFormState> = _state
     fun update(transform: (CardFormState) -> CardFormState) { _state.value = transform(_state.value) }
+
+    init {
+        viewModelScope.launch {
+            c.metadataRepo.getBankMetadata().onSuccess { metadata ->
+                _state.value = _state.value.copy(bankMetadata = metadata)
+            }
+        }
+    }
 
     fun loadExisting(id: String) {
         viewModelScope.launch {

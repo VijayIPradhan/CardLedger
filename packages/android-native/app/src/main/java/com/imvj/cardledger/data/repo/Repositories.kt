@@ -43,3 +43,12 @@ class TransactionRepository(private val api: ApiService) {
     suspend fun update(id: String, b: UpdateTransactionDto) = call { api.updateTransaction(id, b) }
     suspend fun delete(id: String) = call { api.deleteTransaction(id); Unit }
 }
+
+class MetadataRepository(private val api: ApiService) {
+    suspend fun getBankMetadata() = call { api.getBankMetadata() }
+}
+
+class PaymentRepository(private val api: ApiService) {
+    suspend fun list(holderId: String? = null) = call { api.getPayments(holderId) }
+    suspend fun create(b: CreatePaymentDto) = call { api.createPayment(b) }
+}

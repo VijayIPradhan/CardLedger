@@ -39,6 +39,9 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 total = totalUtilization(cards, spend),
                 dues = upcomingDues(cards, today(), 7),
             )
+            com.imvj.cardledger.notif.ReminderScheduler.reschedule(
+                c.appContext, cards, c.prefsStore.reminderDays(), c.prefsStore.remindersEnabled()
+            )
         }
     }
 }

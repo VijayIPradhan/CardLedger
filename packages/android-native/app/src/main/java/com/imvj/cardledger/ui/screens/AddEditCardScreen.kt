@@ -34,6 +34,10 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
 
     val networkOptions = listOf("Visa", "Mastercard", "RuPay", "Amex")
     var networkExpanded by remember { mutableStateOf(false) }
+    var bankExpanded by remember { mutableStateOf(false) }
+    var variantExpanded by remember { mutableStateOf(false) }
+    var isCustomBank by remember { mutableStateOf(false) }
+    var isCustomVariant by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Base,
@@ -111,23 +115,105 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                 }
             }
 
-            // Bank
-            OutlinedTextField(
-                value = s.bank,
-                onValueChange = { vm.update { st -> st.copy(bank = it) } },
-                label = { Text("Bank") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
+            // Bank dropdown
+            val banks = s.bankMetadata?.banks?.map { it.name } ?: emptyList()
+            val variants = s.bankMetadata?.banks?.find { it.name == s.bank }?.variants ?: emptyList()
 
-            // Variant (optional)
-            OutlinedTextField(
-                value = s.variant,
-                onValueChange = { vm.update { st -> st.copy(variant = it) } },
-                label = { Text("Variant (optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
+            ExposedDropdownMenuBox(
+                expanded = bankExpanded,
+                onExpandedChange = { bankExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = if (isCustomBank) "Custom Bank..." else s.bank,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Bank") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = bankExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                )
+                ExposedDropdownMenu(
+                    expanded = bankExpanded,
+                    onDismissRequest = { bankExpanded = false },
+                ) {
+                    banks.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                isCustomBank = false
+                                vm.update { it.copy(bank = option, variant = "") }
+                                bankExpanded = false
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Custom Bank...") },
+                        onClick = {
+                            isCustomBank = true
+                            vm.update { it.copy(bank = "", variant = "") }
+                            bankExpanded = false
+                        },
+                    )
+                }
+            }
+
+            if (isCustomBank) {
+                OutlinedTextField(
+                    value = s.bank,
+                    onValueChange = { vm.update { st -> st.copy(bank = it) } },
+                    label = { Text("Custom Bank Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
+
+            // Variant dropdown
+            ExposedDropdownMenuBox(
+                expanded = variantExpanded,
+                onExpandedChange = { variantExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = if (isCustomVariant) "Custom Variant..." else s.variant,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Variant (optional)") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = variantExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    enabled = s.bank.isNotBlank() && !isCustomBank,
+                )
+                ExposedDropdownMenu(
+                    expanded = variantExpanded,
+                    onDismissRequest = { variantExpanded = false },
+                ) {
+                    variants.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                isCustomVariant = false
+                                vm.update { it.copy(variant = option) }
+                                variantExpanded = false
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Custom Variant...") },
+                        onClick = {
+                            isCustomVariant = true
+                            vm.update { it.copy(variant = "") }
+                            variantExpanded = false
+                        },
+                    )
+                }
+            }
+
+            if (isCustomVariant || isCustomBank) {
+                OutlinedTextField(
+                    value = s.variant,
+                    onValueChange = { vm.update { st -> st.copy(variant = it) } },
+                    label = { Text("Custom Variant Name (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
 
             // Nickname
             OutlinedTextField(

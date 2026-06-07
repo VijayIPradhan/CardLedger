@@ -91,3 +91,32 @@ data class UpdateTransactionDto(
     val txn_date: String? = null,
     val holder_id_at_time: String? = null,
 )
+
+@Serializable
+data class PaymentDto(
+    val id: String,
+    val holder_id: String,
+    val amount: String,
+    val payment_date: String,
+    val notes: String? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class CreatePaymentDto(
+    val holder_id: String,
+    val amount: Double,
+    val payment_date: String,
+    val notes: String? = null,
+)
+
+@Serializable
+data class BankVariantDto(
+    val name: String,
+    val variants: List<String>,
+)
+
+@Serializable
+data class BankVariantMetadataDto(
+    val banks: List<BankVariantDto>,
+)
