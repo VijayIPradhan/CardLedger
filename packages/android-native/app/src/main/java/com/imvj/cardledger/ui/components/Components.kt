@@ -26,11 +26,15 @@ fun money(v: Double): String =
 @Composable
 fun SpendRing(spent: Double, limit: Double, size: Int = 56) {
     val pct = if (limit > 0) (spent / limit).coerceIn(0.0, 1.0).toFloat() else 0f
-    Canvas(Modifier.size(size.dp)) {
-        val stroke = 4.dp.toPx()
-        val d = Size(this.size.width - stroke, this.size.height - stroke)
-        drawArc(Elevated, -90f, 360f, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
-        drawArc(Gold, -90f, 360f * pct, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
+    Box(contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(size.dp)) {
+            val stroke = 4.dp.toPx()
+            val d = Size(this.size.width - stroke, this.size.height - stroke)
+            drawArc(Elevated, -90f, 360f, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
+            drawArc(Gold, -90f, 360f * pct, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
+        }
+        val pctInt = (pct * 100).toInt()
+        Text("$pctInt%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Gold)
     }
 }
 

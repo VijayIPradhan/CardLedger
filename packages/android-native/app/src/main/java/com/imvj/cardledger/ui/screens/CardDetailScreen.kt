@@ -40,6 +40,10 @@ import com.imvj.cardledger.ui.components.*
 import com.imvj.cardledger.ui.nav.Routes
 import com.imvj.cardledger.ui.theme.*
 
+private const val SWIPE_SNAP_THRESHOLD = -200f
+private const val SWIPE_REVEAL_OFFSET = -400f
+private const val SWIPE_CLOSED_OFFSET = 0f
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardDetailScreen(nav: NavHostController, cardId: String) {
@@ -157,11 +161,11 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                     .pointerInput(Unit) {
                                         detectHorizontalDragGestures(
                                             onDragEnd = {
-                                                swipeOffset = if (swipeOffset < -200f) -400f else 0f
+                                                swipeOffset = if (swipeOffset < SWIPE_SNAP_THRESHOLD) SWIPE_REVEAL_OFFSET else SWIPE_CLOSED_OFFSET
                                             }
                                         ) { change, dragAmount ->
                                             change.consume()
-                                            swipeOffset = (swipeOffset + dragAmount).coerceIn(-400f, 0f)
+                                            swipeOffset = (swipeOffset + dragAmount).coerceIn(SWIPE_REVEAL_OFFSET, SWIPE_CLOSED_OFFSET)
                                         }
                                     }
                             ) {

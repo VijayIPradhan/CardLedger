@@ -71,8 +71,7 @@ export default function CardDetailScreen() {
     ? holderMap[activeAssignment.holder_id]
     : holders.find((h: Holder) => h.relationship === 'me');
 
-  // Usage = all unpaid spend on the card (all-time), regardless of cycle or who used it.
-  const totalSpend = (transactions as Transaction[]).reduce((s, t) => s + Number(t.amount), 0);
+  const totalSpend = Number(card.current_spend || 0);
 
   async function handleDeleteCard() {
     setError('');

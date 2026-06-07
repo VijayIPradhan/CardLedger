@@ -36,6 +36,10 @@ import com.imvj.cardledger.ui.nav.BottomBar
 import com.imvj.cardledger.ui.nav.Routes
 import com.imvj.cardledger.ui.theme.*
 
+private const val CARD_STACK_OFFSET_DP = 72
+private const val UPCOMING_DUES_WITHIN_DAYS = 7
+private const val RECENT_TRANSACTIONS_COUNT = 5
+
 @Composable
 fun HomeScreen(nav: NavHostController) {
     val c = app().container
@@ -251,7 +255,7 @@ fun HomeScreen(nav: NavHostController) {
                                     Box(
                                         Modifier
                                             .fillMaxWidth()
-                                            .padding(top = (index * 72).dp)
+                                            .padding(top = (index * CARD_STACK_OFFSET_DP).dp)
                                             .zIndex(index.toFloat())
                                             .shadow(
                                                 elevation = 16.dp,
@@ -271,7 +275,7 @@ fun HomeScreen(nav: NavHostController) {
                 }
 
                 // Recent transactions
-                val recent = s.transactions.sortedByDescending { it.txn_date }.take(5)
+                val recent = s.transactions.sortedByDescending { it.txn_date }.take(RECENT_TRANSACTIONS_COUNT)
                 if (recent.isNotEmpty()) {
                     item {
                         Text(

@@ -15,6 +15,7 @@ data class CardDto(
     val billing_cycle_day: Int,
     val payment_due_day: Int,
     val credit_limit: String,
+    val current_spend: String? = null,
     val bin: String? = null,
     val variant: String? = null,
     val created_at: String? = null,

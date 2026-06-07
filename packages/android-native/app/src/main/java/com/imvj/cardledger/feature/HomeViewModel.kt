@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+private const val UPCOMING_DUES_WITHIN_DAYS = 7
+
 data class HomeUiState(
     val loading: Boolean = true,
     val cards: List<CardDto> = emptyList(),
@@ -34,7 +36,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val payments = c.paymentRepo.list().getOrElse { emptyList() }
             
             val spend = cards.associate { card ->
-                card.id to txns.filter { it.card_id == card.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                card.id to (card.current_spend?.toDoubleOrNull() ?: 0.0)
             }
             
             val friends = holders.filter { it.relationship == "friend" }
@@ -50,7 +52,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 transactions = txns, spendByCard = spend,
                 total = totalUtilization(cards, spend),
                 totalToCollect = totalToCollect,
-                dues = upcomingDues(cards, today(), 7),
+                dues = upcomingDues(cards, today(), UPCOMING_DUES_WITHIN_DAYS),
             )
             com.imvj.cardledger.notif.ReminderScheduler.reschedule(
                 c.appContext, cards, c.prefsStore.reminderDays(), c.prefsStore.remindersEnabled()

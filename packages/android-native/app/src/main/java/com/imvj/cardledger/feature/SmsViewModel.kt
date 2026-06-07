@@ -1,6 +1,7 @@
 package com.imvj.cardledger.feature
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.imvj.cardledger.AppContainer
@@ -16,6 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+private const val TAG = "SmsViewModel"
+private const val SMS_SCAN_DAYS_BACK = 90
 
 data class SmsUiState(val scanning: Boolean = false, val summary: String? = null)
 
@@ -39,7 +43,7 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
             val cards = c.cardRepo.list().getOrElse { emptyList() }
             val serverHashes = c.transactionRepo.list().getOrElse { emptyList() }.mapNotNull { it.dedupe_hash }.toSet()
             var imported = 0; var queued = 0
-            readInbox(context, 90).forEach { sms ->
+            readInbox(context, SMS_SCAN_DAYS_BACK).forEach { sms ->
                 when (handleParsed(sms, cards, serverHashes, autoCommit = true)) {
                     Outcome.IMPORTED -> imported++
                     Outcome.QUEUED -> queued++
@@ -61,6 +65,7 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
         val r = try {
             c.api.parseSmsAi(sms)
         } catch (e: Exception) {
+            Log.w(TAG, "AI SMS parse failed, falling back to local parser", e)
             parseSms(sms)
         } ?: return Outcome.SKIPPED
         if (r.dedupeHash in serverHashes || r.dedupeHash in ReviewStore.knownHashes) return Outcome.SKIPPED

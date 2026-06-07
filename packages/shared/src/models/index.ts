@@ -14,6 +14,7 @@ export interface Card {
   credit_limit: number;
   bin: string | null;
   variant: string | null;
+  current_spend?: number;
   created_at: string;
 }
 

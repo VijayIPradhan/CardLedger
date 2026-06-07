@@ -47,14 +47,6 @@ export default function HomeScreen() {
     // when card data actually changes — this reschedules after edits too.
   }, [cardList]);
 
-  // Usage = all unpaid spend per card (all-time), regardless of cycle or who used it.
-  const spendByCard: Record<string, number> = {};
-  for (const card of cardList) {
-    spendByCard[card.id] = (transactions as Transaction[])
-      .filter((t) => t.card_id === card.id)
-      .reduce((s, t) => s + Number(t.amount), 0);
-  }
-
   // Analytics calculations
   let totalToCollect = 0;
   friends.forEach((friend: Holder) => {
@@ -67,10 +59,13 @@ export default function HomeScreen() {
     totalToCollect += expenses - payments;
   });
 
-  const total = getTotalUtilization(
-    cardList.map((c) => ({ id: c.id, credit_limit: Number(c.credit_limit) })),
-    spendByCard,
-  );
+  const totalLimit = cardList.reduce((acc, c) => acc + Number(c.credit_limit), 0);
+  const totalSpendVal = cardList.reduce((acc, c) => acc + Number(c.current_spend || 0), 0);
+  const total = {
+    spend: totalSpendVal,
+    limit: totalLimit,
+    percent: totalLimit > 0 ? (totalSpendVal / totalLimit) * 100 : 0,
+  };
 
   const dues = getUpcomingDues(
     cardList.map((c) => ({ id: c.id, payment_due_day: c.payment_due_day })),
@@ -196,7 +191,7 @@ export default function HomeScreen() {
 
           // Sort displayed cards by usage descending
           const sortedCards = [...cardList].sort(
-            (a, b) => (spendByCard[b.id] ?? 0) - (spendByCard[a.id] ?? 0),
+            (a, b) => Number(b.current_spend || 0) - Number(a.current_spend || 0),
           );
 
           return (
@@ -217,7 +212,7 @@ export default function HomeScreen() {
                       <CardTile
                         card={card}
                         holder={getCardHolder(card.id)}
-                        cycleSpend={spendByCard[card.id] ?? 0}
+                        cycleSpend={Number(card.current_spend || 0)}
                         limitRank={getLimitRank(card.id)}
                       />
                     </div>

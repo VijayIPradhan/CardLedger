@@ -14,11 +14,14 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "API_BASE_URL", "\"https://cards.imvj.in/api/\"")
     }
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"https://cards.imvj.in/api/\"")
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField("String", "API_BASE_URL", "\"https://cards.imvj.in/api/\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

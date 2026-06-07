@@ -37,7 +37,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val assignments = c.assignmentRepo.list(id).getOrElse { emptyList() }
             val txns = c.transactionRepo.list(cardId = id).getOrElse { emptyList() }
             val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
-            val total = txns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            val total = card?.current_spend?.toDoubleOrNull() ?: 0.0
             val active = assignments.firstOrNull { it.returned_date == null }
             val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }

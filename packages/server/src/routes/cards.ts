@@ -1,18 +1,34 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { cards, transactions, assignments } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql, getTableColumns } from 'drizzle-orm';
 import { CreateCardSchema, UpdateCardSchema } from '@cardledger/shared';
 
 export async function cardRoutes(app: FastifyInstance) {
   const auth = { onRequest: [app.authenticate] };
 
   app.get('/', auth, async () => {
-    return db.select().from(cards).orderBy(cards.created_at);
+    return db
+      .select({
+        ...getTableColumns(cards),
+        current_spend: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.is_paid} = FALSE THEN ${transactions.amount} ELSE 0 END), 0)`,
+      })
+      .from(cards)
+      .leftJoin(transactions, eq(cards.id, transactions.card_id))
+      .groupBy(cards.id)
+      .orderBy(cards.created_at);
   });
 
   app.get<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
-    const [card] = await db.select().from(cards).where(eq(cards.id, req.params.id));
+    const [card] = await db
+      .select({
+        ...getTableColumns(cards),
+        current_spend: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.is_paid} = FALSE THEN ${transactions.amount} ELSE 0 END), 0)`,
+      })
+      .from(cards)
+      .leftJoin(transactions, eq(cards.id, transactions.card_id))
+      .where(eq(cards.id, req.params.id))
+      .groupBy(cards.id);
     if (!card) return reply.status(404).send({ error: 'Not found' });
     return card;
   });
