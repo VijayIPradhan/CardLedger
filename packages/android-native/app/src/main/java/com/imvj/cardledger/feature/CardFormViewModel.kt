@@ -22,10 +22,12 @@ data class CardFormState(
     val billingDay: Int = 1,
     val dueDay: Int = 20,
     val creditLimit: String = "100000",
+    val sharedLimitWith: String? = null,
     val detectMsg: String? = null,
     val saving: Boolean = false,
     val error: String? = null,
     val bankMetadata: com.imvj.cardledger.data.net.BankVariantMetadataDto? = null,
+    val allCards: List<com.imvj.cardledger.data.net.CardDto> = emptyList(),
 )
 
 class CardFormViewModel(private val c: AppContainer) : ViewModel() {
@@ -39,6 +41,11 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
                 _state.value = _state.value.copy(bankMetadata = metadata)
             }
         }
+        viewModelScope.launch {
+            c.cardRepo.list().onSuccess { cards ->
+                _state.value = _state.value.copy(allCards = cards)
+            }
+        }
     }
 
     fun loadExisting(id: String) {
@@ -49,6 +56,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
                     network = card.network, bank = card.bank, variant = card.variant ?: "",
                     nickname = card.nickname, billingDay = card.billing_cycle_day,
                     dueDay = card.payment_due_day, creditLimit = card.credit_limit,
+                    sharedLimitWith = card.shared_limit_with,
                 )
             }
         }
@@ -82,6 +90,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
             last4 = s.last4, network = s.network, bank = s.bank.trim(), nickname = s.nickname.trim(),
             billing_cycle_day = s.billingDay, payment_due_day = s.dueDay, credit_limit = limit,
             bin = s.bin.ifBlank { null }, variant = s.variant.ifBlank { null },
+            shared_limit_with = s.sharedLimitWith,
         )
         _state.value = s.copy(saving = true, error = null)
         viewModelScope.launch {

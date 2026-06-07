@@ -9,7 +9,7 @@ import { BottomSheet } from '../components/BottomSheet.js';
 import { CardTile } from '../components/CardTile.js';
 import { Fab } from '../components/Fab.js';
 import { AddTransactionSheet } from '../components/AddTransactionSheet.js';
-import { useCard, useDeleteCard } from '../data/hooks/useCards.js';
+import { useCard, useCards, useDeleteCard } from '../data/hooks/useCards.js';
 import { useHolders } from '../data/hooks/useHolders.js';
 import { useAssignments } from '../data/hooks/useAssignments.js';
 import {
@@ -66,12 +66,18 @@ export default function CardDetailScreen() {
     })
     .filter((c) => c.txns.length > 0);
 
+  const { data: allCardsRaw } = useCards();
+  const allCards = Array.isArray(allCardsRaw) ? allCardsRaw : [];
+
   const activeAssignment = (assignments as Assignment[]).find((a) => !a.returned_date);
   const currentHolder = activeAssignment
     ? holderMap[activeAssignment.holder_id]
     : holders.find((h: Holder) => h.relationship === 'me');
 
-  const totalSpend = Number(card.current_spend || 0);
+  const groupId = card.shared_limit_with || card.id;
+  const totalSpend = allCards
+    .filter((c: any) => (c.shared_limit_with || c.id) === groupId)
+    .reduce((s, c) => s + Number(c.current_spend || 0), 0);
 
   async function handleDeleteCard() {
     setError('');

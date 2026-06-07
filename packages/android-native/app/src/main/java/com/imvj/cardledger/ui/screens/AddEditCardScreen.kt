@@ -253,6 +253,46 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                 )
             }
 
+            val sameBankCards = s.allCards.filter { it.bank == s.bank && (!s.isEdit || it.id != cardId) }
+            if (s.bank.isNotBlank() && sameBankCards.isNotEmpty()) {
+                var sharedLimitExpanded by remember { mutableStateOf(false) }
+                val currentShared = sameBankCards.find { it.id == s.sharedLimitWith }
+                ExposedDropdownMenuBox(
+                    expanded = sharedLimitExpanded,
+                    onExpandedChange = { sharedLimitExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = currentShared?.let { "${it.nickname} (•••• ${it.last4})" } ?: "None (Independent Limit)",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Shares limit with...") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sharedLimitExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = sharedLimitExpanded,
+                        onDismissRequest = { sharedLimitExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("None (Independent Limit)") },
+                            onClick = {
+                                vm.update { it.copy(sharedLimitWith = null) }
+                                sharedLimitExpanded = false
+                            },
+                        )
+                        sameBankCards.forEach { c ->
+                            DropdownMenuItem(
+                                text = { Text("${c.nickname} (•••• ${c.last4})") },
+                                onClick = {
+                                    vm.update { it.copy(sharedLimitWith = c.id, creditLimit = c.credit_limit) }
+                                    sharedLimitExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             // Credit limit
             OutlinedTextField(
                 value = s.creditLimit,
@@ -261,6 +301,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                enabled = s.sharedLimitWith == null,
             )
 
             // Error

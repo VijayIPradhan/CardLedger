@@ -36,6 +36,7 @@ export const cards = pgTable('cards', {
   credit_limit: numeric('credit_limit', { precision: 12, scale: 2 }).notNull(),
   bin: varchar('bin', { length: 6 }),
   variant: varchar('variant', { length: 100 }),
+  shared_limit_with: uuid('shared_limit_with'),
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
 

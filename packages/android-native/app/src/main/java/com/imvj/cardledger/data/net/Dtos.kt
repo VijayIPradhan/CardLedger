@@ -18,6 +18,7 @@ data class CardDto(
     val current_spend: String? = null,
     val bin: String? = null,
     val variant: String? = null,
+    val shared_limit_with: String? = null,
     val created_at: String? = null,
 )
 
@@ -32,6 +33,7 @@ data class CreateCardDto(
     val credit_limit: Double,
     val bin: String? = null,
     val variant: String? = null,
+    val shared_limit_with: String? = null,
 )
 
 @Serializable

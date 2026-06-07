@@ -59,13 +59,22 @@ export default function HomeScreen() {
     totalToCollect += expenses - payments;
   });
 
-  const totalLimit = cardList.reduce((acc, c) => acc + Number(c.credit_limit), 0);
+  const totalLimit = cardList
+    .filter((c) => !c.shared_limit_with)
+    .reduce((acc, c) => acc + Number(c.credit_limit), 0);
   const totalSpendVal = cardList.reduce((acc, c) => acc + Number(c.current_spend || 0), 0);
   const total = {
     spend: totalSpendVal,
     limit: totalLimit,
     percent: totalLimit > 0 ? (totalSpendVal / totalLimit) * 100 : 0,
   };
+
+  // Pre-calculate grouped spends for cards that share a limit
+  const groupedSpend: Record<string, number> = {};
+  for (const c of cardList) {
+    const groupId = c.shared_limit_with || c.id;
+    groupedSpend[groupId] = (groupedSpend[groupId] || 0) + Number(c.current_spend || 0);
+  }
 
   const dues = getUpcomingDues(
     cardList.map((c) => ({ id: c.id, payment_due_day: c.payment_due_day })),
@@ -212,7 +221,7 @@ export default function HomeScreen() {
                       <CardTile
                         card={card}
                         holder={getCardHolder(card.id)}
-                        cycleSpend={Number(card.current_spend || 0)}
+                        cycleSpend={groupedSpend[card.shared_limit_with || card.id] || 0}
                         limitRank={getLimitRank(card.id)}
                       />
                     </div>

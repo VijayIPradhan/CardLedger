@@ -19,6 +19,7 @@ export const CreateCardSchema = z.object({
     .nullable()
     .optional(),
   variant: z.string().max(100).nullable().optional(),
+  shared_limit_with: z.string().uuid().nullable().optional(),
 });
 
 export const UpdateCardSchema = CreateCardSchema.partial();

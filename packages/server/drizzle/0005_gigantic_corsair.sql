@@ -1,0 +1,1 @@
+ALTER TABLE "cards" ADD COLUMN "shared_limit_with" uuid;

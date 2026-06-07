@@ -36,7 +36,10 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val payments = c.paymentRepo.list().getOrElse { emptyList() }
             
             val spend = cards.associate { card ->
-                card.id to (card.current_spend?.toDoubleOrNull() ?: 0.0)
+                val groupId = card.shared_limit_with ?: card.id
+                val groupSpend = cards.filter { (it.shared_limit_with ?: it.id) == groupId }
+                    .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
+                card.id to groupSpend
             }
             
             val friends = holders.filter { it.relationship == "friend" }

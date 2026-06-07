@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
-import { useCard, useCreateCard, useUpdateCard } from '../data/hooks/useCards.js';
+import { useCard, useCards, useCreateCard, useUpdateCard } from '../data/hooks/useCards.js';
 import { useBankMetadata } from '../data/hooks/useMetadata.js';
 import { sanitizeCardNumber, extractBin, extractLast4 } from '@cardledger/shared';
 import { lookupBin } from '../lib/binLookup.js';
@@ -19,6 +19,8 @@ export default function AddCardScreen() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = !!id;
   const { data: existing } = useCard(id ?? '');
+  const { data: allCardsRaw } = useCards();
+  const allCards = Array.isArray(allCardsRaw) ? allCardsRaw : [];
   const createCard = useCreateCard();
   const updateCard = useUpdateCard();
 
@@ -34,6 +36,7 @@ export default function AddCardScreen() {
     billing_cycle_day: 1,
     payment_due_day: 20,
     credit_limit: 100000,
+    shared_limit_with: '',
   });
   const { data: bankMetadata } = useBankMetadata();
   const [error, setError] = useState('');
@@ -59,6 +62,7 @@ export default function AddCardScreen() {
         billing_cycle_day: existing.billing_cycle_day,
         payment_due_day: existing.payment_due_day,
         credit_limit: Number(existing.credit_limit),
+        shared_limit_with: existing.shared_limit_with || '',
       });
     }
   }, [existing, isEdit]);
@@ -116,6 +120,7 @@ export default function AddCardScreen() {
       billing_cycle_day: form.billing_cycle_day,
       payment_due_day: form.payment_due_day,
       credit_limit: form.credit_limit,
+      shared_limit_with: form.shared_limit_with || null,
     };
     try {
       if (isEdit && id) {
@@ -272,6 +277,35 @@ export default function AddCardScreen() {
             />
           </div>
         </div>
+        {form.bank &&
+          allCards.filter((c: any) => c.bank === form.bank && (!isEdit || c.id !== id)).length >
+            0 && (
+            <div>
+              <label className="text-xs text-muted mb-1 block">Shares limit with...</label>
+              <select
+                value={form.shared_limit_with}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parent = allCards.find((c: any) => c.id === val);
+                  setForm((f) => ({
+                    ...f,
+                    shared_limit_with: val,
+                    credit_limit: parent ? Number(parent.credit_limit) : f.credit_limit,
+                  }));
+                }}
+                className={INPUT_CLS}
+              >
+                <option value="">None (Independent Limit)</option>
+                {allCards
+                  .filter((c: any) => c.bank === form.bank && (!isEdit || c.id !== id))
+                  .map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nickname} (•••• {c.last4})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
         <div>
           <label className="text-xs text-muted mb-1 block">Credit limit (₹)</label>
           <input
@@ -279,6 +313,7 @@ export default function AddCardScreen() {
             value={form.credit_limit}
             onChange={(e) => setField('credit_limit', Number(e.target.value))}
             className={INPUT_CLS}
+            disabled={!!form.shared_limit_with}
           />
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}

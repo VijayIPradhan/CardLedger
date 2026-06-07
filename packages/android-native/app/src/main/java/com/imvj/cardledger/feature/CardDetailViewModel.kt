@@ -32,12 +32,18 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
 
     fun load(id: String) {
         viewModelScope.launch {
-            val card = c.cardRepo.get(id).getOrNull()
+            val allCards = c.cardRepo.list().getOrElse { emptyList() }
+            val card = allCards.find { it.id == id }
             val holders = c.holderRepo.list().getOrElse { emptyList() }
             val assignments = c.assignmentRepo.list(id).getOrElse { emptyList() }
             val txns = c.transactionRepo.list(cardId = id).getOrElse { emptyList() }
             val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
-            val total = card?.current_spend?.toDoubleOrNull() ?: 0.0
+            
+            val total = if (card != null) {
+                val groupId = card.shared_limit_with ?: card.id
+                allCards.filter { (it.shared_limit_with ?: it.id) == groupId }
+                    .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
+            } else 0.0
             val active = assignments.firstOrNull { it.returned_date == null }
             val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }

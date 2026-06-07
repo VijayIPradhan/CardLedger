@@ -43,7 +43,7 @@ private fun pct(spend: Double, limit: Double) =
 fun cardUtilization(creditLimit: Double, spend: Double) = Utilization(spend, creditLimit, pct(spend, creditLimit))
 
 fun totalUtilization(cards: List<CardDto>, spendByCard: Map<String, Double>): Utilization {
-    val limit = cards.sumOf { it.credit_limit.toDoubleOrNull() ?: 0.0 }
+    val limit = cards.filter { it.shared_limit_with == null }.sumOf { it.credit_limit.toDoubleOrNull() ?: 0.0 }
     val spend = cards.sumOf { spendByCard[it.id] ?: 0.0 }
     return Utilization(spend, limit, pct(spend, limit))
 }
