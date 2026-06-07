@@ -66,17 +66,21 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
             c.api.parseSmsAi(sms)
         } catch (e: Exception) {
             Log.w(TAG, "AI SMS parse failed, falling back to local parser", e)
-            parseSms(sms)
+            parseSms(sms, cards.map { it.last4 })
         } ?: return Outcome.SKIPPED
         if (r.dedupeHash in serverHashes || r.dedupeHash in ReviewStore.knownHashes) return Outcome.SKIPPED
         val matched = if (r.last4.isNotBlank()) cards.firstOrNull { it.last4 == r.last4 } else null
-        if (autoCommit && r.confidence == "high" && matched != null) {
+        
+        // Filter out SMS if it doesn't match any known card
+        if (matched == null) return Outcome.SKIPPED
+        
+        if (autoCommit && r.confidence == "high") {
             val res = c.transactionRepo.create(
                 CreateTransactionDto(card_id = matched.id, amount = r.amount, merchant = r.merchant, txn_date = r.date, source = "sms", type = r.type, is_paid = r.is_paid, dedupe_hash = r.dedupeHash)
             )
             if (res.isSuccess) { ReviewStore.addHash(r.dedupeHash); return Outcome.IMPORTED }
         }
-        ReviewStore.enqueue(ReviewItem(UUID.randomUUID().toString(), r, matched?.id))
+        ReviewStore.enqueue(ReviewItem(UUID.randomUUID().toString(), r, matched.id))
         return Outcome.QUEUED
     }
 }

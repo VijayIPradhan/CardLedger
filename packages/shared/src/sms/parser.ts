@@ -6,7 +6,10 @@ import { dedupeHash as computeHash } from './dedupeHash.js';
 
 const OTP_RE = /\bOTP\b|one[-\s]?time[-\s]?pass|verification code/i;
 
-export async function parseSms(input: SmsInput): Promise<ParseResult | null> {
+export async function parseSms(
+  input: SmsInput,
+  knownLast4s?: string[],
+): Promise<ParseResult | null> {
   // Step 1: Reject OTP / non-transaction messages immediately
   if (OTP_RE.test(input.body)) return null;
 
@@ -28,8 +31,40 @@ export async function parseSms(input: SmsInput): Promise<ParseResult | null> {
       // Must capture at least an amount to be a transaction
       if (!rawAmt) continue;
 
+      // Filter by known last 4 digits if provided
+      if (last4 && knownLast4s && knownLast4s.length > 0 && !knownLast4s.includes(last4)) {
+        return null;
+      }
+
+      // Determine transaction type based on keywords
+      const bodyLower = input.body.toLowerCase();
+      let type: 'spend' | 'payment' = 'spend';
+      if (
+        bodyLower.includes('credited') ||
+        bodyLower.includes('received') ||
+        bodyLower.includes('refund') ||
+        bodyLower.includes('reversal')
+      ) {
+        type = 'payment';
+      } else if (
+        bodyLower.includes('spent') ||
+        bodyLower.includes('debited') ||
+        bodyLower.includes('paid')
+      ) {
+        type = 'spend';
+      }
+
+      // If merchant is not captured by regex, try to extract it from 'at ...'
+      let merchant = rawMerchant;
+      if (!merchant) {
+        const atMatch = input.body.match(/at\s+([a-zA-Z0-9*.\s]+?)(?:\s+on|\.|$)/i);
+        if (atMatch && atMatch[1]) {
+          merchant = atMatch[1].trim();
+        }
+      }
+
       const isFallback = rule === FALLBACK_RULE;
-      const hasAll = !!(rawAmt && last4 && rawDate && rawMerchant);
+      const hasAll = !!(rawAmt && last4 && rawDate && merchant);
       const confidence: 'high' | 'low' = !isFallback && hasAll ? 'high' : 'low';
 
       const hash = await computeHash(input);
@@ -38,11 +73,11 @@ export async function parseSms(input: SmsInput): Promise<ParseResult | null> {
         bank: rule.bank,
         last4: last4 ?? '',
         amount: normalizeAmount(rawAmt),
-        merchant: normalizeMerchant(rawMerchant ?? ''),
+        merchant: normalizeMerchant(merchant ?? ''),
         date: rawDate
           ? normalizeDate(rawDate)
           : new Date(input.timestamp ?? Date.now()).toISOString().split('T')[0],
-        type: 'spend',
+        type,
         confidence,
         dedupeHash: hash,
         raw: input,

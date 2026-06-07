@@ -68,7 +68,7 @@ fun dedupeHash(input: SmsInput): String {
     return md.digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }
 }
 
-fun parseSms(input: SmsInput): ParseResult? {
+fun parseSms(input: SmsInput, knownLast4s: List<String>? = null): ParseResult? {
     if (OTP.containsMatchIn(input.body)) return null
     val matched = RULES.firstOrNull { r -> r.senders.any { input.sender.contains(it) } }
     val rules = if (matched != null) listOf(matched, FALLBACK) else listOf(FALLBACK)
@@ -77,19 +77,39 @@ fun parseSms(input: SmsInput): ParseResult? {
             val m = pattern.find(input.body) ?: continue
             val rawAmt = groupOrNull(m, "amount") ?: continue
             val last4 = groupOrNull(m, "last4")
+            
+            if (last4 != null && !knownLast4s.isNullOrEmpty() && !knownLast4s.contains(last4)) {
+                return null
+            }
+            
             val rawDate = groupOrNull(m, "date")
             val rawMerchant = groupOrNull(m, "merchant")
+            
+            val bodyLower = input.body.lowercase()
+            val type = if (bodyLower.contains("credited") || bodyLower.contains("received") || 
+                           bodyLower.contains("refund") || bodyLower.contains("reversal")) {
+                "payment"
+            } else {
+                "spend"
+            }
+            
+            var merchant = rawMerchant
+            if (merchant == null) {
+                val atRegex = Regex("at\\s+([a-zA-Z0-9*.\\s]+?)(?:\\s+on|\\.|$)")
+                merchant = atRegex.find(input.body)?.groupValues?.getOrNull(1)?.trim()
+            }
+            
             val isFallback = rule.bank == "UNKNOWN"
-            val hasAll = last4 != null && rawDate != null && rawMerchant != null
+            val hasAll = last4 != null && rawDate != null && merchant != null
             val confidence = if (!isFallback && hasAll) "high" else "low"
             return ParseResult(
                 bank = rule.bank,
                 last4 = last4 ?: "",
                 amount = normalizeAmount(rawAmt),
-                merchant = normalizeMerchant(rawMerchant ?: ""),
+                merchant = normalizeMerchant(merchant ?: ""),
                 date = if (rawDate != null) normalizeDate(rawDate)
                        else java.time.Instant.ofEpochMilli(input.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString(),
-                type = "spend",
+                type = type,
                 is_paid = false,
                 confidence = confidence,
                 dedupeHash = dedupeHash(input),

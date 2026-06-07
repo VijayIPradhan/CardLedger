@@ -52,28 +52,27 @@ export default function SmsImportScreen() {
           if (!result) continue;
           if (hashSet.has(result.dedupeHash)) continue; // already processed
 
-          if (result.confidence === 'high' && result.last4) {
-            const cardId = findCardId(result.last4);
-            if (cardId) {
-              await createTxn.mutateAsync({
-                card_id: cardId,
-                amount: result.amount,
-                merchant: result.merchant,
-                txn_date: result.date,
-                source: 'sms',
-                type: result.type,
-                is_paid: result.is_paid ?? false,
-                dedupe_hash: result.dedupeHash,
-                raw_sms_encrypted: null,
-              });
-              addHash(result.dedupeHash);
-              imported++;
-              continue;
-            }
+          const cardId = result.last4 ? findCardId(result.last4) : undefined;
+          if (!cardId) continue; // Filter out SMS that don't match any known card
+
+          if (result.confidence === 'high') {
+            await createTxn.mutateAsync({
+              card_id: cardId,
+              amount: result.amount,
+              merchant: result.merchant,
+              txn_date: result.date,
+              source: 'sms',
+              type: result.type,
+              is_paid: result.is_paid ?? false,
+              dedupe_hash: result.dedupeHash,
+              raw_sms_encrypted: null,
+            });
+            addHash(result.dedupeHash);
+            imported++;
+            continue;
           }
 
           // Low confidence OR card not found → queue for review
-          const cardId = result.last4 ? findCardId(result.last4) : undefined;
           enqueue({
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             parseResult: result,
@@ -103,6 +102,7 @@ export default function SmsImportScreen() {
         const hashSet = buildHashSet();
         if (hashSet.has(result.dedupeHash)) return;
         const cardId = result.last4 ? findCardId(result.last4) : undefined;
+        if (!cardId) return; // Filter out SMS that don't match any known card
         enqueue({ id: `live-${Date.now()}`, parseResult: result, cardId });
       } catch (e) {
         console.error('AI parse failed for live SMS', e);
