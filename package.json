@@ -24,11 +24,5 @@
       "eslint --fix",
       "prettier --write"
     ]
-  },
-  "pnpm": {
-    "approvedBuilds": [
-      "@google/genai",
-      "protobufjs"
-    ]
   }
 }
