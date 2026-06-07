@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, useAnimation } from 'framer-motion';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { BottomNav } from '../components/BottomNav.js';
@@ -78,7 +79,8 @@ export default function CardDetailScreen() {
     try {
       await deleteCard.mutateAsync(card!.id);
       nav('/');
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete card:', e);
       setError('Card has transactions — delete them first.');
     }
   }
@@ -90,7 +92,8 @@ export default function CardDetailScreen() {
       await deleteTxn.mutateAsync(selectedTxn.id);
       setSelectedTxn(null);
       closeBottomSheet();
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete transaction:', e);
       setError('Could not delete transaction.');
     }
   }
@@ -117,7 +120,8 @@ export default function CardDetailScreen() {
       });
       setSelectedTxn(null);
       closeBottomSheet();
-    } catch {
+    } catch (e) {
+      console.error('Failed to update transaction:', e);
       setError('Could not update transaction.');
     }
   }
@@ -255,6 +259,10 @@ export default function CardDetailScreen() {
   );
 }
 
+const SWIPE_REVEAL_WIDTH = 160;
+const SWIPE_OFFSET_THRESHOLD = -50;
+const SWIPE_VELOCITY_THRESHOLD = -500;
+
 function SwipeableTransaction({
   t,
   holderMap,
@@ -264,7 +272,7 @@ function SwipeableTransaction({
   t: Transaction;
   holderMap: Record<string, Holder>;
   openTxnActions: (t: Transaction) => void;
-  updateTxn: any;
+  updateTxn: UseMutationResult<Transaction, Error, Partial<Transaction> & { id: string }>;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const controls = useAnimation();
@@ -342,7 +350,7 @@ function SwipeableTransaction({
 
       <motion.div
         drag="x"
-        dragConstraints={{ left: isOpen ? -160 : 0, right: 0 }}
+        dragConstraints={{ left: isOpen ? -SWIPE_REVEAL_WIDTH : 0, right: 0 }}
         dragElastic={{ left: 0.2, right: 0.1 }}
         animate={controls}
         style={{ touchAction: 'pan-y' }}
@@ -350,9 +358,9 @@ function SwipeableTransaction({
         onDragEnd={(e, { offset, velocity }) => {
           setTimeout(() => setIsDragging(false), 50);
           // If swiped far enough to left, open it
-          if (offset.x < -50 || velocity.x < -500) {
+          if (offset.x < SWIPE_OFFSET_THRESHOLD || velocity.x < SWIPE_VELOCITY_THRESHOLD) {
             setIsOpen(true);
-            controls.start({ x: -160 });
+            controls.start({ x: -SWIPE_REVEAL_WIDTH });
           } else {
             setIsOpen(false);
             controls.start({ x: 0 });

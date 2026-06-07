@@ -52,8 +52,10 @@ export async function cardRoutes(app: FastifyInstance) {
     if (txn) {
       return reply.status(409).send({ error: 'Card has transactions' });
     }
-    await db.delete(assignments).where(eq(assignments.card_id, req.params.id));
-    await db.delete(cards).where(eq(cards.id, req.params.id));
+    await db.transaction(async (tx) => {
+      await tx.delete(assignments).where(eq(assignments.card_id, req.params.id));
+      await tx.delete(cards).where(eq(cards.id, req.params.id));
+    });
     return reply.status(204).send();
   });
 }

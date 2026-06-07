@@ -1,13 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || 'MISSING_API_KEY',
-});
-
-// Since we share the output format with @cardledger/shared/src/sms/types.ts
-// ParseResult: bank, last4, amount, merchant, date, type, confidence, dedupeHash, raw
+import { createHash } from 'crypto';
 
 const parseRequestSchema = z.object({
   sender: z.string(),
@@ -15,67 +9,151 @@ const parseRequestSchema = z.object({
   timestamp: z.number().optional(),
 });
 
+const SMS_SYSTEM_PROMPT = `You are an SMS transaction parser. Given an SMS from a bank, extract the transaction details as JSON.
+
+Rules:
+- "bank": The bank name (e.g. HDFC, ICICI, SBI, Axis)
+- "last4": The last 4 digits of the card or account
+- "amount": The transaction amount as a number
+- "merchant": The merchant name. For bill payments, use CRED, HDFC Bank, etc.
+- "date": The transaction date in YYYY-MM-DD format
+- "type": "spend" if the user spent money, "payment" if a credit card bill payment or refund
+- "is_paid": true only if the SMS explicitly indicates the amount was immediately settled
+
+Return ONLY valid JSON with these fields. All fields except is_paid are required.`;
+
+function buildUserPrompt(sender: string, body: string): string {
+  return `Analyze the following SMS from sender: ${sender}.\nBody: ${body}\n\nIs this a debit (spend) or credit (payment/refund)? Extract the details as JSON.`;
+}
+
+// ---------- Provider: OpenRouter (OpenAI-compatible) ----------
+
+async function parseWithOpenRouter(
+  apiKey: string,
+  sender: string,
+  body: string,
+  model: string,
+): Promise<Record<string, unknown>> {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://cardledger.app',
+      'X-Title': 'CardLedger',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: SMS_SYSTEM_PROMPT },
+        { role: 'user', content: buildUserPrompt(sender, body) },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`OpenRouter API error ${response.status}: ${errBody}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error('OpenRouter returned empty content');
+  return JSON.parse(text);
+}
+
+// ---------- Provider: Google Gemini ----------
+
+async function parseWithGemini(
+  ai: GoogleGenAI,
+  sender: string,
+  body: string,
+): Promise<Record<string, unknown>> {
+  const schema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      bank: {
+        type: Type.STRING,
+        description: 'The name of the bank (e.g. HDFC, ICICI, SBI, Axis)',
+      },
+      last4: { type: Type.STRING, description: 'The last 4 digits of the card or account' },
+      amount: { type: Type.NUMBER, description: 'The amount of the transaction as a number' },
+      merchant: {
+        type: Type.STRING,
+        description:
+          'The name of the merchant. If this is a bill payment, it might be CRED, HDFC Bank, etc.',
+      },
+      date: {
+        type: Type.STRING,
+        description: 'The date of the transaction in YYYY-MM-DD format',
+      },
+      type: {
+        type: Type.STRING,
+        description:
+          'If the user spent money, output spend. If the user paid their credit card bill or received a refund, output payment.',
+        enum: ['spend', 'payment'],
+      },
+      is_paid: {
+        type: Type.BOOLEAN,
+        description:
+          'If the SMS explicitly indicates the spent amount was immediately paid back or settled, set to true. Otherwise false.',
+      },
+    },
+    required: ['bank', 'last4', 'amount', 'merchant', 'date', 'type'],
+  };
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: buildUserPrompt(sender, body),
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+      temperature: 0.1,
+    },
+  });
+
+  if (!response.text) throw new Error('Gemini returned empty text');
+  return JSON.parse(response.text);
+}
+
+// ---------- Route ----------
+
 export const smsRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/parse/ai', async (req, reply) => {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  const openRouterModel = process.env.OPENROUTER_MODEL ?? 'google/gemini-2.5-flash';
+
+  const gemini = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
+  const hasProvider = !!(gemini || openRouterKey);
+
+  if (!hasProvider) {
+    app.log.warn('No AI provider configured — set GEMINI_API_KEY or OPENROUTER_API_KEY');
+  } else {
+    const provider = openRouterKey ? `OpenRouter (${openRouterModel})` : 'Gemini';
+    app.log.info(`SMS AI provider: ${provider}`);
+  }
+
+  const auth = { onRequest: [app.authenticate] };
+
+  app.post('/parse/ai', auth, async (req, reply) => {
+    if (!hasProvider) {
+      return reply.status(503).send({
+        error: 'SMS AI parsing is not configured (set GEMINI_API_KEY or OPENROUTER_API_KEY)',
+      });
+    }
+
     const input = parseRequestSchema.parse(req.body);
 
-    const schema: Schema = {
-      type: Type.OBJECT,
-      properties: {
-        bank: {
-          type: Type.STRING,
-          description: 'The name of the bank (e.g. HDFC, ICICI, SBI, Axis)',
-        },
-        last4: { type: Type.STRING, description: 'The last 4 digits of the card or account' },
-        amount: { type: Type.NUMBER, description: 'The amount of the transaction as a number' },
-        merchant: {
-          type: Type.STRING,
-          description:
-            'The name of the merchant. If this is a bill payment, it might be CRED, HDFC Bank, etc.',
-        },
-        date: {
-          type: Type.STRING,
-          description: 'The date of the transaction in YYYY-MM-DD format',
-        },
-        type: {
-          type: Type.STRING,
-          description:
-            'If the user spent money, output spend. If the user paid their credit card bill or received a refund, output payment.',
-          enum: ['spend', 'payment'],
-        },
-        is_paid: {
-          type: Type.BOOLEAN,
-          description:
-            'If the SMS explicitly indicates the spent amount was immediately paid back or settled, set to true. Otherwise false.',
-        },
-      },
-      required: ['bank', 'last4', 'amount', 'merchant', 'date', 'type'],
-    };
-
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Analyze the following SMS from sender: ${input.sender}. 
-        Body: ${input.body}
-        
-        Is this a debit (spend) or credit (payment/refund)? Extract the details.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: schema,
-          temperature: 0.1,
-        },
-      });
+      // OpenRouter takes priority when both keys are set
+      const extracted = openRouterKey
+        ? await parseWithOpenRouter(openRouterKey, input.sender, input.body, openRouterModel)
+        : await parseWithGemini(gemini!, input.sender, input.body);
 
-      if (!response.text) {
-        throw new Error('AI returned empty text');
-      }
-
-      const extracted = JSON.parse(response.text);
-
-      // Compute simple dedupe hash
-      const crypto = await import('crypto');
       const rawString = `${input.sender}|${input.body}|${input.timestamp || Date.now()}`;
-      const dedupeHash = crypto.createHash('sha256').update(rawString).digest('hex');
+      const dedupeHash = createHash('sha256').update(rawString).digest('hex');
 
       return reply.send({
         bank: extracted.bank,

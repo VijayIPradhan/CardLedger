@@ -124,7 +124,8 @@ export default function AddCardScreen() {
         await createCard.mutateAsync(payload);
       }
       nav('/', { replace: true });
-    } catch {
+    } catch (e) {
+      console.error('Failed to save card:', e);
       setError('Failed to save card — check all fields');
     }
   }

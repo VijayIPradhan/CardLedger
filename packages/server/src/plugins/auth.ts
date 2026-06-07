@@ -9,9 +9,12 @@ declare module 'fastify' {
 }
 
 export default fp(async (app: FastifyInstance) => {
-  await app.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET ?? 'dev-secret-32-chars-minimum!!xx',
-  });
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+
+  await app.register(fastifyJwt, { secret });
 
   app.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
     try {

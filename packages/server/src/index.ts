@@ -31,7 +31,7 @@ await migrateWithRetry(resolve(__dirname, '../drizzle'));
 const app = await buildApp();
 app.log.info('Migrations complete');
 
-await seed();
+await seed(app.log);
 app.log.info('Seed complete');
 
 const port = Number(process.env.PORT ?? 3001);

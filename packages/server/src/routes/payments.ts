@@ -27,7 +27,6 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.post('/', auth, async (req, reply) => {
     const parsed = CreatePaymentSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-
     const { amount, ...rest } = parsed.data;
     const [p] = await db
       .insert(payments)
@@ -39,10 +38,8 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
     const parsed = UpdatePaymentSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-
     const { amount, ...rest } = parsed.data;
     const update = amount !== undefined ? { ...rest, amount: String(amount) } : rest;
-
     const [p] = await db
       .update(payments)
       .set(update)

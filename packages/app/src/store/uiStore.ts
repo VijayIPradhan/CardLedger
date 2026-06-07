@@ -6,7 +6,7 @@ interface UiState {
   openSheet: string | null;
   openBottomSheet: (id: string) => void;
   closeBottomSheet: () => void;
-  addTxnCardId: string | null; // pre-selected card for the add-txn sheet
+  addTxnCardId: string | null;
   setAddTxnCardId: (id: string | null) => void;
   locked: boolean;
   lock: () => void;
