@@ -12,6 +12,7 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/app/package.json ./packages/app/package.json
 
 ENV HUSKY=0
+RUN pnpm config set ignore-scripts false
 RUN pnpm install --frozen-lockfile
 
 COPY packages/shared ./packages/shared
