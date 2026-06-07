@@ -22,7 +22,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.imvj.cardledger.feature.SettingsViewModel
 import com.imvj.cardledger.feature.app
-import com.imvj.cardledger.ui.components.PinPad
 import com.imvj.cardledger.ui.lock.AppLock
 import com.imvj.cardledger.ui.nav.BottomBar
 import com.imvj.cardledger.ui.nav.Routes
@@ -35,8 +34,6 @@ fun SettingsScreen(nav: NavHostController) {
     val vm: SettingsViewModel = viewModel(factory = viewModelFactory { initializer { SettingsViewModel(c) } })
     LaunchedEffect(Unit) { vm.load() }
     val s by vm.state.collectAsState()
-
-    var showPin by remember { mutableStateOf(false) }
 
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
@@ -66,16 +63,17 @@ fun SettingsScreen(nav: NavHostController) {
 
                     HorizontalDivider(color = Elevated)
 
-                    // Set / Change PIN
+                    // Set / Change PIN — opens a full-page screen
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { showPin = true }
+                            .clickable { nav.navigate(Routes.CHANGE_PIN) }
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(if (s.pinSet) "Change PIN" else "Set PIN")
+                        Text("→", color = Muted)
                     }
 
                     HorizontalDivider(color = Elevated)
@@ -155,18 +153,6 @@ fun SettingsScreen(nav: NavHostController) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("Sign out", color = Danger)
-                }
-            }
-        }
-    }
-
-    if (showPin) {
-        @OptIn(ExperimentalMaterial3Api::class)
-        ModalBottomSheet(onDismissRequest = { showPin = false }) {
-            Box(Modifier.padding(24.dp)) {
-                PinPad(label = "Enter new PIN") { pin ->
-                    vm.setPin(pin)
-                    showPin = false
                 }
             }
         }

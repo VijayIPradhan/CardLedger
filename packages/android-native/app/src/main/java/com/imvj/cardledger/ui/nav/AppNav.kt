@@ -33,6 +33,7 @@ fun AppNav() {
         composable(Routes.HOME) { HomeScreen(nav) }
         composable(Routes.HOLDERS) { HoldersScreen(nav) }
         composable(Routes.SETTINGS) { SettingsScreen(nav) }
+        composable(Routes.CHANGE_PIN) { ChangePinScreen(nav) }
         composable(Routes.SMS) { SmsScreen(nav) }
         composable(Routes.REVIEW) { ReviewScreen(nav) }
         composable(Routes.ADD_CARD) { AddEditCardScreen(nav, null) }

@@ -8,6 +8,8 @@ import { cardRoutes } from './routes/cards.js';
 import { holderRoutes } from './routes/holders.js';
 import { assignmentRoutes } from './routes/assignments.js';
 import { transactionRoutes } from './routes/transactions.js';
+import { paymentRoutes } from './routes/payments.js';
+import { metadataRoutes } from './routes/metadata.js';
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -50,6 +52,8 @@ export async function buildApp() {
   await app.register(holderRoutes, { prefix: '/holders' });
   await app.register(assignmentRoutes, { prefix: '/assignments' });
   await app.register(transactionRoutes, { prefix: '/transactions' });
+  await app.register(paymentRoutes, { prefix: '/payments' });
+  await app.register(metadataRoutes, { prefix: '/metadata' });
 
   return app;
 }

@@ -61,3 +61,23 @@ export const LoginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(8),
 });
+
+export const CreatePaymentSchema = z.object({
+  holder_id: z.string().uuid(),
+  amount: z.number().positive(),
+  payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  notes: z.string().max(200).optional().nullable(),
+});
+
+export const UpdatePaymentSchema = CreatePaymentSchema.partial();
+
+export const BankVariantMetadataSchema = z.object({
+  banks: z.array(
+    z.object({
+      name: z.string(),
+      variants: z.array(z.string()),
+    }),
+  ),
+});
+
+export type BankVariantMetadata = z.infer<typeof BankVariantMetadataSchema>;

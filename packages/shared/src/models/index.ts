@@ -46,3 +46,12 @@ export interface Transaction {
   dedupe_hash: string | null;
   created_at: string;
 }
+
+export interface Payment {
+  id: string;
+  holder_id: string;
+  amount: number;
+  payment_date: string;
+  notes: string | null;
+  created_at: string;
+}

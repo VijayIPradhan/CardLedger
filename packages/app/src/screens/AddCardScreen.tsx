@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { useCard, useCreateCard, useUpdateCard } from '../data/hooks/useCards.js';
+import { useBankMetadata } from '../data/hooks/useMetadata.js';
 import { sanitizeCardNumber, extractBin, extractLast4 } from '@cardledger/shared';
 import { lookupBin } from '../lib/binLookup.js';
 import type { Network } from '@cardledger/shared';
@@ -34,8 +35,15 @@ export default function AddCardScreen() {
     payment_due_day: 20,
     credit_limit: 100000,
   });
+  const { data: bankMetadata } = useBankMetadata();
   const [error, setError] = useState('');
   const lastDetectedBin = useRef('');
+
+  const selectedBankInfo = bankMetadata?.banks.find((b: any) => b.name === form.bank);
+  const variants = selectedBankInfo?.variants || [];
+  const isCustomBank =
+    !bankMetadata?.banks.some((b: any) => b.name === form.bank) && form.bank !== '';
+  const isCustomVariant = !variants.includes(form.variant) && form.variant !== '';
 
   useEffect(() => {
     // Only seed in edit mode. In add mode useCard('') hits the list endpoint
@@ -165,18 +173,74 @@ export default function AddCardScreen() {
             </option>
           ))}
         </select>
-        <input
-          value={form.bank}
-          onChange={(e) => setField('bank', e.target.value)}
-          placeholder="Bank name"
-          className={INPUT_CLS}
-        />
-        <input
-          value={form.variant}
-          onChange={(e) => setField('variant', e.target.value)}
-          placeholder="Variant (e.g. Regalia) — optional"
-          className={INPUT_CLS}
-        />
+        <div className="flex flex-col gap-2">
+          <select
+            value={
+              bankMetadata?.banks.some((b: any) => b.name === form.bank)
+                ? form.bank
+                : form.bank
+                  ? 'Custom'
+                  : ''
+            }
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'Custom') {
+                setField('bank', '');
+                setField('variant', '');
+              } else {
+                setField('bank', val);
+                setField('variant', '');
+              }
+            }}
+            className={INPUT_CLS}
+          >
+            <option value="" disabled>
+              Select Bank
+            </option>
+            {bankMetadata?.banks.map((b: any) => (
+              <option key={b.name} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+            <option value="Custom">Custom Bank...</option>
+          </select>
+          {isCustomBank && (
+            <input
+              value={form.bank}
+              onChange={(e) => setField('bank', e.target.value)}
+              placeholder="Custom Bank name"
+              className={INPUT_CLS}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <select
+            value={variants.includes(form.variant) ? form.variant : form.variant ? 'Custom' : ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              setField('variant', val === 'Custom' ? '' : val);
+            }}
+            className={INPUT_CLS}
+            disabled={!form.bank}
+          >
+            <option value="">Select Variant (Optional)</option>
+            {variants.map((v: string) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+            <option value="Custom">Custom Variant...</option>
+          </select>
+          {isCustomVariant && (
+            <input
+              value={form.variant}
+              onChange={(e) => setField('variant', e.target.value)}
+              placeholder="Custom Variant (e.g. Regalia)"
+              className={INPUT_CLS}
+            />
+          )}
+        </div>
         <input
           value={form.nickname}
           onChange={(e) => setField('nickname', e.target.value)}

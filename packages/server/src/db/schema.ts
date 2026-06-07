@@ -67,3 +67,14 @@ export const transactions = pgTable('transactions', {
   dedupe_hash: varchar('dedupe_hash', { length: 64 }),
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const payments = pgTable('payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  holder_id: uuid('holder_id')
+    .references(() => holders.id)
+    .notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  payment_date: date('payment_date').notNull(),
+  notes: varchar('notes', { length: 200 }),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+});

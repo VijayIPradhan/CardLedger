@@ -13,27 +13,42 @@ import {
 } from '../data/hooks/useHolders.js';
 import { useCards } from '../data/hooks/useCards.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
+import { usePayments, useCreatePayment } from '../data/hooks/usePayments.js';
 import { useUiStore } from '../store/uiStore.js';
-import type { Holder, Card, Transaction } from '@cardledger/shared';
+import type { Holder, Card, Transaction, Payment } from '@cardledger/shared';
 
 export default function HolderViewScreen() {
   const { data: holders = [] } = useHolders();
   const { data: cards = [] } = useCards();
   const { data: transactions = [] } = useTransactions();
+  const { data: allPayments = [] } = usePayments();
   const createHolder = useCreateHolder();
   const updateHolder = useUpdateHolder();
   const deleteHolder = useDeleteHolder();
+  const createPayment = useCreatePayment();
   const { openBottomSheet, closeBottomSheet } = useUiStore();
   const [editing, setEditing] = useState<Holder | null>(null);
+  const [paying, setPaying] = useState<Holder | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
   const [error, setError] = useState('');
 
   const cardMap = Object.fromEntries(cards.map((c: Card) => [c.id, c]));
   const friends = holders.filter((h: Holder) => h.relationship === 'friend');
 
-  function getTotal(holder: Holder) {
+  function getTotalExpenses(holder: Holder) {
     return transactions
       .filter((t: Transaction) => t.holder_id_at_time === holder.id)
       .reduce((s: number, t: Transaction) => s + Number(t.amount), 0);
+  }
+
+  function getTotalPayments(holder: Holder) {
+    return allPayments
+      .filter((p: Payment) => p.holder_id === holder.id)
+      .reduce((s: number, p: Payment) => s + Number(p.amount), 0);
+  }
+
+  function getOutstanding(holder: Holder) {
+    return getTotalExpenses(holder) - getTotalPayments(holder);
   }
 
   function getBreakdown(holder: Holder) {
@@ -60,6 +75,13 @@ export default function HolderViewScreen() {
     openBottomSheet('holder-form');
   }
 
+  function openPay(h: Holder) {
+    setPaying(h);
+    setPaymentAmount('');
+    setError('');
+    openBottomSheet('payment-form');
+  }
+
   async function handleSubmit(data: { name: string; phone: string; relationship: 'friend' }) {
     setError('');
     try {
@@ -83,6 +105,27 @@ export default function HolderViewScreen() {
     }
   }
 
+  async function handlePaymentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!paying) return;
+    const amount = Number(paymentAmount);
+    if (!amount || amount <= 0) {
+      setError('Enter a valid amount');
+      return;
+    }
+    setError('');
+    try {
+      await createPayment.mutateAsync({
+        holder_id: paying.id,
+        amount,
+        payment_date: new Date().toISOString().split('T')[0],
+      });
+      closeBottomSheet();
+    } catch {
+      setError('Could not save payment.');
+    }
+  }
+
   return (
     <Screen className="pb-24">
       <TopBar title="Holders" />
@@ -101,7 +144,7 @@ export default function HolderViewScreen() {
         )}
 
         {friends.map((holder: Holder, i: number) => {
-          const total = getTotal(holder);
+          const outstanding = getOutstanding(holder);
           const breakdown = getBreakdown(holder);
           const initials = holder.name
             .split(' ')
@@ -126,8 +169,12 @@ export default function HolderViewScreen() {
                   <p className="text-xs text-muted">{holder.phone}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted">Total</p>
-                  <p className="font-semibold text-gold">₹{total.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-muted">Outstanding</p>
+                  <p
+                    className={`font-semibold ${outstanding > 0 ? 'text-gold' : 'text-green-500'}`}
+                  >
+                    ₹{outstanding.toLocaleString('en-IN')}
+                  </p>
                 </div>
               </div>
               {breakdown.map(({ card, amount }) => (
@@ -145,6 +192,12 @@ export default function HolderViewScreen() {
                 </div>
               ))}
               <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => openPay(holder)}
+                  className="flex-1 bg-gold text-surface font-semibold py-2 rounded-input text-xs"
+                >
+                  Record Payment
+                </button>
                 <button
                   onClick={() => openEdit(holder)}
                   className="flex-1 bg-elevated py-2 rounded-input text-xs"
@@ -170,6 +223,29 @@ export default function HolderViewScreen() {
           onSubmit={handleSubmit}
           onCancel={closeBottomSheet}
         />
+      </BottomSheet>
+
+      <BottomSheet id="payment-form" title="Record Payment">
+        <form onSubmit={handlePaymentSubmit} className="flex flex-col gap-4">
+          <p className="text-sm text-muted">Record money paid by {paying?.name}</p>
+          <div>
+            <label className="text-xs text-muted mb-1 block">Amount (₹)</label>
+            <input
+              type="number"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              placeholder="e.g. 1500"
+              className="w-full bg-surface rounded-input px-4 py-3 text-sm outline-none border border-elevated focus:border-gold transition-colors text-white"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={createPayment.isPending}
+            className="bg-gold text-base font-semibold py-3 rounded-input mt-2 hover:bg-gold-hi transition-colors disabled:opacity-50"
+          >
+            {createPayment.isPending ? 'Saving...' : 'Save Payment'}
+          </button>
+        </form>
       </BottomSheet>
 
       <BottomNav />

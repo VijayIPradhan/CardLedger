@@ -15,6 +15,13 @@
       "when": 1780766631069,
       "tag": "0001_deep_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1780830042839,
+      "tag": "0002_bouncy_lady_ursula",
+      "breakpoints": true
     }
   ]
 }
