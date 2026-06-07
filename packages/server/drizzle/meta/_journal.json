@@ -29,6 +29,13 @@
       "when": 1780833721764,
       "tag": "0003_lumpy_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1780838666817,
+      "tag": "0004_colorful_vision",
+      "breakpoints": true
     }
   ]
 }

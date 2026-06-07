@@ -74,6 +74,7 @@ export function AddTransactionSheet() {
         txn_date: date,
         source: 'manual',
         type: type,
+        is_paid: type === 'payment',
         holder_id_at_time: holderId,
         raw_sms_encrypted: null,
         dedupe_hash: null,

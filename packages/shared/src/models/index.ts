@@ -42,6 +42,7 @@ export interface Transaction {
   txn_date: string;
   source: TransactionSource;
   type: 'spend' | 'payment';
+  is_paid: boolean;
   holder_id_at_time: string;
   raw_sms_encrypted: string | null;
   dedupe_hash: string | null;

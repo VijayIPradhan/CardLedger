@@ -120,26 +120,42 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Analytics Dashboard */}
+      {/* Dashboard & Total Utilization */}
       {cardList.length > 0 && (
-        <div className="px-4 mb-5 grid grid-cols-2 gap-3">
-          <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
-            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-              Total to Collect
-            </p>
-            <p className={`text-xl font-bold ${totalToCollect > 0 ? 'text-gold' : 'text-success'}`}>
-              ₹{totalToCollect.toLocaleString('en-IN')}
-            </p>
-            <p className="text-[10px] text-muted leading-tight mt-1">From friends</p>
+        <div className="px-4 mb-5 space-y-4">
+          <div className="flex items-center gap-6">
+            <SpendRing
+              spent={total.spend}
+              limit={total.limit}
+              percentText={`${Math.round(total.percent)}%`}
+            />
+            <div>
+              <p className="text-xs text-muted">Total utilization</p>
+              <p className="text-2xl font-bold">₹{total.spend.toLocaleString('en-IN')}</p>
+              <p className="text-sm text-muted">of ₹{total.limit.toLocaleString('en-IN')}</p>
+            </div>
           </div>
-          <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
-            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-              Total to Pay
-            </p>
-            <p className={`text-xl font-bold ${total.spend > 0 ? 'text-danger' : 'text-white'}`}>
-              ₹{total.spend.toLocaleString('en-IN')}
-            </p>
-            <p className="text-[10px] text-muted leading-tight mt-1">Total outstanding debt</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+                Total to Collect
+              </p>
+              <p
+                className={`text-xl font-bold ${totalToCollect > 0 ? 'text-gold' : 'text-success'}`}
+              >
+                ₹{totalToCollect.toLocaleString('en-IN')}
+              </p>
+              <p className="text-[10px] text-muted leading-tight mt-1">From friends</p>
+            </div>
+            <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+                Total to Pay
+              </p>
+              <p className={`text-xl font-bold ${total.spend > 0 ? 'text-danger' : 'text-white'}`}>
+                ₹{total.spend.toLocaleString('en-IN')}
+              </p>
+              <p className="text-[10px] text-muted leading-tight mt-1">Total outstanding debt</p>
+            </div>
           </div>
         </div>
       )}
@@ -169,31 +185,48 @@ export default function HomeScreen() {
       )}
 
       {/* Card Stack — Vertical sticky layout */}
-      {cardList.length > 0 && (
-        <div className="flex flex-col px-4 mb-5 relative pb-8">
-          <p className="text-xs text-muted mb-3">Cards</p>
-          {cardList.map((card, i) => {
-            return (
-              <div
-                key={card.id}
-                className="sticky transition-transform duration-300"
-                style={{ top: `${i * 12 + 16}px`, zIndex: i }}
-              >
-                <div
-                  onClick={() => nav(`/cards/${card.id}`)}
-                  className="shadow-[0_-4px_16px_rgba(0,0,0,0.5)] rounded-card"
-                >
-                  <CardTile
-                    card={card}
-                    holder={getCardHolder(card.id)}
-                    cycleSpend={spendByCard[card.id] ?? 0}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {cardList.length > 0 &&
+        (() => {
+          // Calculate limit ranks (highest limit gets #1)
+          const sortedByLimit = [...cardList].sort(
+            (a, b) => Number(b.credit_limit) - Number(a.credit_limit),
+          );
+          const getLimitRank = (cardId: string) =>
+            sortedByLimit.findIndex((c) => c.id === cardId) + 1;
+
+          // Sort displayed cards by usage descending
+          const sortedCards = [...cardList].sort(
+            (a, b) => (spendByCard[b.id] ?? 0) - (spendByCard[a.id] ?? 0),
+          );
+
+          return (
+            <div className="flex flex-col px-4 mb-5 relative pb-8">
+              <p className="text-xs text-muted mb-3">Cards</p>
+              {sortedCards.map((card, i) => {
+                return (
+                  <div
+                    key={card.id}
+                    className="sticky transition-transform duration-300"
+                    style={{ top: `${i * 48 + 16}px`, zIndex: i }}
+                  >
+                    <div
+                      onClick={() => nav(`/cards/${card.id}`)}
+                      className="shadow-[0_-8px_24px_rgba(0,0,0,0.6)] rounded-card"
+                      style={{ transform: `scale(${1 - i * 0.02})`, transformOrigin: 'top center' }}
+                    >
+                      <CardTile
+                        card={card}
+                        holder={getCardHolder(card.id)}
+                        cycleSpend={spendByCard[card.id] ?? 0}
+                        limitRank={getLimitRank(card.id)}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
       {/* Recent transactions */}
       <div className="px-4">

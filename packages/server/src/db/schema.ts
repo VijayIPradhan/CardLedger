@@ -7,6 +7,7 @@ import {
   date,
   timestamp,
   text,
+  boolean,
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -61,6 +62,7 @@ export const transactions = pgTable('transactions', {
   txn_date: date('txn_date').notNull(),
   source: varchar('source', { length: 10 }).notNull(),
   type: varchar('type', { length: 20 }).default('spend').notNull(),
+  is_paid: boolean('is_paid').default(false).notNull(),
   holder_id_at_time: uuid('holder_id_at_time')
     .references(() => holders.id)
     .notNull(),

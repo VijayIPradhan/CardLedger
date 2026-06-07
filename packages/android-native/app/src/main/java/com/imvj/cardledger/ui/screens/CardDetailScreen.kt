@@ -1,19 +1,31 @@
 package com.imvj.cardledger.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -134,40 +146,100 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                         )
                         cycle.txns.sortedByDescending { it.txn_date }.forEach { txn ->
                             val holderName = holderMap[txn.holder_id_at_time]?.name ?: txn.holder_id_at_time
-                            Surface(
+                            var swipeOffset by remember { mutableFloatStateOf(0f) }
+                            val animatedOffsetX by animateFloatAsState(targetValue = swipeOffset, label = "swipeOffsetX")
+
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        selectedTxn = txn
-                                        showTxnSheet = true
-                                    },
-                                shape = RoundedCornerShape(8.dp),
-                                color = Elevated,
+                                    .padding(vertical = 2.dp)
+                                    .background(Elevated, RoundedCornerShape(8.dp))
+                                    .pointerInput(Unit) {
+                                        detectHorizontalDragGestures(
+                                            onDragEnd = {
+                                                swipeOffset = if (swipeOffset < -200f) -400f else 0f
+                                            }
+                                        ) { change, dragAmount ->
+                                            change.consume()
+                                            swipeOffset = (swipeOffset + dragAmount).coerceIn(-400f, 0f)
+                                        }
+                                    }
                             ) {
+                                // Background buttons
                                 Row(
-                                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    Column(Modifier.weight(1f)) {
+                                    IconButton(
+                                        onClick = {
+                                            vm.toggleTransactionPaid(txn.id, cardId, txn.is_paid)
+                                            swipeOffset = 0f
+                                        },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(if (txn.is_paid) Elevated else Success, shape = androidx.compose.foundation.shape.CircleShape)
+                                    ) {
+                                        Icon(if (txn.is_paid) Icons.Default.Close else Icons.Default.Check, contentDescription = "Toggle Paid", tint = Color.White)
+                                    }
+                                    IconButton(
+                                        onClick = { swipeOffset = 0f },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(Danger, shape = androidx.compose.foundation.shape.CircleShape)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                                        .clickable {
+                                            if (swipeOffset < 0f) {
+                                                swipeOffset = 0f
+                                            } else {
+                                                selectedTxn = txn
+                                                showTxnSheet = true
+                                            }
+                                        },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Elevated,
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(
+                                                    txn.merchant,
+                                                    color = if (txn.is_paid) Muted else OnDark,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontSize = 14.sp,
+                                                    textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
+                                                )
+                                                if (txn.is_paid) {
+                                                    Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
+                                                        Text("PAID", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                "$holderName · ${txn.txn_date.drop(5)}",
+                                                color = Muted,
+                                                fontSize = 12.sp,
+                                            )
+                                        }
                                         Text(
-                                            txn.merchant,
-                                            color = OnDark,
-                                            fontWeight = FontWeight.Medium,
+                                            "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                            color = if (txn.is_paid) Muted else Danger,
+                                            fontWeight = FontWeight.SemiBold,
                                             fontSize = 14.sp,
-                                        )
-                                        Text(
-                                            "$holderName · ${txn.txn_date.drop(5)}",
-                                            color = Muted,
-                                            fontSize = 12.sp,
+                                            textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
                                         )
                                     }
-                                    Text(
-                                        "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                        color = Danger,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 14.sp,
-                                    )
                                 }
                             }
                         }

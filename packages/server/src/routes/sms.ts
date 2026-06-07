@@ -43,6 +43,11 @@ export const smsRoutes: FastifyPluginAsync = async (app) => {
             'If the user spent money, output spend. If the user paid their credit card bill or received a refund, output payment.',
           enum: ['spend', 'payment'],
         },
+        is_paid: {
+          type: Type.BOOLEAN,
+          description:
+            'If the SMS explicitly indicates the spent amount was immediately paid back or settled, set to true. Otherwise false.',
+        },
       },
       required: ['bank', 'last4', 'amount', 'merchant', 'date', 'type'],
     };
@@ -79,6 +84,7 @@ export const smsRoutes: FastifyPluginAsync = async (app) => {
         merchant: extracted.merchant,
         date: extracted.date,
         type: extracted.type,
+        is_paid: extracted.is_paid || false,
         confidence: 'high',
         dedupeHash,
         raw: input,

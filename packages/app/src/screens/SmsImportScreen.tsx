@@ -62,6 +62,7 @@ export default function SmsImportScreen() {
                 txn_date: result.date,
                 source: 'sms',
                 type: result.type,
+                is_paid: result.is_paid ?? false,
                 dedupe_hash: result.dedupeHash,
                 raw_sms_encrypted: null,
               });

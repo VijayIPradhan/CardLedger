@@ -44,6 +44,7 @@ export const CreateTransactionSchema = z.object({
   txn_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   source: TransactionSourceSchema,
   type: TransactionTypeSchema.default('spend'),
+  is_paid: z.boolean().default(false),
   holder_id_at_time: z.string().uuid().optional(), // "who used" — manual override
   raw_sms_encrypted: z.string().nullable().optional(),
   dedupe_hash: z.string().nullable().optional(),
@@ -57,6 +58,7 @@ export const UpdateTransactionSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   type: TransactionTypeSchema.optional(),
+  is_paid: z.boolean().optional(),
   holder_id_at_time: z.string().uuid().optional(),
 });
 

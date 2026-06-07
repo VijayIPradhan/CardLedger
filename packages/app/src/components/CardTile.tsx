@@ -13,15 +13,37 @@ const NETWORK_COLORS: Record<string, string> = {
   Amex: 'from-[#006064] to-[#00838f]',
 };
 
+const VARIANT_COLORS: Record<string, string> = {
+  Coral: 'from-[#FF7F50] to-[#E25822]',
+  Sapphire: 'from-[#0f52ba] to-[#000080]',
+  Rubyx: 'from-[#E0115F] to-[#900020]',
+  Emeralde: 'from-[#50C878] to-[#006400]',
+  Infinia: 'from-[#1a1a1a] to-[#000000]',
+  'Diners Club Black': 'from-[#2C3E50] to-[#000000]',
+  Regalia: 'from-[#b8860b] to-[#8b6508]',
+  Millennia: 'from-[#000080] to-[#0000cd]',
+  SimplyCLICK: 'from-[#20b2aa] to-[#008080]',
+  SimplySAVE: 'from-[#3cb371] to-[#2e8b57]',
+  'Flipkart Axis': 'from-[#2874f0] to-[#004dc0]',
+  Ace: 'from-[#1a1a1a] to-[#000000]',
+  'Amazon Pay ICICI': 'from-[#333333] to-[#000000]',
+};
+
 interface CardTileProps {
   card: Card;
   holder?: Holder;
   cycleSpend: number;
+  limitRank?: number;
   onClick?: () => void;
 }
 
-export function CardTile({ card, holder, cycleSpend, onClick }: CardTileProps) {
-  const gradient = NETWORK_COLORS[card.network] ?? 'from-elevated to-surface';
+export function CardTile({ card, holder, cycleSpend, limitRank, onClick }: CardTileProps) {
+  let gradient = 'from-elevated to-surface';
+  if (card.variant && VARIANT_COLORS[card.variant]) {
+    gradient = VARIANT_COLORS[card.variant];
+  } else if (NETWORK_COLORS[card.network]) {
+    gradient = NETWORK_COLORS[card.network];
+  }
   const today = new Date().toISOString().split('T')[0];
   const daysLeft = getDaysUntilDue(card.payment_due_day, today);
 
@@ -43,11 +65,18 @@ export function CardTile({ card, holder, cycleSpend, onClick }: CardTileProps) {
             </div>
             {card.variant && <p className="text-xs text-white/60 mt-0.5">{card.variant}</p>}
           </div>
-          <img
-            src={networkLogo(card.network)}
-            alt={card.network}
-            className="h-6 w-auto object-contain shrink-0"
-          />
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <img
+              src={networkLogo(card.network)}
+              alt={card.network}
+              className="h-6 w-auto object-contain"
+            />
+            {limitRank !== undefined && (
+              <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30 backdrop-blur-sm">
+                #{limitRank}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex justify-between items-end">
           <div>

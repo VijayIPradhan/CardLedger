@@ -67,6 +67,7 @@ data class TransactionDto(
     val txn_date: String,
     val source: String,
     val type: String,
+    val is_paid: Boolean = false,
     val holder_id_at_time: String,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
@@ -81,6 +82,7 @@ data class CreateTransactionDto(
     val txn_date: String,
     val source: String,
     val type: String = "spend",
+    val is_paid: Boolean = false,
     val holder_id_at_time: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
@@ -91,6 +93,7 @@ data class UpdateTransactionDto(
     val amount: Double? = null,
     val merchant: String? = null,
     val txn_date: String? = null,
+    val is_paid: Boolean? = null,
     val holder_id_at_time: String? = null,
 )
 

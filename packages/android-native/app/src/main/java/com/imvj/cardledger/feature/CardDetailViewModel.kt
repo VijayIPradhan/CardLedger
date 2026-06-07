@@ -83,9 +83,16 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         onDone: () -> Unit,
     ) {
         viewModelScope.launch {
-            c.transactionRepo.update(txnId, UpdateTransactionDto(amount, merchant, date, holderId))
+            c.transactionRepo.update(txnId, UpdateTransactionDto(amount = amount, merchant = merchant, txn_date = date, holder_id_at_time = holderId))
                 .onSuccess { load(cardId); onDone() }
                 .onFailure { _state.value = _state.value.copy(error = "Could not update transaction.") }
+        }
+    }
+
+    fun toggleTransactionPaid(txnId: String, cardId: String, currentPaidStatus: Boolean) {
+        viewModelScope.launch {
+            c.transactionRepo.update(txnId, UpdateTransactionDto(is_paid = !currentPaidStatus))
+                .onSuccess { load(cardId) }
         }
     }
 }

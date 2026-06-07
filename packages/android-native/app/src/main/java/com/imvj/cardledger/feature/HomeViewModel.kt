@@ -17,6 +17,7 @@ data class HomeUiState(
     val transactions: List<TransactionDto> = emptyList(),
     val spendByCard: Map<String, Double> = emptyMap(),
     val total: Utilization = Utilization(0.0, 0.0, 0.0),
+    val totalToCollect: Double = 0.0,
     val dues: List<UpcomingDue> = emptyList(),
 )
 
@@ -30,13 +31,25 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val holders = c.holderRepo.list().getOrElse { emptyList() }
             val assignments = c.assignmentRepo.list().getOrElse { emptyList() }
             val txns = c.transactionRepo.list().getOrElse { emptyList() }
+            val payments = c.paymentRepo.list().getOrElse { emptyList() }
+            
             val spend = cards.associate { card ->
                 card.id to txns.filter { it.card_id == card.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             }
+            
+            val friends = holders.filter { it.relationship == "friend" }
+            var totalToCollect = 0.0
+            friends.forEach { friend ->
+                val expenses = txns.filter { it.holder_id_at_time == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                totalToCollect += (expenses - paid)
+            }
+
             _state.value = HomeUiState(
                 loading = false, cards = cards, holders = holders, assignments = assignments,
                 transactions = txns, spendByCard = spend,
                 total = totalUtilization(cards, spend),
+                totalToCollect = totalToCollect,
                 dues = upcomingDues(cards, today(), 7),
             )
             com.imvj.cardledger.notif.ReminderScheduler.reschedule(

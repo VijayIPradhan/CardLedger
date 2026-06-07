@@ -45,6 +45,7 @@ export default function ReviewQueueScreen() {
                   txn_date: date,
                   source: 'sms',
                   type: item.parseResult.type,
+                  is_paid: item.parseResult.is_paid ?? false,
                   dedupe_hash: item.parseResult.dedupeHash,
                   raw_sms_encrypted: null,
                 });

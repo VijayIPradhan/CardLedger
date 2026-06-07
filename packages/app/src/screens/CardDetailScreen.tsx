@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, useAnimation } from 'framer-motion';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { BottomNav } from '../components/BottomNav.js';
@@ -159,21 +160,13 @@ export default function CardDetailScreen() {
           <div key={c.label}>
             <p className="text-xs text-muted mt-4 mb-1">{c.label}</p>
             {c.txns.map((t) => (
-              <button
+              <SwipeableTransaction
                 key={t.id}
-                onClick={() => openTxnActions(t)}
-                className="w-full flex justify-between items-center py-3 border-b border-elevated/40 text-left"
-              >
-                <div>
-                  <p className="text-sm">{t.merchant}</p>
-                  <p className="text-xs text-muted">
-                    {holderMap[t.holder_id_at_time]?.name ?? '—'} · {t.txn_date.slice(5)}
-                  </p>
-                </div>
-                <span className="text-sm text-danger">
-                  −₹{Number(t.amount).toLocaleString('en-IN')}
-                </span>
-              </button>
+                t={t}
+                holderMap={holderMap}
+                openTxnActions={openTxnActions}
+                updateTxn={updateTxn}
+              />
             ))}
           </div>
         ))}
@@ -259,5 +252,137 @@ export default function CardDetailScreen() {
       <AddTransactionSheet />
       <BottomNav />
     </Screen>
+  );
+}
+
+function SwipeableTransaction({
+  t,
+  holderMap,
+  openTxnActions,
+  updateTxn,
+}: {
+  t: Transaction;
+  holderMap: Record<string, Holder>;
+  openTxnActions: (t: Transaction) => void;
+  updateTxn: any;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const controls = useAnimation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const close = () => {
+    setIsOpen(false);
+    controls.start({ x: 0 });
+  };
+
+  return (
+    <div className="relative border-b border-elevated/40 overflow-hidden rounded">
+      {/* Background Actions */}
+      <div className="absolute inset-y-0 right-0 flex items-center justify-end px-4 gap-4 w-[160px]">
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            await updateTxn.mutateAsync({ id: t.id, is_paid: !t.is_paid });
+            close();
+          }}
+          className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transform transition-transform active:scale-90 ${
+            t.is_paid ? 'bg-elevated' : 'bg-success'
+          }`}
+        >
+          {t.is_paid ? (
+            // Revert icon
+            <svg
+              className="w-5 h-5 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2.5"
+                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+              />
+            </svg>
+          ) : (
+            // Check icon
+            <svg
+              className="w-6 h-6 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="3"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          )}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            close();
+          }}
+          className="w-10 h-10 rounded-full flex items-center justify-center bg-danger shadow-lg transform transition-transform active:scale-90"
+        >
+          {/* X icon */}
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="3"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: isOpen ? -160 : 0, right: 0 }}
+        dragElastic={{ left: 0.2, right: 0.1 }}
+        animate={controls}
+        style={{ touchAction: 'pan-y' }}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(e, { offset, velocity }) => {
+          setTimeout(() => setIsDragging(false), 50);
+          // If swiped far enough to left, open it
+          if (offset.x < -50 || velocity.x < -500) {
+            setIsOpen(true);
+            controls.start({ x: -160 });
+          } else {
+            setIsOpen(false);
+            controls.start({ x: 0 });
+          }
+        }}
+        onClick={() => {
+          if (!isDragging) {
+            if (isOpen) close();
+            else openTxnActions(t);
+          }
+        }}
+        className="relative w-full flex justify-between items-center py-3 px-1 bg-dark text-left"
+      >
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <p className={`text-sm ${t.is_paid ? 'line-through text-muted' : ''}`}>{t.merchant}</p>
+            {t.is_paid && (
+              <span className="text-[9px] font-bold text-success bg-success/20 px-1.5 py-0.5 rounded">
+                PAID
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            {holderMap[t.holder_id_at_time]?.name ?? '—'} · {t.txn_date.slice(5)}
+          </p>
+        </div>
+        <span className={`text-sm ${t.is_paid ? 'line-through text-muted' : 'text-danger'}`}>
+          −₹{Number(t.amount).toLocaleString('en-IN')}
+        </span>
+      </motion.div>
+    </div>
   );
 }

@@ -33,8 +33,7 @@ export function SpendRing({ spent, limit, size = 56, percentText }: SpendRingPro
           fill="#FFF"
           fontSize={size * 0.25}
           fontWeight="bold"
-          className="rotate-90"
-          style={{ transformOrigin: 'center' }}
+          transform={`rotate(90 ${size / 2} ${size / 2})`}
         >
           {percentText}
         </text>

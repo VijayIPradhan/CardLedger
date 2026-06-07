@@ -67,7 +67,7 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
         val matched = if (r.last4.isNotBlank()) cards.firstOrNull { it.last4 == r.last4 } else null
         if (autoCommit && r.confidence == "high" && matched != null) {
             val res = c.transactionRepo.create(
-                CreateTransactionDto(matched.id, r.amount, r.merchant, r.date, "sms", r.type, null, null, r.dedupeHash)
+                CreateTransactionDto(card_id = matched.id, amount = r.amount, merchant = r.merchant, txn_date = r.date, source = "sms", type = r.type, is_paid = r.is_paid, dedupe_hash = r.dedupeHash)
             )
             if (res.isSuccess) { ReviewStore.addHash(r.dedupeHash); return Outcome.IMPORTED }
         }

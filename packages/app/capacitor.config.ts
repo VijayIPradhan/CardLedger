@@ -11,8 +11,8 @@ const config: CapacitorConfig = {
   // Production: bundled dist talks directly to deployed server — server key omitted
   ...(isDev && {
     server: {
-      url: 'http://10.0.2.2:3001',
-      androidScheme: 'http',
+      url: 'http://10.0.2.2:5173',
+      cleartext: true,
     },
   }),
   plugins: {
