@@ -1,0 +1,314 @@
+package com.imvj.cardledger.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavHostController
+import com.imvj.cardledger.data.store.ReviewStore
+import com.imvj.cardledger.domain.cardUtilization
+import com.imvj.cardledger.feature.HomeViewModel
+import com.imvj.cardledger.feature.app
+import com.imvj.cardledger.ui.components.*
+import com.imvj.cardledger.ui.nav.BottomBar
+import com.imvj.cardledger.ui.nav.Routes
+import com.imvj.cardledger.ui.theme.*
+
+@Composable
+fun HomeScreen(nav: NavHostController) {
+    val c = app().container
+    val vm: HomeViewModel = viewModel(factory = viewModelFactory {
+        initializer { HomeViewModel(c) }
+    })
+    LaunchedEffect(Unit) { vm.load() }
+    val s by vm.state.collectAsStateWithLifecycle()
+
+    val reviewQueue by ReviewStore.queue.collectAsStateWithLifecycle()
+    val reviewCount = reviewQueue.size
+
+    var showAddTxn by remember { mutableStateOf(false) }
+
+    Scaffold(
+        bottomBar = { BottomBar(nav, reviewCount) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddTxn = true },
+                containerColor = Gold,
+            ) {
+                Text("+", fontSize = 24.sp, color = Base)
+            }
+        },
+        containerColor = Base,
+    ) { innerPadding ->
+        if (s.cards.isEmpty() && !s.loading) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("No cards yet", color = Muted, style = MaterialTheme.typography.bodyLarge)
+                    Button(onClick = { nav.navigate(Routes.ADD_CARD) }) {
+                        Text("Add card")
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                // Top row
+                item {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "CardLedger",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = OnDark,
+                        )
+                        TextButton(onClick = { nav.navigate(Routes.ADD_CARD) }) {
+                            Text("+ Add card", color = Gold)
+                        }
+                    }
+                }
+
+                // Portfolio card
+                item {
+                    Surface(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Elevated,
+                    ) {
+                        Row(
+                            Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                SpendRing(s.total.spend, s.total.limit, 72)
+                                Text(
+                                    "${s.total.percent}%",
+                                    color = OnDark,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Total utilization", color = Muted, fontSize = 12.sp)
+                                Text(
+                                    "${money(s.total.spend)} / ${money(s.total.limit)}",
+                                    color = OnDark,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Upcoming dues
+                if (s.dues.isNotEmpty()) {
+                    item {
+                        Text(
+                            "⚠ Upcoming dues",
+                            color = Warning,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        )
+                    }
+                    items(s.dues) { due ->
+                        val dueCard = s.cards.firstOrNull { it.id == due.cardId }
+                        Surface(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 2.dp)
+                                .clickable { nav.navigate("${Routes.CARD_DETAIL}/${due.cardId}") },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Surface1,
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    dueCard?.nickname ?: due.cardId,
+                                    color = OnDark,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Text(
+                                    "due ${due.dueDate.drop(5)} · in ${due.daysUntil}d",
+                                    color = Warning,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                    }
+                    item { Spacer(Modifier.height(8.dp)) }
+                }
+
+                // Card carousel
+                if (s.cards.isNotEmpty()) {
+                    item {
+                        val pagerState = rememberPagerState(pageCount = { s.cards.size })
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            HorizontalPager(
+                                state = pagerState,
+                                contentPadding = PaddingValues(horizontal = 24.dp),
+                                pageSpacing = 12.dp,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { page ->
+                                val card = s.cards[page]
+                                val activeAssignment = s.assignments.firstOrNull {
+                                    it.card_id == card.id && it.returned_date == null
+                                }
+                                val holder = if (activeAssignment != null) {
+                                    s.holders.firstOrNull { it.id == activeAssignment.holder_id }
+                                } else {
+                                    s.holders.firstOrNull { it.relationship == "me" }
+                                }
+                                val initials = holder?.let { initialsOf(it.name) }
+                                val isMe = holder?.relationship == "me"
+                                val spend = s.spendByCard[card.id] ?: 0.0
+                                val pct = cardUtilization(
+                                    card.credit_limit.toDoubleOrNull() ?: 0.0,
+                                    spend,
+                                ).percent
+
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") },
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    CardTile(card, initials, isMe, spend)
+                                    Text(
+                                        "$pct% utilized",
+                                        color = Muted,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
+
+                            // Dots
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                repeat(s.cards.size) { i ->
+                                    Box(
+                                        Modifier
+                                            .padding(horizontal = 3.dp)
+                                            .size(if (pagerState.currentPage == i) 8.dp else 5.dp)
+                                            .clip(CircleShape)
+                                            .run {
+                                                if (pagerState.currentPage == i)
+                                                    this.then(Modifier.wrapContentSize().clip(CircleShape))
+                                                else this
+                                            },
+                                    ) {
+                                        Surface(
+                                            Modifier.fillMaxSize(),
+                                            shape = CircleShape,
+                                            color = if (pagerState.currentPage == i) Gold else Muted,
+                                        ) {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Recent transactions
+                val recent = s.transactions.sortedByDescending { it.txn_date }.take(5)
+                if (recent.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Recent",
+                            color = OnDark,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        )
+                    }
+                    val holderMap = s.holders.associateBy { it.id }
+                    items(recent) { txn ->
+                        val txnHolder = holderMap[txn.holder_id_at_time]
+                        val holderLabel = txnHolder?.name ?: txn.holder_id_at_time
+                        Surface(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Surface1,
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(txn.merchant, color = OnDark, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Text(
+                                        "$holderLabel · ${txn.txn_date.drop(5)}",
+                                        color = Muted,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Text(
+                                    "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                    color = Danger,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                )
+                            }
+                        }
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+            }
+        }
+    }
+
+    if (showAddTxn) {
+        AddTransactionSheet(
+            cards = s.cards,
+            holders = s.holders,
+            assignments = s.assignments,
+            initialCardId = null,
+            onDismiss = { showAddTxn = false },
+            onSaved = { vm.load() },
+        )
+    }
+}
