@@ -182,13 +182,13 @@ export default function HomeScreen() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex overflow-x-auto snap-x snap-mandatory gap-4 px-4 pb-2 [&::-webkit-scrollbar]:hidden"
+          className="flex items-center overflow-x-auto overflow-y-hidden snap-x snap-mandatory gap-4 px-4 h-64 [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: 'none' }}
         >
           {cardList.map((card) => {
             const util = getCardUtilization(Number(card.credit_limit), spendByCard[card.id] ?? 0);
             return (
-              <div key={card.id} className="snap-center shrink-0 w-[85%]">
+              <div key={card.id} className="snap-center shrink-0 w-[85%] max-w-[360px]">
                 <div onClick={() => nav(`/cards/${card.id}`)}>
                   <CardTile
                     card={card}
