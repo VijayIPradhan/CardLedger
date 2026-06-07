@@ -12,8 +12,6 @@ import androidx.navigation.NavHostController
 @Composable private fun Stub(name: String) =
     Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(name) } }
 
-@Composable fun LoginScreen(onSuccess: () -> Unit) = Stub("Login")
-@Composable fun LockScreen(onUnlocked: () -> Unit) = Stub("Lock")
 @Composable fun HomeScreen(nav: NavHostController) = Stub("Home")
 @Composable fun HoldersScreen(nav: NavHostController) = Stub("Holders")
 @Composable fun SettingsScreen(nav: NavHostController) = Stub("Settings")
