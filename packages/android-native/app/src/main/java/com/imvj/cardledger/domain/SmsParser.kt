@@ -5,7 +5,7 @@ import java.security.MessageDigest
 data class SmsInput(val sender: String, val body: String, val timestamp: Long)
 data class ParseResult(
     val bank: String, val last4: String, val amount: Double, val merchant: String,
-    val date: String, val confidence: String, val dedupeHash: String, val raw: SmsInput,
+    val date: String, val type: String, val confidence: String, val dedupeHash: String, val raw: SmsInput,
 )
 
 private data class Rule(val bank: String, val senders: List<String>, val patterns: List<Regex>)
@@ -89,6 +89,7 @@ fun parseSms(input: SmsInput): ParseResult? {
                 merchant = normalizeMerchant(rawMerchant ?: ""),
                 date = if (rawDate != null) normalizeDate(rawDate)
                        else java.time.Instant.ofEpochMilli(input.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString(),
+                type = "spend",
                 confidence = confidence,
                 dedupeHash = dedupeHash(input),
                 raw = input,

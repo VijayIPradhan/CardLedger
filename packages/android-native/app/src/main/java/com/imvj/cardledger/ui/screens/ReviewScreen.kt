@@ -73,6 +73,7 @@ fun ReviewScreen(nav: NavHostController) {
                                     merchant = merchant,
                                     txn_date = date,
                                     source = "sms",
+                                    type = item.parse.type,
                                     holder_id_at_time = null,
                                     raw_sms_encrypted = null,
                                     dedupe_hash = item.parse.dedupeHash,
@@ -112,13 +113,24 @@ private fun ReviewItemCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Raw SMS body preview
-            Text(
-                text = item.parse.raw.body,
-                maxLines = 3,
-                fontSize = 12.sp,
-                color = Muted,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = item.parse.raw.body,
+                    maxLines = 3,
+                    fontSize = 12.sp,
+                    color = Muted,
+                    modifier = Modifier.weight(1f)
+                )
+                if (item.parse.type == "payment") {
+                    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
+                        Text("Payment", fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            }
 
             HorizontalDivider()
 

@@ -11,6 +11,7 @@ export interface ParseResult {
   amount: number;
   merchant: string;
   date: string; // ISO yyyy-MM-dd
+  type: 'spend' | 'payment';
   confidence: 'high' | 'low';
   dedupeHash: string;
   raw: SmsInput;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const NetworkSchema = z.enum(['Visa', 'Mastercard', 'RuPay', 'Amex']);
 export const RelationshipSchema = z.enum(['me', 'friend']);
 export const TransactionSourceSchema = z.enum(['sms', 'manual']);
+export const TransactionTypeSchema = z.enum(['spend', 'payment']);
 
 export const CreateCardSchema = z.object({
   last4: z.string().regex(/^\d{4}$/, 'Must be exactly 4 digits'),
@@ -42,6 +43,7 @@ export const CreateTransactionSchema = z.object({
   merchant: z.string().min(1).max(200),
   txn_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   source: TransactionSourceSchema,
+  type: TransactionTypeSchema.default('spend'),
   holder_id_at_time: z.string().uuid().optional(), // "who used" — manual override
   raw_sms_encrypted: z.string().nullable().optional(),
   dedupe_hash: z.string().nullable().optional(),
@@ -54,6 +56,7 @@ export const UpdateTransactionSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  type: TransactionTypeSchema.optional(),
   holder_id_at_time: z.string().uuid().optional(),
 });
 

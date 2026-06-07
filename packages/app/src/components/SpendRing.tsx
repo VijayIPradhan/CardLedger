@@ -2,9 +2,10 @@ interface SpendRingProps {
   spent: number;
   limit: number;
   size?: number;
+  percentText?: string;
 }
 
-export function SpendRing({ spent, limit, size = 56 }: SpendRingProps) {
+export function SpendRing({ spent, limit, size = 56, percentText }: SpendRingProps) {
   const pct = limit > 0 ? Math.min(spent / limit, 1) : 0;
   const r = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
@@ -23,6 +24,21 @@ export function SpendRing({ spent, limit, size = 56 }: SpendRingProps) {
         strokeLinecap="round"
         style={{ transition: 'stroke-dasharray 0.6s ease' }}
       />
+      {percentText && (
+        <text
+          x="50%"
+          y="50%"
+          dominantBaseline="middle"
+          textAnchor="middle"
+          fill="#FFF"
+          fontSize={size * 0.25}
+          fontWeight="bold"
+          className="rotate-90"
+          style={{ transformOrigin: 'center' }}
+        >
+          {percentText}
+        </text>
+      )}
     </svg>
   );
 }

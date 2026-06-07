@@ -58,12 +58,16 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
         serverHashes: Set<String>,
         autoCommit: Boolean,
     ): Outcome {
-        val r = parseSms(sms) ?: return Outcome.SKIPPED
+        val r = try {
+            c.api.parseSmsAi(sms)
+        } catch (e: Exception) {
+            parseSms(sms)
+        } ?: return Outcome.SKIPPED
         if (r.dedupeHash in serverHashes || r.dedupeHash in ReviewStore.knownHashes) return Outcome.SKIPPED
         val matched = if (r.last4.isNotBlank()) cards.firstOrNull { it.last4 == r.last4 } else null
         if (autoCommit && r.confidence == "high" && matched != null) {
             val res = c.transactionRepo.create(
-                CreateTransactionDto(matched.id, r.amount, r.merchant, r.date, "sms", null, null, r.dedupeHash)
+                CreateTransactionDto(matched.id, r.amount, r.merchant, r.date, "sms", r.type, null, null, r.dedupeHash)
             )
             if (res.isSuccess) { ReviewStore.addHash(r.dedupeHash); return Outcome.IMPORTED }
         }

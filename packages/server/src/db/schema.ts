@@ -60,6 +60,7 @@ export const transactions = pgTable('transactions', {
   merchant: varchar('merchant', { length: 200 }).notNull(),
   txn_date: date('txn_date').notNull(),
   source: varchar('source', { length: 10 }).notNull(),
+  type: varchar('type', { length: 20 }).default('spend').notNull(),
   holder_id_at_time: uuid('holder_id_at_time')
     .references(() => holders.id)
     .notNull(),

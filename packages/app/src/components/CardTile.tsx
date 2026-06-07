@@ -55,7 +55,11 @@ export function CardTile({ card, holder, cycleSpend, onClick }: CardTileProps) {
             <DueDateChip daysLeft={daysLeft} />
           </div>
           <div className="flex flex-col items-center gap-1">
-            <SpendRing spent={cycleSpend} limit={Number(card.credit_limit)} />
+            <SpendRing
+              spent={cycleSpend}
+              limit={Number(card.credit_limit)}
+              percentText={`${Number(card.credit_limit) > 0 ? Math.round((cycleSpend / Number(card.credit_limit)) * 100) : 0}%`}
+            />
             <p className="text-[10px] text-white/60">₹{cycleSpend.toLocaleString('en-IN')}</p>
           </div>
         </div>

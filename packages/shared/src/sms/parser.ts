@@ -42,6 +42,7 @@ export async function parseSms(input: SmsInput): Promise<ParseResult | null> {
         date: rawDate
           ? normalizeDate(rawDate)
           : new Date(input.timestamp ?? Date.now()).toISOString().split('T')[0],
+        type: 'spend',
         confidence,
         dedupeHash: hash,
         raw: input,

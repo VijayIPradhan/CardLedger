@@ -37,4 +37,6 @@ interface ApiService {
 
     @GET("payments") suspend fun getPayments(@Query("holder_id") holderId: String? = null): List<PaymentDto>
     @POST("payments") suspend fun createPayment(@Body body: CreatePaymentDto): PaymentDto
+
+    @POST("sms/parse/ai") suspend fun parseSmsAi(@Body body: com.imvj.cardledger.domain.SmsInput): com.imvj.cardledger.domain.ParseResult
 }

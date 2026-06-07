@@ -24,6 +24,13 @@ api.interceptors.response.use(
   },
 );
 
+import type { SmsInput, ParseResult } from '@cardledger/shared';
+
+export async function parseSmsAi(input: SmsInput): Promise<ParseResult> {
+  const { data } = await api.post<ParseResult>('/sms/parse/ai', input);
+  return data;
+}
+
 export async function login(username: string, password: string): Promise<string> {
   const { data } = await api.post<{ token: string }>('/auth/login', { username, password });
   localStorage.setItem('cl_token', data.token);

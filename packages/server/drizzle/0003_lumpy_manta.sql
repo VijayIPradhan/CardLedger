@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "type" varchar(20) DEFAULT 'spend' NOT NULL;

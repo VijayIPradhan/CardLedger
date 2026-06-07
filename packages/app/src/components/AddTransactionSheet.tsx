@@ -20,6 +20,7 @@ export function AddTransactionSheet() {
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [date, setDate] = useState(todayISO());
+  const [type, setType] = useState<'spend' | 'payment'>('spend');
   const [holderId, setHolderId] = useState('');
   const [error, setError] = useState('');
 
@@ -41,14 +42,19 @@ export function AddTransactionSheet() {
       setAmount('');
       setMerchant('');
       setDate(todayISO());
+      setType('spend');
       setError('');
     }
   }, [openSheet, addTxnCardId]); // intentional: cards list should not re-seed on every render
 
   // Keep who-used in sync with the selected card until the user overrides it
   useEffect(() => {
-    setHolderId(resolvedHolderId);
-  }, [resolvedHolderId]);
+    if (type === 'payment') {
+      setHolderId(meHolder?.id ?? '');
+    } else {
+      setHolderId(resolvedHolderId);
+    }
+  }, [resolvedHolderId, type, meHolder]);
 
   const inputCls =
     'w-full bg-elevated border border-elevated rounded-input px-4 py-3 text-sm focus:border-gold outline-none';
@@ -67,6 +73,7 @@ export function AddTransactionSheet() {
         merchant: merchant.trim(),
         txn_date: date,
         source: 'manual',
+        type: type,
         holder_id_at_time: holderId,
         raw_sms_encrypted: null,
         dedupe_hash: null,
@@ -115,6 +122,24 @@ export function AddTransactionSheet() {
         </div>
 
         <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted">Type</label>
+          <div className="flex bg-elevated rounded-input p-1">
+            <button
+              className={`flex-1 py-2 text-sm rounded transition-colors ${type === 'spend' ? 'bg-surface text-white shadow' : 'text-muted'}`}
+              onClick={() => setType('spend')}
+            >
+              Spend
+            </button>
+            <button
+              className={`flex-1 py-2 text-sm rounded transition-colors ${type === 'payment' ? 'bg-surface text-success shadow' : 'text-muted'}`}
+              onClick={() => setType('payment')}
+            >
+              Payment
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
           <label className="text-xs text-muted">Merchant</label>
           <input
             className={inputCls}
@@ -124,7 +149,9 @@ export function AddTransactionSheet() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">Who used</label>
+          <label className="text-xs text-muted">
+            {type === 'payment' ? 'Who paid' : 'Who used'}
+          </label>
           <select
             className={inputCls}
             value={holderId}

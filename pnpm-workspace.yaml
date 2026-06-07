@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
 allowBuilds:
+  '@google/genai': set this to true or false
   argon2: true
   es5-ext: true
   esbuild: true
+  protobufjs: set this to true or false

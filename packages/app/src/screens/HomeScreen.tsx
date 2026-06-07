@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
@@ -11,10 +11,11 @@ import { useCards } from '../data/hooks/useCards.js';
 import { useHolders } from '../data/hooks/useHolders.js';
 import { useAssignments } from '../data/hooks/useAssignments.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
+import { usePayments } from '../data/hooks/usePayments.js';
 import { useUiStore } from '../store/uiStore.js';
 import { scheduleDueReminders } from '../lib/notifications.js';
 import { getCardUtilization, getTotalUtilization, getUpcomingDues } from '@cardledger/shared';
-import type { Card, Holder, Transaction, Assignment } from '@cardledger/shared';
+import type { Card, Holder, Transaction, Assignment, Payment } from '@cardledger/shared';
 
 const todayISO = () => new Date().toISOString().split('T')[0];
 
@@ -25,8 +26,10 @@ export default function HomeScreen() {
   const { data: holders = [] } = useHolders();
   const { data: assignments = [] } = useAssignments();
   const { data: transactions = [] } = useTransactions();
+  const { data: allPayments = [] } = usePayments();
 
   const holderMap = Object.fromEntries(holders.map((h: Holder) => [h.id, h]));
+  const friends = holders.filter((h: Holder) => h.relationship === 'friend');
   const cardList = cards as Card[];
   const today = todayISO();
 
@@ -44,33 +47,6 @@ export default function HomeScreen() {
     // when card data actually changes — this reschedules after edits too.
   }, [cardList]);
 
-  // Horizontal carousel scroll handling
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Update the active index (for dots + reminders) based on which card is centered
-  function handleScroll() {
-    const el = scrollRef.current;
-    if (!el) return;
-    const center = el.scrollLeft + el.clientWidth / 2;
-    let nearest = 0;
-    let best = Infinity;
-    Array.from(el.children).forEach((c, i) => {
-      const child = c as HTMLElement;
-      const childCenter = child.offsetLeft + child.offsetWidth / 2;
-      const dist = Math.abs(childCenter - center);
-      if (dist < best) {
-        best = dist;
-        nearest = i;
-      }
-    });
-    if (nearest !== activeCardIndex) setActiveCardIndex(nearest);
-  }
-
-  function scrollToCard(i: number) {
-    const child = scrollRef.current?.children[i] as HTMLElement | undefined;
-    child?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }
-
   // Usage = all unpaid spend per card (all-time), regardless of cycle or who used it.
   const spendByCard: Record<string, number> = {};
   for (const card of cardList) {
@@ -78,6 +54,18 @@ export default function HomeScreen() {
       .filter((t) => t.card_id === card.id)
       .reduce((s, t) => s + Number(t.amount), 0);
   }
+
+  // Analytics calculations
+  let totalToCollect = 0;
+  friends.forEach((friend: Holder) => {
+    const expenses = (transactions as Transaction[])
+      .filter((t) => t.holder_id_at_time === friend.id)
+      .reduce((s, t) => s + Number(t.amount), 0);
+    const payments = (allPayments as Payment[])
+      .filter((p) => p.holder_id === friend.id)
+      .reduce((s, p) => s + Number(p.amount), 0);
+    totalToCollect += expenses - payments;
+  });
 
   const total = getTotalUtilization(
     cardList.map((c) => ({ id: c.id, credit_limit: Number(c.credit_limit) })),
@@ -132,23 +120,26 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Portfolio summary */}
+      {/* Analytics Dashboard */}
       {cardList.length > 0 && (
-        <div className="px-4 mb-5">
-          <div className="bg-surface rounded-card p-5 flex items-center gap-5">
-            <div className="relative flex items-center justify-center">
-              <SpendRing spent={total.spend} limit={total.limit} size={72} />
-              <span className="absolute text-sm font-semibold">{total.percent}%</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-muted">Total utilization</p>
-              <p className="text-lg font-semibold">
-                ₹{total.spend.toLocaleString('en-IN')}{' '}
-                <span className="text-muted text-sm font-normal">
-                  / ₹{total.limit.toLocaleString('en-IN')}
-                </span>
-              </p>
-            </div>
+        <div className="px-4 mb-5 grid grid-cols-2 gap-3">
+          <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
+            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+              Total to Collect
+            </p>
+            <p className={`text-xl font-bold ${totalToCollect > 0 ? 'text-gold' : 'text-success'}`}>
+              ₹{totalToCollect.toLocaleString('en-IN')}
+            </p>
+            <p className="text-[10px] text-muted leading-tight mt-1">From friends</p>
+          </div>
+          <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
+            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+              Total to Pay
+            </p>
+            <p className={`text-xl font-bold ${total.spend > 0 ? 'text-danger' : 'text-white'}`}>
+              ₹{total.spend.toLocaleString('en-IN')}
+            </p>
+            <p className="text-[10px] text-muted leading-tight mt-1">Total outstanding debt</p>
           </div>
         </div>
       )}
@@ -177,44 +168,30 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Card carousel — horizontal snap scroll, every card reachable by swiping */}
+      {/* Card Stack — Vertical sticky layout */}
       {cardList.length > 0 && (
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="flex items-center overflow-x-auto overflow-y-hidden snap-x snap-mandatory gap-4 px-4 h-64 [&::-webkit-scrollbar]:hidden"
-          style={{ scrollbarWidth: 'none' }}
-        >
-          {cardList.map((card) => {
-            const util = getCardUtilization(Number(card.credit_limit), spendByCard[card.id] ?? 0);
+        <div className="flex flex-col px-4 mb-5 relative pb-8">
+          <p className="text-xs text-muted mb-3">Cards</p>
+          {cardList.map((card, i) => {
             return (
-              <div key={card.id} className="snap-center shrink-0 w-[85%] max-w-[360px]">
-                <div onClick={() => nav(`/cards/${card.id}`)}>
+              <div
+                key={card.id}
+                className="sticky transition-transform duration-300"
+                style={{ top: `${i * 12 + 16}px`, zIndex: i }}
+              >
+                <div
+                  onClick={() => nav(`/cards/${card.id}`)}
+                  className="shadow-[0_-4px_16px_rgba(0,0,0,0.5)] rounded-card"
+                >
                   <CardTile
                     card={card}
                     holder={getCardHolder(card.id)}
                     cycleSpend={spendByCard[card.id] ?? 0}
                   />
                 </div>
-                <p className="text-center text-xs text-muted mt-2">{util.percent}% utilized</p>
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Dot indicators */}
-      {cardList.length > 1 && (
-        <div className="flex justify-center gap-1.5 mb-5">
-          {cardList.map((c, i) => (
-            <button
-              key={c.id}
-              onClick={() => scrollToCard(i)}
-              className={`h-1.5 rounded-full transition-all ${
-                i === activeCardIndex ? 'w-5 bg-gold' : 'w-1.5 bg-elevated'
-              }`}
-            />
-          ))}
         </div>
       )}
 

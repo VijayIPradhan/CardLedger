@@ -6,7 +6,7 @@ import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
 import { BottomNav } from '../components/BottomNav.js';
 import { Sms } from '../plugins/SmsPlugin.js';
-import { parseSms } from '@cardledger/shared';
+import { parseSmsAi } from '../data/apiClient.js';
 import { useReviewStore } from '../store/reviewStore.js';
 import { useCards } from '../data/hooks/useCards.js';
 import { useTransactions, useCreateTransaction } from '../data/hooks/useTransactions.js';
@@ -43,36 +43,45 @@ export default function SmsImportScreen() {
     try {
       const { messages } = await Sms.readInbox({ daysBack: 90 });
       for (const msg of messages) {
-        const result = await parseSms(msg);
-        if (!result) continue;
-        if (hashSet.has(result.dedupeHash)) continue; // already processed
+        try {
+          const result = await parseSmsAi({
+            sender: msg.sender,
+            body: msg.body,
+            timestamp: msg.timestamp,
+          });
+          if (!result) continue;
+          if (hashSet.has(result.dedupeHash)) continue; // already processed
 
-        if (result.confidence === 'high' && result.last4) {
-          const cardId = findCardId(result.last4);
-          if (cardId) {
-            await createTxn.mutateAsync({
-              card_id: cardId,
-              amount: result.amount,
-              merchant: result.merchant,
-              txn_date: result.date,
-              source: 'sms',
-              dedupe_hash: result.dedupeHash,
-              raw_sms_encrypted: null,
-            });
-            addHash(result.dedupeHash);
-            imported++;
-            continue;
+          if (result.confidence === 'high' && result.last4) {
+            const cardId = findCardId(result.last4);
+            if (cardId) {
+              await createTxn.mutateAsync({
+                card_id: cardId,
+                amount: result.amount,
+                merchant: result.merchant,
+                txn_date: result.date,
+                source: 'sms',
+                type: result.type,
+                dedupe_hash: result.dedupeHash,
+                raw_sms_encrypted: null,
+              });
+              addHash(result.dedupeHash);
+              imported++;
+              continue;
+            }
           }
-        }
 
-        // Low confidence OR card not found → queue for review
-        const cardId = result.last4 ? findCardId(result.last4) : undefined;
-        enqueue({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          parseResult: result,
-          cardId,
-        });
-        queued++;
+          // Low confidence OR card not found → queue for review
+          const cardId = result.last4 ? findCardId(result.last4) : undefined;
+          enqueue({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            parseResult: result,
+            cardId,
+          });
+          queued++;
+        } catch (e) {
+          console.error('AI parse failed', e);
+        }
       }
       setSummary({ imported, queued });
     } finally {
@@ -83,12 +92,20 @@ export default function SmsImportScreen() {
   // Live listener: parse incoming SMS in real time while screen is mounted
   useEffect(() => {
     Sms.addListener('smsReceived', async (msg) => {
-      const result = await parseSms(msg);
-      if (!result) return;
-      const hashSet = buildHashSet();
-      if (hashSet.has(result.dedupeHash)) return;
-      const cardId = result.last4 ? findCardId(result.last4) : undefined;
-      enqueue({ id: `live-${Date.now()}`, parseResult: result, cardId });
+      try {
+        const result = await parseSmsAi({
+          sender: msg.sender,
+          body: msg.body,
+          timestamp: msg.timestamp,
+        });
+        if (!result) return;
+        const hashSet = buildHashSet();
+        if (hashSet.has(result.dedupeHash)) return;
+        const cardId = result.last4 ? findCardId(result.last4) : undefined;
+        enqueue({ id: `live-${Date.now()}`, parseResult: result, cardId });
+      } catch (e) {
+        console.error('AI parse failed for live SMS', e);
+      }
     }).then((handle) => {
       listenerRef.current = handle;
     });

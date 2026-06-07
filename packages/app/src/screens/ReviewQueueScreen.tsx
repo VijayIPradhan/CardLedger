@@ -44,6 +44,7 @@ export default function ReviewQueueScreen() {
                   merchant,
                   txn_date: date,
                   source: 'sms',
+                  type: item.parseResult.type,
                   dedupe_hash: item.parseResult.dedupeHash,
                   raw_sms_encrypted: null,
                 });
@@ -100,15 +101,22 @@ function ReviewCard({ item, cards, onConfirm, onDismiss }: ReviewCardProps) {
     >
       {/* Raw SMS snippet */}
       <p className="text-xs text-muted font-mono leading-relaxed line-clamp-3">{pr.raw.body}</p>
-      <p className="text-xs text-muted">
-        Bank: <span className="text-white">{pr.bank}</span>
-        {pr.last4 && (
-          <>
-            {' '}
-            · last4: <span className="text-white">{pr.last4}</span>
-          </>
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-muted">
+          Bank: <span className="text-white">{pr.bank}</span>
+          {pr.last4 && (
+            <>
+              {' '}
+              · last4: <span className="text-white">{pr.last4}</span>
+            </>
+          )}
+        </p>
+        {pr.type === 'payment' && (
+          <span className="bg-success/20 text-success text-[10px] uppercase font-bold px-2 py-0.5 rounded">
+            Payment
+          </span>
         )}
-      </p>
+      </div>
 
       {/* Editable fields */}
       <div className="grid grid-cols-2 gap-2">

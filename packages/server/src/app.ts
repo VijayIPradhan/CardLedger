@@ -10,6 +10,7 @@ import { assignmentRoutes } from './routes/assignments.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { paymentRoutes } from './routes/payments.js';
 import { metadataRoutes } from './routes/metadata.js';
+import { smsRoutes } from './routes/sms.js';
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -54,6 +55,7 @@ export async function buildApp() {
   await app.register(transactionRoutes, { prefix: '/transactions' });
   await app.register(paymentRoutes, { prefix: '/payments' });
   await app.register(metadataRoutes, { prefix: '/metadata' });
+  await app.register(smsRoutes, { prefix: '/sms' });
 
   return app;
 }
