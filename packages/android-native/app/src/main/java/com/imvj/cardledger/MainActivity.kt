@@ -1,22 +1,22 @@
 package com.imvj.cardledger
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import com.imvj.cardledger.ui.lock.AppLock
+import com.imvj.cardledger.ui.nav.AppNav
+import com.imvj.cardledger.ui.theme.CardLedgerTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme {
-                Surface { Text("CardLedger", modifier = Modifier.padding(24.dp)) }
-            }
-        }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) { AppLock.onBackground() }
+            override fun onStart(owner: LifecycleOwner) { AppLock.onForeground() }
+        })
+        setContent { CardLedgerTheme { AppNav() } }
     }
 }
