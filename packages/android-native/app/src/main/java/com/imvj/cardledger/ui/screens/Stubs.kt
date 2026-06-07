@@ -17,4 +17,3 @@ import androidx.navigation.NavHostController
 @Composable fun SmsScreen(nav: NavHostController) = Stub("SMS")
 @Composable fun ReviewScreen(nav: NavHostController) = Stub("Review")
 @Composable fun AddEditCardScreen(nav: NavHostController, cardId: String?) = Stub("AddEditCard")
-@Composable fun CardDetailScreen(nav: NavHostController, cardId: String) = Stub("CardDetail")

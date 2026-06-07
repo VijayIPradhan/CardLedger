@@ -1,0 +1,315 @@
+package com.imvj.cardledger.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavHostController
+import com.imvj.cardledger.data.net.TransactionDto
+import com.imvj.cardledger.feature.CardDetailViewModel
+import com.imvj.cardledger.feature.app
+import com.imvj.cardledger.ui.components.*
+import com.imvj.cardledger.ui.nav.Routes
+import com.imvj.cardledger.ui.theme.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CardDetailScreen(nav: NavHostController, cardId: String) {
+    val c = app().container
+    val vm: CardDetailViewModel = viewModel(factory = viewModelFactory {
+        initializer { CardDetailViewModel(c) }
+    })
+    LaunchedEffect(cardId) { vm.load(cardId) }
+    val s by vm.state.collectAsStateWithLifecycle()
+
+    var showAddTxn by remember { mutableStateOf(false) }
+    var showTxnSheet by remember { mutableStateOf(false) }
+    var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
+
+    Scaffold(
+        containerColor = Base,
+        topBar = {
+            TopAppBar(
+                title = { Text(s.card?.nickname ?: "Card", color = OnDark) },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "back",
+                            tint = OnDark,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Base),
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddTxn = true },
+                containerColor = Gold,
+            ) {
+                Text("+", fontSize = 24.sp, color = Base)
+            }
+        },
+    ) { innerPadding ->
+        if (s.loading || s.card == null) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Loading…", color = Muted)
+            }
+        } else {
+            val card = s.card!!
+            Column(
+                Modifier
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                // Card tile
+                CardTile(
+                    card = card,
+                    holderInitials = s.currentHolder?.let { initialsOf(it.name) },
+                    holderIsMe = s.currentHolder?.relationship == "me",
+                    spend = s.totalSpend,
+                )
+
+                // Edit / Delete buttons
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Button(
+                        onClick = { nav.navigate("${Routes.ADD_CARD}?id=$cardId") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Elevated),
+                    ) {
+                        Text("Edit card", color = OnDark)
+                    }
+                    Button(
+                        onClick = { vm.deleteCard(onDone = { nav.popBackStack() }) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Elevated),
+                    ) {
+                        Text("Delete card", color = Danger)
+                    }
+                }
+
+                // Error message
+                s.error?.let {
+                    Text(it, color = Danger, style = MaterialTheme.typography.bodySmall)
+                }
+
+                // Transaction history grouped by cycle
+                if (s.cycles.isEmpty()) {
+                    Text("No transactions yet", color = Muted, style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    val holderMap = s.holders.associateBy { it.id }
+                    s.cycles.forEach { cycle ->
+                        Text(
+                            cycle.label,
+                            color = Muted,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        cycle.txns.sortedByDescending { it.txn_date }.forEach { txn ->
+                            val holderName = holderMap[txn.holder_id_at_time]?.name ?: txn.holder_id_at_time
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedTxn = txn
+                                        showTxnSheet = true
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Elevated,
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            txn.merchant,
+                                            color = OnDark,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 14.sp,
+                                        )
+                                        Text(
+                                            "$holderName · ${txn.txn_date.drop(5)}",
+                                            color = Muted,
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                    Text(
+                                        "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                        color = Danger,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom padding so FAB doesn't cover last item
+                Spacer(Modifier.height(80.dp))
+            }
+        }
+    }
+
+    // Txn edit sheet
+    if (showTxnSheet && selectedTxn != null) {
+        val txn = selectedTxn!!
+        var editAmount by remember { mutableStateOf("") }
+        var editMerchant by remember { mutableStateOf("") }
+        var editDate by remember { mutableStateOf("") }
+        var editHolderId by remember { mutableStateOf("") }
+        var holderExpanded by remember { mutableStateOf(false) }
+
+        LaunchedEffect(txn) {
+            editAmount = txn.amount
+            editMerchant = txn.merchant
+            editDate = txn.txn_date
+            editHolderId = txn.holder_id_at_time
+        }
+
+        val selectedHolder = s.holders.firstOrNull { it.id == editHolderId }
+
+        ModalBottomSheet(onDismissRequest = { showTxnSheet = false }) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Edit Transaction", style = MaterialTheme.typography.titleMedium, color = OnDark)
+
+                OutlinedTextField(
+                    value = editAmount,
+                    onValueChange = { editAmount = it },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                OutlinedTextField(
+                    value = editDate,
+                    onValueChange = { editDate = it },
+                    label = { Text("Date (yyyy-MM-dd)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                OutlinedTextField(
+                    value = editMerchant,
+                    onValueChange = { editMerchant = it },
+                    label = { Text("Merchant") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = holderExpanded,
+                    onExpandedChange = { holderExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = selectedHolder?.let { h ->
+                            h.name + if (h.relationship == "me") " (me)" else ""
+                        } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Who used") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = holderExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = holderExpanded,
+                        onDismissRequest = { holderExpanded = false },
+                    ) {
+                        s.holders.forEach { holder ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(holder.name + if (holder.relationship == "me") " (me)" else "")
+                                },
+                                onClick = {
+                                    editHolderId = holder.id
+                                    holderExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Button(
+                        onClick = {
+                            val amt = editAmount.toDoubleOrNull() ?: return@Button
+                            vm.updateTxn(
+                                txnId = txn.id,
+                                cardId = cardId,
+                                amount = amt,
+                                merchant = editMerchant,
+                                date = editDate,
+                                holderId = editHolderId,
+                                onDone = { showTxnSheet = false },
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Save")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            vm.deleteTxn(txn.id, cardId)
+                            showTxnSheet = false
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger),
+                    ) {
+                        Text("Delete")
+                    }
+                }
+            }
+        }
+    }
+
+    // Add txn sheet
+    if (showAddTxn) {
+        AddTransactionSheet(
+            cards = listOfNotNull(s.card),
+            holders = s.holders,
+            assignments = s.assignments,
+            initialCardId = cardId,
+            onDismiss = { showAddTxn = false },
+            onSaved = { vm.load(cardId) },
+        )
+    }
+}
