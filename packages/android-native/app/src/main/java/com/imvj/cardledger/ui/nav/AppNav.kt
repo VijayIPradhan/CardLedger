@@ -7,13 +7,17 @@ import androidx.navigation.compose.rememberNavController
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.lock.AppLock
 import com.imvj.cardledger.ui.screens.*
+import kotlinx.coroutines.flow.map
 
 @Composable
 fun AppNav() {
     val nav = rememberNavController()
     val container = app().container
-    var hasToken by remember { mutableStateOf<Boolean?>(null) }
-    LaunchedEffect(Unit) { hasToken = container.tokenStore.get() != null }
+    // Live token state — recomposes immediately after login (set) and sign-out (clear),
+    // so the lock overlay shows after the first login and the user returns to Login on sign-out.
+    val hasToken by container.tokenStore.tokenFlow
+        .map { it != null }
+        .collectAsState(initial = null)
     val locked by AppLock.locked.collectAsState()
 
     val token = hasToken ?: return
