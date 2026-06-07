@@ -13,5 +13,3 @@ import androidx.navigation.NavHostController
     Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(name) } }
 
 @Composable fun SettingsScreen(nav: NavHostController) = Stub("Settings")
-@Composable fun SmsScreen(nav: NavHostController) = Stub("SMS")
-@Composable fun ReviewScreen(nav: NavHostController) = Stub("Review")
