@@ -316,7 +316,7 @@ fun HomeScreen(nav: NavHostController) {
                                 }
                                 Text(
                                     "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                    color = Danger,
+                                    color = if (txn.is_paid) Success else Danger,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp,
                                 )

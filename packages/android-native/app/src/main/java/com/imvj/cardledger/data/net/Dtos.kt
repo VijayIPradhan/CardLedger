@@ -19,7 +19,7 @@ data class CardDto(
     val bin: String? = null,
     val variant: String? = null,
     val shared_limit_with: String? = null,
-    val color: String? = null,
+    val palette: PaletteDto? = null,
     val created_at: String? = null,
 )
 
@@ -35,7 +35,7 @@ data class CreateCardDto(
     val bin: String? = null,
     val variant: String? = null,
     val shared_limit_with: String? = null,
-    val color: String? = null,
+    val palette: PaletteDto? = null,
 )
 
 @Serializable
@@ -139,6 +139,25 @@ data class DetectPaletteRequest(
 )
 
 @Serializable
-data class PaletteResponse(
+data class PaletteDto(
+    val identified_card: String? = null,
+    val confidence: Double? = null,
     val primary_hex: String,
+    val secondary_hex: String? = null,
+    val accent_hex: String? = null,
+    val background_type: String? = null,
+    val gradient_direction: String? = null,
+    val svg: String? = null,
+)
+
+@Serializable
+data class PaletteResponse(
+    val identified_card: String? = null,
+    val confidence: Double? = null,
+    val primary_hex: String,
+    val secondary_hex: String? = null,
+    val accent_hex: String? = null,
+    val background_type: String? = null,
+    val gradient_direction: String? = null,
+    val svg: String? = null,
 )

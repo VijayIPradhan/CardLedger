@@ -80,21 +80,75 @@ export async function cardRoutes(app: FastifyInstance) {
     const parsed = DetectPaletteSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
 
-    const prompt = `You are an expert in credit card designs in India. Your task is to accurately generate the card background from the real card by searching.
-    
-    Bank: ${parsed.data.bank}
-    Network: ${parsed.data.network || 'Unknown'}
-    Variant: ${parsed.data.variant || 'Unknown'}
+    const prompt = `You are an expert credit card design identification engine.
+Your task is to identify the exact physical credit card issued in India and recreate its visual design as accurately as possible.
+Input:
+* Bank: ${parsed.data.bank}
+* Network: ${parsed.data.network || 'Unknown'}
+* Variant: ${parsed.data.variant || 'Unknown'}
 
-    Instructions:
-    1. Search the web for images of this exact real-world physical credit card to determine its true background color. Do not just guess from memory.
-    2. Provide the exact primary hex color code that matches the real-world physical card based on your search.
-    3. Do not invent or guess "premium" colors; stick strictly to the actual brand or variant color (e.g., Amazon Pay ICICI is bright orange, Swiggy HDFC is vibrant orange, Flipkart Axis is bright blue).
-    4. If the card variant is unknown or you cannot find it by searching, fall back to the bank's primary brand color.
-    5. The hex code must be a valid 6-character hex string prefixed with "#" (e.g., "#FF5733").
+Workflow (MANDATORY):
+1. Search the web for the exact card using:
+   * Bank name
+   * Card variant
+   * Network
+   * Official issuer website
+   * Official marketing images
+2. Prioritize sources in this order:
+   * Official bank websites
+   * Official issuer press releases
+   * Official application pages
+   * Official card images
+3. Never infer colors from bank branding alone if a card image is available.
+4. Visually analyze the actual card image and determine:
+   * Primary background color
+   * Secondary color
+   * Accent color
+   * Gradient direction
+   * Background texture
+   * Geometric patterns
+   * Metallic effects
+   * Matte or glossy appearance
+5. Extract colors from the card background only.
+   Ignore:
+   * Visa logo
+   * Mastercard logo
+   * RuPay logo
+   * American Express logo
+   * Card chip
+   * Card number
+   * Cardholder name
+   * Bank logo
+6. Generate a simplified SVG that resembles the real card background.
+7. If multiple card generations exist, use the newest official design.
+8. If the exact card cannot be identified:
+   * Fall back to the bank's official brand palette.
+   * Set confidence below 0.70.
 
-    Return ONLY a JSON object exactly like this, with no markdown formatting:
-    {"primary_hex": "#HexCode"}`;
+Confidence Scale:
+* 1.00 = Exact official card image found
+* 0.90 = Multiple matching official images found
+* 0.75 = Variant inferred from official sources
+* <0.70 = Bank-color fallback
+
+Return ONLY valid JSON.
+{
+  "identified_card": "Exact card name",
+  "confidence": 0.0,
+  "primary_hex": "#000000",
+  "secondary_hex": "#000000",
+  "accent_hex": "#000000",
+  "background_type": "solid|gradient|pattern",
+  "gradient_direction": "none|horizontal|vertical|diagonal",
+  "svg": "<svg>...</svg>"
+}
+
+Important:
+* Do NOT guess.
+* Do NOT use stereotypical premium colors.
+* Do NOT assume Amazon cards are orange or premium cards are black.
+* The returned colors must match the actual physical card visible in official images.
+* The SVG should visually resemble the real card background as closely as possible.`;
 
     try {
       let txt: string;
@@ -143,7 +197,7 @@ export async function cardRoutes(app: FastifyInstance) {
 
       const data = JSON.parse(txt);
       if (data.primary_hex) {
-        return reply.send({ primary_hex: data.primary_hex });
+        return reply.send(data);
       } else {
         throw new Error('Invalid JSON format from AI');
       }

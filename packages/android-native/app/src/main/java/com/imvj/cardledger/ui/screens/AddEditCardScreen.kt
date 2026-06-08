@@ -331,19 +331,19 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
             )
             
             var colorExpanded by remember { mutableStateOf(false) }
-            val selectedName = premiumColors.find { it.first == s.color }?.second ?: premiumColors.first().second
+            val selectedName = premiumColors.find { it.first == s.palette?.primary_hex }?.second ?: premiumColors.first().second
             
             ExposedDropdownMenuBox(
                 expanded = colorExpanded,
                 onExpandedChange = { colorExpanded = it },
             ) {
                 OutlinedTextField(
-                    value = s.color?.takeIf { !premiumColors.any { p -> p.first == it } } ?: selectedName,
+                    value = s.palette?.primary_hex?.takeIf { hexVal -> !premiumColors.any { p -> p.first == hexVal } } ?: selectedName,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Card Color") },
                     leadingIcon = {
-                        val colorVal = s.color?.let { 
+                        val colorVal = s.palette?.primary_hex?.let { 
                             try { Color(android.graphics.Color.parseColor(it.replace("0x", "#"))) } catch(e:Exception) { null }
                         }
                         if (colorVal != null) {
@@ -375,7 +375,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                                 }
                             },
                             onClick = {
-                                vm.update { it.copy(color = hex) }
+                                vm.update { it.copy(palette = hex?.let { h -> com.imvj.cardledger.data.net.PaletteDto(primary_hex = h) }) }
                                 colorExpanded = false
                             },
                         )

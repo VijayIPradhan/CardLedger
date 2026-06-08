@@ -23,7 +23,7 @@ data class CardFormState(
     val dueDay: Int = 20,
     val creditLimit: String = "100000",
     val sharedLimitWith: String? = null,
-    val color: String? = null,
+    val palette: com.imvj.cardledger.data.net.PaletteDto? = null,
     val detectMsg: String? = null,
     val saving: Boolean = false,
     val error: String? = null,
@@ -57,7 +57,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
                     network = card.network, bank = card.bank, variant = card.variant ?: "",
                     nickname = card.nickname, billingDay = card.billing_cycle_day,
                     dueDay = card.payment_due_day, creditLimit = card.credit_limit,
-                    sharedLimitWith = card.shared_limit_with, color = card.color,
+                    sharedLimitWith = card.shared_limit_with, palette = card.palette,
                 )
             }
         }
@@ -97,7 +97,16 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
                 )
                 val response = c.api.detectPalette(req)
                 _state.value = _state.value.copy(
-                    color = response.primary_hex,
+                    palette = com.imvj.cardledger.data.net.PaletteDto(
+                        identified_card = response.identified_card,
+                        confidence = response.confidence,
+                        primary_hex = response.primary_hex,
+                        secondary_hex = response.secondary_hex,
+                        accent_hex = response.accent_hex,
+                        background_type = response.background_type,
+                        gradient_direction = response.gradient_direction,
+                        svg = response.svg
+                    ),
                     detectMsg = "Color detected!"
                 )
             } catch (e: Exception) {
@@ -116,7 +125,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
             last4 = s.last4, network = s.network, bank = s.bank.trim(), nickname = s.nickname.trim(),
             billing_cycle_day = s.billingDay, payment_due_day = s.dueDay, credit_limit = limit,
             bin = s.bin.ifBlank { null }, variant = s.variant.ifBlank { null },
-            shared_limit_with = s.sharedLimitWith, color = s.color,
+            shared_limit_with = s.sharedLimitWith, palette = s.palette,
         )
         _state.value = s.copy(saving = true, error = null)
         viewModelScope.launch {

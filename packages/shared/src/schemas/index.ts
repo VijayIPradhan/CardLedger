@@ -13,7 +13,7 @@ export const CreateCardSchema = z.object({
   billing_cycle_day: z.number().int().min(1).max(28),
   payment_due_day: z.number().int().min(1).max(28),
   credit_limit: z.number().positive(),
-  color: z.string().max(50).nullable().optional(),
+  palette: z.any().nullable().optional(),
   bin: z
     .string()
     .regex(/^\d{6}$/)
@@ -95,3 +95,15 @@ export const DetectPaletteSchema = z.object({
   variant: z.string().optional(),
 });
 export type DetectPaletteDto = z.infer<typeof DetectPaletteSchema>;
+
+export const PaletteSchema = z.object({
+  identified_card: z.string().optional(),
+  confidence: z.number().optional(),
+  primary_hex: z.string(),
+  secondary_hex: z.string().optional(),
+  accent_hex: z.string().optional(),
+  background_type: z.string().optional(),
+  gradient_direction: z.string().optional(),
+  svg: z.string().optional(),
+});
+export type PaletteDto = z.infer<typeof PaletteSchema>;

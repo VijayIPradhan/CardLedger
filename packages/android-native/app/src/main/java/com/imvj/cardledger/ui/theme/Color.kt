@@ -1,6 +1,8 @@
 package com.imvj.cardledger.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import com.imvj.cardledger.data.net.PaletteDto
 
 val Base = Color(0xFF0A0A0A)
 val Surface1 = Color(0xFF111111)
@@ -72,21 +74,33 @@ fun variantGradient(variant: String?, network: String): List<Color> {
     }
 }
 
-fun cardGradient(colorHex: String?, variant: String?, network: String): List<Color> {
-    if (colorHex != null) {
+fun cardBrush(palette: PaletteDto?, variant: String?, network: String): Brush {
+    if (palette != null) {
         try {
-            val c = Color(android.graphics.Color.parseColor(colorHex.replace("0x", "#")))
-            // Create a subtle gradient from the solid color by darkening it slightly
-            val dark = Color(
-                red = (c.red * 0.8f).coerceIn(0f, 1f),
-                green = (c.green * 0.8f).coerceIn(0f, 1f),
-                blue = (c.blue * 0.8f).coerceIn(0f, 1f),
-                alpha = c.alpha
-            )
-            return listOf(c, dark)
+            val primary = Color(android.graphics.Color.parseColor(palette.primary_hex.replace("0x", "#")))
+            val secondary = palette.secondary_hex?.let { Color(android.graphics.Color.parseColor(it.replace("0x", "#"))) }
+            
+            val colors = if (secondary != null) {
+                listOf(primary, secondary)
+            } else {
+                val dark = Color(
+                    red = (primary.red * 0.8f).coerceIn(0f, 1f),
+                    green = (primary.green * 0.8f).coerceIn(0f, 1f),
+                    blue = (primary.blue * 0.8f).coerceIn(0f, 1f),
+                    alpha = primary.alpha
+                )
+                listOf(primary, dark)
+            }
+            
+            return when (palette.gradient_direction?.lowercase()) {
+                "horizontal" -> Brush.horizontalGradient(colors)
+                "diagonal" -> Brush.linearGradient(colors)
+                "vertical" -> Brush.verticalGradient(colors)
+                else -> Brush.linearGradient(colors)
+            }
         } catch (e: Exception) {
             // fallback
         }
     }
-    return variantGradient(variant, network)
+    return Brush.linearGradient(variantGradient(variant, network))
 }

@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.imvj.cardledger.data.net.CardDto
-import com.imvj.cardledger.ui.theme.cardGradient
+import com.imvj.cardledger.ui.theme.cardBrush
 
 @Composable
 fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend: Double, limitRank: Int? = null) {
@@ -23,7 +23,7 @@ fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend:
     Box(
         Modifier.fillMaxWidth().aspectRatio(1.586f)
             .clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(cardGradient(card.color, card.variant, card.network)))
+            .background(cardBrush(card.palette, card.variant, card.network))
             .padding(20.dp)
     ) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
