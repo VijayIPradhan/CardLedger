@@ -43,7 +43,7 @@ export async function buildApp() {
 
   await app.register(fastifyCors, { origin: true });
   await app.register(fastifyRateLimit, {
-    max: 100,
+    max: 5000,
     timeWindow: '1 minute',
   });
   await app.register(authPlugin);
