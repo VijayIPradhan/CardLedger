@@ -5,6 +5,7 @@ import retrofit2.http.*
 
 interface ApiService {
     @POST("auth/login") suspend fun login(@Body body: LoginRequest): LoginResponse
+    @POST("auth/google") suspend fun loginWithGoogle(@Body body: GoogleLoginRequest): LoginResponse
 
     @GET("cards") suspend fun getCards(): List<CardDto>
     @GET("cards/{id}") suspend fun getCard(@Path("id") id: String): CardDto

@@ -5,11 +5,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.CustomCredential
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.launch
+import com.imvj.cardledger.BuildConfig
 import com.imvj.cardledger.feature.AuthViewModel
 import com.imvj.cardledger.feature.app
 
@@ -20,6 +28,8 @@ fun LoginScreen(onSuccess: () -> Unit) {
     val state by vm.state.collectAsState()
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Surface(Modifier.fillMaxSize()) {
         Column(
@@ -38,6 +48,38 @@ fun LoginScreen(onSuccess: () -> Unit) {
             Spacer(Modifier.height(20.dp))
             Button(onClick = { vm.login(user, pass, onSuccess) }, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
                 Text(if (state.loading) "Signing in…" else "Sign in")
+            }
+            Spacer(Modifier.height(16.dp))
+            Text("OR")
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = {
+                    coroutineScope.launch {
+                        try {
+                            val credentialManager = CredentialManager.create(context)
+                            val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
+                                .setFilterByAuthorizedAccounts(false)
+                                .setServerClientId(BuildConfig.GOOGLE_CLIENT_ID)
+                                .setAutoSelectEnabled(false)
+                                .build()
+                            val request: GetCredentialRequest = GetCredentialRequest.Builder()
+                                .addCredentialOption(googleIdOption)
+                                .build()
+                            val result = credentialManager.getCredential(context, request)
+                            val credential = result.credential
+                            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                vm.loginWithGoogle(googleIdTokenCredential.idToken, onSuccess)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.loading,
+            ) {
+                Text("Continue with Google")
             }
         }
     }

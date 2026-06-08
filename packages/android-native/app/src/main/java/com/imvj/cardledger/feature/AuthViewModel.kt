@@ -24,4 +24,13 @@ class AuthViewModel(private val c: AppContainer) : ViewModel() {
                 .onFailure { _state.value = LoginUiState(error = "Login failed — check credentials") }
         }
     }
+
+    fun loginWithGoogle(idToken: String, onSuccess: () -> Unit) {
+        _state.value = LoginUiState(loading = true)
+        viewModelScope.launch {
+            c.authRepo.loginWithGoogle(idToken)
+                .onSuccess { token -> c.tokenStore.set(token); _state.value = LoginUiState(); onSuccess() }
+                .onFailure { _state.value = LoginUiState(error = "Google login failed") }
+        }
+    }
 }

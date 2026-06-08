@@ -38,7 +38,7 @@ fun variantGradient(variant: String?, network: String): List<Color> {
         variant.contains("Sapphiro", ignoreCase = true) -> listOf(Color(0xFF283593), Color(0xFF1A237E)) // Deep Blue
         variant.contains("Emeralde", ignoreCase = true) -> listOf(Color(0xFF2E7D32), Color(0xFF1B5E20)) // Dark Green
         variant.contains("Rubyx", ignoreCase = true) -> listOf(Color(0xFFD81B60), Color(0xFFAD1457)) // Pink/Red
-        variant.contains("Amazon", ignoreCase = true) -> listOf(Color(0xFFFF9800), Color(0xFFF57C00)) // Orange
+        variant.contains("Amazon", ignoreCase = true) -> listOf(Color(0xFF212121), Color(0xFF0A0A0A)) // Black/Graphite
         
         // HDFC
         variant.contains("Infinia", ignoreCase = true) || variant.contains("Diners Club Black", ignoreCase = true) -> 

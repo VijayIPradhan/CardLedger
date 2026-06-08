@@ -13,8 +13,10 @@ import {
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
-  username: varchar('username', { length: 50 }).notNull().unique(),
-  password_hash: text('password_hash').notNull(),
+  username: varchar('username', { length: 100 }).notNull().unique(),
+  email: varchar('email', { length: 255 }).unique(),
+  password_hash: text('password_hash'),
+  google_id: varchar('google_id', { length: 255 }).unique(),
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
 

@@ -69,6 +69,10 @@ export const LoginSchema = z.object({
   password: z.string().min(8),
 });
 
+export const GoogleLoginSchema = z.object({
+  idToken: z.string().min(1),
+});
+
 export const CreatePaymentSchema = z.object({
   holder_id: z.string().uuid(),
   amount: z.number().positive(),

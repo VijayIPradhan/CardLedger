@@ -21,6 +21,7 @@
     "drizzle-orm": "^0.30.0",
     "fastify": "^4.26.0",
     "fastify-plugin": "^4.5.0",
+    "google-auth-library": "^10.7.0",
     "pg": "^8.11.0",
     "zod": "^3.22.0"
   },

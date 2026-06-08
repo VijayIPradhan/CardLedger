@@ -117,6 +117,9 @@ importers:
       fastify-plugin:
         specifier: ^4.5.0
         version: 4.5.1
+      google-auth-library:
+        specifier: ^10.7.0
+        version: 10.7.0
       pg:
         specifier: ^8.11.0
         version: 8.21.0

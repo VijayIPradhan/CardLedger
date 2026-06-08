@@ -12,6 +12,8 @@ fun isUnauthorized(e: Throwable): Boolean = e is HttpException && e.code() == 40
 class AuthRepository(private val api: ApiService) {
     suspend fun login(username: String, password: String): Result<String> =
         call { api.login(LoginRequest(username, password)).token }
+    suspend fun loginWithGoogle(idToken: String): Result<String> =
+        call { api.loginWithGoogle(GoogleLoginRequest(idToken)).token }
 }
 
 class CardRepository(private val api: ApiService) {

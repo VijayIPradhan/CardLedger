@@ -57,6 +57,13 @@
       "when": 1780927992999,
       "tag": "0007_warm_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1780932557593,
+      "tag": "0008_curious_captain_cross",
+      "breakpoints": true
     }
   ]
 }
