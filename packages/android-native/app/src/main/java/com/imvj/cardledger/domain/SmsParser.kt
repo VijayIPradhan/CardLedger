@@ -24,13 +24,13 @@ private fun ci(p: String) = Regex(p, RegexOption.IGNORE_CASE)
 
 private val RULES = listOf(
     Rule("HDFC", listOf("BZ-HDFCBK", "HD-HDFCBK", "HDFCBK"), listOf(
-        ci("""Rs\.(?<amount>[\d,]+\.?\d*) spent on HDFC Bank[^C]+Card XX(?<last4>\d{4}) at (?<merchant>[A-Za-z ]+?) on (?<date>\d{2}-\d{2}-\d{4})"""))),
+        ci("""Rs\.(?<amount>[\d,]+\.?\d*) spent on HDFC Bank[^C]+Card XX(?<last4>\d{4}) at (?<merchant>.+?) on (?<date>\d{2}-\d{2}-\d{4})"""))),
     Rule("ICICI", listOf("BZ-ICICIB", "ICICIB", "ICICIBK"), listOf(
-        ci("""Rs\.(?<amount>[\d,]+\.?\d*) spent on .+?Card ending (?<last4>\d{4}) on (?<date>[A-Za-z]+ \d{2},? \d{4}) at (?<merchant>[A-Za-z ]+?)\."""))),
+        ci("""Rs\.(?<amount>[\d,]+\.?\d*) spent on .+?Card ending (?<last4>\d{4}) on (?<date>[A-Za-z]+ \d{2},? \d{4}) at (?<merchant>.+?)\."""))),
     Rule("SBI", listOf("AD-SBIINB", "SBI-UPI", "SBIINB", "SBICRD"), listOf(
-        ci("""Rs\.(?<amount>[\d,]+\.?\d*) debited from SBI Credit Card XX(?<last4>\d{4}) on (?<date>\d{2}/\d{2}/\d{4}) at (?<merchant>[A-Za-z]+)"""))),
+        ci("""Rs\.(?<amount>[\d,]+\.?\d*) debited from SBI Credit Card XX(?<last4>\d{4}) on (?<date>\d{2}/\d{2}/\d{4}) at (?<merchant>.+?)"""))),
     Rule("Axis", listOf("AX-AXISBK", "AXISBK"), listOf(
-        ci("""Rs\.(?<amount>[\d,]+\.?\d*) spent via your Flipkart Axis Bank Card ending (?<last4>\d{4}) on (?<date>\d{2}-[A-Za-z]{3}-\d{2}) at (?<merchant>[A-Za-z]+)"""))),
+        ci("""Rs\.(?<amount>[\d,]+\.?\d*) spent via your Flipkart Axis Bank Card ending (?<last4>\d{4}) on (?<date>\d{2}-[A-Za-z]{3}-\d{2}) at (?<merchant>.+?)"""))),
 )
 
 private val FALLBACK = Rule("UNKNOWN", emptyList(), listOf(

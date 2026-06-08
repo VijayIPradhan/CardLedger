@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { transactions, assignments } from '../db/schema.js';
+import { transactions, assignments, holders } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import {
   CreateTransactionSchema,
@@ -52,6 +52,10 @@ export async function transactionRoutes(app: FastifyInstance) {
       holderId = resolveHolder(parsed.data.card_id, parsed.data.txn_date, mapped);
       if (!holderId && mapped.length > 0) {
         holderId = mapped[0].holder_id;
+      }
+      if (!holderId) {
+        const [me] = await db.select().from(holders).where(eq(holders.relationship, 'me')).limit(1);
+        if (me) holderId = me.id;
       }
     }
 
