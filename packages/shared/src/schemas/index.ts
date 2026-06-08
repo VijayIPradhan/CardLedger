@@ -13,6 +13,7 @@ export const CreateCardSchema = z.object({
   billing_cycle_day: z.number().int().min(1).max(28),
   payment_due_day: z.number().int().min(1).max(28),
   credit_limit: z.number().positive(),
+  color: z.string().max(50).nullable().optional(),
   bin: z
     .string()
     .regex(/^\d{6}$/)
@@ -87,3 +88,10 @@ export const BankVariantMetadataSchema = z.object({
 });
 
 export type BankVariantMetadata = z.infer<typeof BankVariantMetadataSchema>;
+
+export const DetectPaletteSchema = z.object({
+  bank: z.string(),
+  network: z.string().optional(),
+  variant: z.string().optional(),
+});
+export type DetectPaletteDto = z.infer<typeof DetectPaletteSchema>;

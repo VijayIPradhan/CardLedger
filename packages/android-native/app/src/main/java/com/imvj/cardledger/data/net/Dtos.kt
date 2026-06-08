@@ -19,6 +19,7 @@ data class CardDto(
     val bin: String? = null,
     val variant: String? = null,
     val shared_limit_with: String? = null,
+    val color: String? = null,
     val created_at: String? = null,
 )
 
@@ -34,6 +35,7 @@ data class CreateCardDto(
     val bin: String? = null,
     val variant: String? = null,
     val shared_limit_with: String? = null,
+    val color: String? = null,
 )
 
 @Serializable
@@ -127,4 +129,16 @@ data class BankVariantDto(
 @Serializable
 data class BankVariantMetadataDto(
     val banks: List<BankVariantDto>,
+)
+
+@Serializable
+data class DetectPaletteRequest(
+    val bank: String,
+    val network: String? = null,
+    val variant: String? = null,
+)
+
+@Serializable
+data class PaletteResponse(
+    val primary_hex: String,
 )

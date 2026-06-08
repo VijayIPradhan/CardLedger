@@ -11,6 +11,7 @@ interface ApiService {
     @POST("cards") suspend fun createCard(@Body body: CreateCardDto): CardDto
     @PATCH("cards/{id}") suspend fun updateCard(@Path("id") id: String, @Body body: CreateCardDto): CardDto
     @DELETE("cards/{id}") suspend fun deleteCard(@Path("id") id: String): Response<Unit>
+    @POST("cards/detect-palette") suspend fun detectPalette(@Body body: DetectPaletteRequest): PaletteResponse
 
     @GET("holders") suspend fun getHolders(): List<HolderDto>
     @POST("holders") suspend fun createHolder(@Body body: CreateHolderDto): HolderDto

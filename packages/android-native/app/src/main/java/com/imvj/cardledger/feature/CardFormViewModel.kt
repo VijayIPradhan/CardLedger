@@ -23,6 +23,7 @@ data class CardFormState(
     val dueDay: Int = 20,
     val creditLimit: String = "100000",
     val sharedLimitWith: String? = null,
+    val color: String? = null,
     val detectMsg: String? = null,
     val saving: Boolean = false,
     val error: String? = null,
@@ -56,7 +57,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
                     network = card.network, bank = card.bank, variant = card.variant ?: "",
                     nickname = card.nickname, billingDay = card.billing_cycle_day,
                     dueDay = card.payment_due_day, creditLimit = card.credit_limit,
-                    sharedLimitWith = card.shared_limit_with,
+                    sharedLimitWith = card.shared_limit_with, color = card.color,
                 )
             }
         }
@@ -80,6 +81,31 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
+    fun autoDetectColor() {
+        val s = _state.value
+        if (s.bank.isBlank()) {
+            _state.value = s.copy(error = "Select a bank first to detect color")
+            return
+        }
+        _state.value = s.copy(detectMsg = "Detecting colors...")
+        viewModelScope.launch {
+            try {
+                val req = com.imvj.cardledger.data.net.DetectPaletteRequest(
+                    bank = s.bank,
+                    network = s.network,
+                    variant = s.variant.ifBlank { null }
+                )
+                val response = c.api.detectPalette(req)
+                _state.value = _state.value.copy(
+                    color = response.primary_hex,
+                    detectMsg = "Color detected!"
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = "AI detection failed: ${e.message}", detectMsg = null)
+            }
+        }
+    }
+
     fun save(editId: String?, onDone: () -> Unit) {
         val s = _state.value
         val limit = s.creditLimit.toDoubleOrNull()
@@ -90,7 +116,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
             last4 = s.last4, network = s.network, bank = s.bank.trim(), nickname = s.nickname.trim(),
             billing_cycle_day = s.billingDay, payment_due_day = s.dueDay, credit_limit = limit,
             bin = s.bin.ifBlank { null }, variant = s.variant.ifBlank { null },
-            shared_limit_with = s.sharedLimitWith,
+            shared_limit_with = s.sharedLimitWith, color = s.color,
         )
         _state.value = s.copy(saving = true, error = null)
         viewModelScope.launch {

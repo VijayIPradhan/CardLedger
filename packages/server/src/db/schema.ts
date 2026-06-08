@@ -34,6 +34,7 @@ export const cards = pgTable('cards', {
   billing_cycle_day: integer('billing_cycle_day').notNull(),
   payment_due_day: integer('payment_due_day').notNull(),
   credit_limit: numeric('credit_limit', { precision: 12, scale: 2 }).notNull(),
+  color: varchar('color', { length: 50 }),
   bin: varchar('bin', { length: 6 }),
   variant: varchar('variant', { length: 100 }),
   shared_limit_with: uuid('shared_limit_with'),

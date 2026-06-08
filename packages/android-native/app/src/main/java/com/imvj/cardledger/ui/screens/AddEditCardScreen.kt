@@ -20,6 +20,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.imvj.cardledger.feature.CardFormViewModel
 import com.imvj.cardledger.feature.app
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
 import com.imvj.cardledger.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -303,6 +309,79 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                 singleLine = true,
                 enabled = s.sharedLimitWith == null,
             )
+
+            // Color Picker
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Text("Card Color", color = OnDark, fontSize = 14.sp)
+                TextButton(onClick = { vm.autoDetectColor() }) {
+                    Text("✨ Auto-Detect via AI", color = Gold, fontSize = 12.sp)
+                }
+            }
+
+            val premiumColors = listOf(
+                null to "Auto (Variant/Network)",
+                "0xFF212121" to "Graphite/Black",
+                "0xFF1A237E" to "Deep Blue",
+                "0xFF1B5E20" to "Emerald",
+                "0xFFB71C1C" to "Ruby/Red",
+                "0xFFD4AF37" to "Gold",
+                "0xFF4A148C" to "Amethyst",
+                "0xFF00ACC1" to "Teal",
+                "0xFFFF9800" to "Orange",
+            )
+            
+            var colorExpanded by remember { mutableStateOf(false) }
+            val selectedName = premiumColors.find { it.first == s.color }?.second ?: premiumColors.first().second
+            
+            ExposedDropdownMenuBox(
+                expanded = colorExpanded,
+                onExpandedChange = { colorExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = s.color?.takeIf { !premiumColors.any { p -> p.first == it } } ?: selectedName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Card Color") },
+                    leadingIcon = {
+                        val colorVal = s.color?.let { 
+                            try { Color(android.graphics.Color.parseColor(it.replace("0x", "#"))) } catch(e:Exception) { null }
+                        }
+                        if (colorVal != null) {
+                            Box(Modifier.size(24.dp).clip(CircleShape).background(colorVal))
+                        } else {
+                            Box(Modifier.size(24.dp).clip(CircleShape).background(Color.Transparent).border(1.dp, Muted, CircleShape))
+                        }
+                    },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                )
+                ExposedDropdownMenu(
+                    expanded = colorExpanded,
+                    onDismissRequest = { colorExpanded = false },
+                ) {
+                    premiumColors.forEach { (hex, name) ->
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    val colorVal = hex?.let { 
+                                        try { Color(android.graphics.Color.parseColor(it.replace("0x", "#"))) } catch(e:Exception) { null }
+                                    }
+                                    if (colorVal != null) {
+                                        Box(Modifier.size(24.dp).clip(CircleShape).background(colorVal))
+                                    } else {
+                                        Box(Modifier.size(24.dp).clip(CircleShape).background(Color.Transparent).border(1.dp, Muted, CircleShape))
+                                    }
+                                    Text(name)
+                                }
+                            },
+                            onClick = {
+                                vm.update { it.copy(color = hex) }
+                                colorExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
 
             // Error
             s.error?.let {

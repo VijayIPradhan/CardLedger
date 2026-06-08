@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { cards, transactions, assignments } from '../db/schema.js';
 import { eq, sql, getTableColumns } from 'drizzle-orm';
-import { CreateCardSchema, UpdateCardSchema } from '@cardledger/shared';
+import { CreateCardSchema, UpdateCardSchema, DetectPaletteSchema } from '@cardledger/shared';
+import { GoogleGenAI } from '@google/genai';
 
 export async function cardRoutes(app: FastifyInstance) {
   const auth = { onRequest: [app.authenticate] };
@@ -73,5 +74,45 @@ export async function cardRoutes(app: FastifyInstance) {
       await tx.delete(cards).where(eq(cards.id, req.params.id));
     });
     return reply.status(204).send();
+  });
+
+  app.post('/detect-palette', auth, async (req, reply) => {
+    const parsed = DetectPaletteSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+
+    const ai = new GoogleGenAI({});
+    const prompt = `You are an expert in credit card designs in India. For the following credit card, provide the primary physical background color of the card.
+    
+    Bank: ${parsed.data.bank}
+    Network: ${parsed.data.network || 'Unknown'}
+    Variant: ${parsed.data.variant || 'Unknown'}
+
+    Return ONLY a JSON object exactly like this, with no markdown formatting:
+    {"primary_hex": "#HexCode"}
+    
+    Make the hex code a realistic, premium, deep color if possible, matching the physical real-world card.`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const txt = response.text;
+      if (!txt) throw new Error('No text returned from AI');
+      const data = JSON.parse(txt);
+      if (data.primary_hex) {
+        return reply.send({ primary_hex: data.primary_hex });
+      } else {
+        throw new Error('Invalid JSON format from AI');
+      }
+    } catch (e) {
+      req.log.error(e, 'Failed to detect palette');
+      return reply.status(500).send({ error: 'Failed to detect color palette' });
+    }
   });
 }

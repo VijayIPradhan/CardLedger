@@ -228,7 +228,7 @@ fun HomeScreen(nav: NavHostController) {
                             Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         ) {
                             Text(
-                                "Cards",
+                                "Your Cards (${s.cards.size})",
                                 color = Muted,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
