@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Screen } from '../components/Screen.js';
 import { TopBar } from '../components/TopBar.js';
@@ -13,8 +12,7 @@ import { useAssignments } from '../data/hooks/useAssignments.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
 import { usePayments } from '../data/hooks/usePayments.js';
 import { useUiStore } from '../store/uiStore.js';
-import { scheduleDueReminders } from '../lib/notifications.js';
-import { getCardUtilization, getTotalUtilization, getUpcomingDues } from '@cardledger/shared';
+import { getUpcomingDues } from '@cardledger/shared';
 import type { Card, Holder, Transaction, Assignment, Payment } from '@cardledger/shared';
 
 const todayISO = () => new Date().toISOString().split('T')[0];
@@ -32,20 +30,6 @@ export default function HomeScreen() {
   const friends = holders.filter((h: Holder) => h.relationship === 'friend');
   const cardList = cards as Card[];
   const today = todayISO();
-
-  useEffect(() => {
-    if (cardList.length) {
-      scheduleDueReminders(
-        cardList.map((c) => ({
-          id: c.id,
-          nickname: c.nickname,
-          payment_due_day: c.payment_due_day,
-        })),
-      );
-    }
-    // React Query uses structural sharing, so cardList is a new reference only
-    // when card data actually changes — this reschedules after edits too.
-  }, [cardList]);
 
   // Analytics calculations
   let totalToCollect = 0;
