@@ -33,8 +33,6 @@ fun SpendRing(spent: Double, limit: Double, size: Int = 56) {
             drawArc(Elevated, -90f, 360f, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
             drawArc(Gold, -90f, 360f * pct, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
         }
-        val pctInt = (pct * 100).toInt()
-        Text("$pctInt%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Gold)
     }
 }
 

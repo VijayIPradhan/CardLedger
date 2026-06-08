@@ -27,7 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
-import com.imvj.cardledger.data.store.ReviewStore
+
 import com.imvj.cardledger.domain.cardUtilization
 import com.imvj.cardledger.feature.HomeViewModel
 import com.imvj.cardledger.feature.app
@@ -49,7 +49,7 @@ fun HomeScreen(nav: NavHostController) {
     LaunchedEffect(Unit) { vm.load() }
     val s by vm.state.collectAsStateWithLifecycle()
 
-    val reviewQueue by ReviewStore.queue.collectAsStateWithLifecycle()
+    val reviewQueue by c.reviewStore.queue.collectAsStateWithLifecycle()
     val reviewCount = reviewQueue.size
 
     var showAddTxn by remember { mutableStateOf(false) }
@@ -225,48 +225,48 @@ fun HomeScreen(nav: NavHostController) {
                         val sortedCards = s.cards.sortedByDescending { s.spendByCard[it.id] ?: 0.0 }
 
                         Column(
-                            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         ) {
                             Text(
                                 "Cards",
                                 color = Muted,
                                 fontSize = 12.sp,
-                                modifier = Modifier.padding(bottom = 12.dp)
+                                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
                             )
                             
-                            Box(Modifier.fillMaxWidth()) {
-                                sortedCards.forEachIndexed { index, card ->
-                                    val limitRank = sortedByLimit.indexOf(card) + 1
-                                    val activeAssignment = s.assignments.firstOrNull {
-                                        it.card_id == card.id && it.returned_date == null
-                                    }
-                                    val holder = if (activeAssignment != null) {
-                                        s.holders.firstOrNull { it.id == activeAssignment.holder_id }
-                                    } else {
-                                        s.holders.firstOrNull { it.relationship == "me" }
-                                    }
-                                    val initials = holder?.let { initialsOf(it.name) }
-                                    val isMe = holder?.relationship == "me"
-                                    val spend = s.spendByCard[card.id] ?: 0.0
+                            val pagerState = rememberPagerState(pageCount = { sortedCards.size })
+                            HorizontalPager(
+                                state = pagerState,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 20.dp),
+                                pageSpacing = 16.dp
+                            ) { page ->
+                                val card = sortedCards[page]
+                                val limitRank = sortedByLimit.indexOf(card) + 1
+                                val activeAssignment = s.assignments.firstOrNull {
+                                    it.card_id == card.id && it.returned_date == null
+                                }
+                                val holder = if (activeAssignment != null) {
+                                    s.holders.firstOrNull { it.id == activeAssignment.holder_id }
+                                } else {
+                                    s.holders.firstOrNull { it.relationship == "me" }
+                                }
+                                val initials = holder?.let { initialsOf(it.name) }
+                                val isMe = holder?.relationship == "me"
+                                val spend = s.spendByCard[card.id] ?: 0.0
 
-                                    // For a perfect Apple Wallet style stack, we remove scaling
-                                    // so the cards are full width and perfectly cover the bottoms of the cards behind them.
-                                    // We add a drop shadow to create separation.
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = (index * CARD_STACK_OFFSET_DP).dp)
-                                            .zIndex(index.toFloat())
-                                            .shadow(
-                                                elevation = 16.dp,
-                                                shape = RoundedCornerShape(24.dp),
-                                                spotColor = Color.Black,
-                                                ambientColor = Color.Black
-                                            )
-                                            .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
-                                    ) {
-                                        CardTile(card, initials, isMe, spend, limitRank)
-                                    }
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .shadow(
+                                            elevation = 12.dp,
+                                            shape = RoundedCornerShape(24.dp),
+                                            spotColor = Color.Black,
+                                            ambientColor = Color.Black
+                                        )
+                                        .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
+                                ) {
+                                    CardTile(card, initials, isMe, spend, limitRank)
                                 }
                             }
                             Spacer(Modifier.height(16.dp))

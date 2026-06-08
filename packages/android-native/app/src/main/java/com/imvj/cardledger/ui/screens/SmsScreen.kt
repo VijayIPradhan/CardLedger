@@ -18,7 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
-import com.imvj.cardledger.data.store.ReviewStore
+
 import com.imvj.cardledger.feature.SmsViewModel
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.nav.BottomBar
@@ -37,7 +37,7 @@ fun SmsScreen(nav: NavHostController) {
         initializer { SmsViewModel(c) }
     })
     val s by vm.state.collectAsStateWithLifecycle()
-    val review by ReviewStore.queue.collectAsStateWithLifecycle()
+    val review by c.reviewStore.queue.collectAsStateWithLifecycle()
 
     fun hasPermission(p: String) =
         ContextCompat.checkSelfPermission(ctx, p) == PackageManager.PERMISSION_GRANTED
@@ -84,8 +84,51 @@ fun SmsScreen(nav: NavHostController) {
                     Text("Grant SMS access")
                 }
             } else {
+                var expanded by remember { mutableStateOf(false) }
+                val options = listOf("Current Month", "1 Week (7 days)", "1 Month (30 days)", "2 Months (60 days)", "3 Months (90 days)")
+                var selectedOption by remember { mutableStateOf("1 Week (7 days)") }
+
+                @OptIn(ExperimentalMaterial3Api::class)
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = selectedOption,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Scan range") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        enabled = !s.scanning
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                    ) {
+                        options.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    selectedOption = option
+                                    expanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
                 Button(
-                    onClick = { vm.scan(ctx) },
+                    onClick = {
+                        val days = when (selectedOption) {
+                            "Current Month" -> java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
+                            "1 Week (7 days)" -> 7
+                            "1 Month (30 days)" -> 30
+                            "2 Months (60 days)" -> 60
+                            else -> 90
+                        }
+                        vm.scan(ctx, days)
+                    },
                     enabled = !s.scanning,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -94,7 +137,7 @@ fun SmsScreen(nav: NavHostController) {
                         Spacer(Modifier.width(8.dp))
                         Text("Scanning…")
                     } else {
-                        Text("Scan inbox (90 days)")
+                        Text("Scan inbox")
                     }
                 }
 

@@ -14,6 +14,8 @@ class PrefsStore(private val context: Context) {
     private val REM = booleanPreferencesKey("cl_reminders_enabled")
     private val REM_DAYS = intPreferencesKey("cl_reminder_days")
     private val SMS_SETUP = booleanPreferencesKey("cl_sms_setup")
+    private val REVIEW_QUEUE = stringPreferencesKey("cl_review_queue")
+    private val PROCESSED_HASHES = stringSetPreferencesKey("cl_processed_hashes")
 
     private fun hash(pin: String): String {
         val md = MessageDigest.getInstance("SHA-256")
@@ -34,4 +36,10 @@ class PrefsStore(private val context: Context) {
 
     suspend fun smsSetupDone(): Boolean = ds.data.map { it[SMS_SETUP] ?: false }.first()
     suspend fun setSmsSetup(v: Boolean) { ds.edit { it[SMS_SETUP] = v } }
+
+    suspend fun getReviewQueueJson(): String = ds.data.map { it[REVIEW_QUEUE] ?: "[]" }.first()
+    suspend fun setReviewQueueJson(json: String) { ds.edit { it[REVIEW_QUEUE] = json } }
+
+    suspend fun getProcessedHashes(): Set<String> = ds.data.map { it[PROCESSED_HASHES] ?: emptySet() }.first()
+    suspend fun setProcessedHashes(hashes: Set<String>) { ds.edit { it[PROCESSED_HASHES] = hashes } }
 }

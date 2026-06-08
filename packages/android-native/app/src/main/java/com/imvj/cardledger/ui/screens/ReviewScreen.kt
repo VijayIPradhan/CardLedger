@@ -19,7 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.imvj.cardledger.data.net.CardDto
 import com.imvj.cardledger.data.net.CreateTransactionDto
 import com.imvj.cardledger.data.store.ReviewItem
-import com.imvj.cardledger.data.store.ReviewStore
+
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.theme.Muted
 import kotlinx.coroutines.launch
@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ReviewScreen(nav: NavHostController) {
     val c = app().container
-    val items by ReviewStore.queue.collectAsStateWithLifecycle()
+    val items by c.reviewStore.queue.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -84,13 +84,15 @@ fun ReviewScreen(nav: NavHostController) {
                                 )
                             )
                             if (res.isSuccess) {
-                                ReviewStore.remove(item.id)
+                                c.reviewStore.addHash(item.parse.dedupeHash)
+                                c.reviewStore.remove(item.id)
                             } else {
                                 Toast.makeText(context, "Failed to save transaction", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }, onDismiss = {
-                        ReviewStore.remove(item.id)
+                        c.reviewStore.addHash(item.parse.dedupeHash)
+                        c.reviewStore.remove(item.id)
                     })
                 }
             }

@@ -51,7 +51,7 @@ class CardFormViewModel(private val c: AppContainer) : ViewModel() {
     fun loadExisting(id: String) {
         viewModelScope.launch {
             c.cardRepo.get(id).onSuccess { card ->
-                _state.value = CardFormState(
+                _state.value = _state.value.copy(
                     isEdit = true, last4 = card.last4, bin = card.bin ?: "",
                     network = card.network, bank = card.bank, variant = card.variant ?: "",
                     nickname = card.nickname, billingDay = card.billing_cycle_day,
