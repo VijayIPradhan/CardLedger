@@ -80,7 +80,6 @@ export async function cardRoutes(app: FastifyInstance) {
     const parsed = DetectPaletteSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
 
-    const ai = new GoogleGenAI({});
     const prompt = `You are an expert in credit card designs in India. For the following credit card, provide the primary physical background color of the card.
     
     Bank: ${parsed.data.bank}
@@ -93,17 +92,49 @@ export async function cardRoutes(app: FastifyInstance) {
     Make the hex code a realistic, premium, deep color if possible, matching the physical real-world card.`;
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-        },
-      });
+      let txt: string;
 
-      const txt = response.text;
+      if (process.env.OPENROUTER_API_KEY) {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`OpenRouter API error: ${response.status} ${await response.text()}`);
+        }
+
+        const json = (await response.json()) as any;
+        txt = json.choices?.[0]?.message?.content;
+      } else if (process.env.GEMINI_API_KEY) {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            temperature: 0.2,
+            responseMimeType: 'application/json',
+          },
+        });
+        txt = response.text || '';
+      } else {
+        throw new Error('No AI provider configured — set GEMINI_API_KEY or OPENROUTER_API_KEY');
+      }
+
       if (!txt) throw new Error('No text returned from AI');
+      // Clean up markdown block if present (sometimes models ignore the "no markdown" instruction)
+      txt = txt
+        .replace(/```json/gi, '')
+        .replace(/```/g, '')
+        .trim();
+
       const data = JSON.parse(txt);
       if (data.primary_hex) {
         return reply.send({ primary_hex: data.primary_hex });

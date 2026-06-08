@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.imvj.cardledger.data.net.TransactionDto
 import com.imvj.cardledger.feature.CardDetailViewModel
 import com.imvj.cardledger.feature.app
@@ -51,7 +52,10 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     val vm: CardDetailViewModel = viewModel(factory = viewModelFactory {
         initializer { CardDetailViewModel(c) }
     })
-    LaunchedEffect(cardId) { vm.load(cardId) }
+    LifecycleResumeEffect(cardId) {
+        vm.load(cardId)
+        onPauseOrDispose { }
+    }
     val s by vm.state.collectAsStateWithLifecycle()
 
     var showAddTxn by remember { mutableStateOf(false) }

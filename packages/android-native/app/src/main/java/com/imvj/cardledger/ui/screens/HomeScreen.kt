@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 import com.imvj.cardledger.domain.cardUtilization
 import com.imvj.cardledger.feature.HomeViewModel
@@ -46,7 +47,10 @@ fun HomeScreen(nav: NavHostController) {
     val vm: HomeViewModel = viewModel(factory = viewModelFactory {
         initializer { HomeViewModel(c) }
     })
-    LaunchedEffect(Unit) { vm.load() }
+    LifecycleResumeEffect(Unit) {
+        vm.load()
+        onPauseOrDispose { }
+    }
     val s by vm.state.collectAsStateWithLifecycle()
 
     val reviewQueue by c.reviewStore.queue.collectAsStateWithLifecycle()
