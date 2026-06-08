@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.imvj.cardledger.data.net.CardDto
 import com.imvj.cardledger.data.net.CreateTransactionDto
 import com.imvj.cardledger.data.store.ReviewItem
@@ -28,6 +30,7 @@ fun ReviewScreen(nav: NavHostController) {
     val c = app().container
     val items by ReviewStore.queue.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var cards by remember { mutableStateOf<List<CardDto>>(emptyList()) }
     LaunchedEffect(Unit) {
@@ -66,7 +69,7 @@ fun ReviewScreen(nav: NavHostController) {
                 items(items, key = { it.id }) { item ->
                     ReviewItemCard(item = item, cards = cards, onConfirm = { cardId, amount, merchant, date ->
                         scope.launch {
-                            c.transactionRepo.create(
+                            val res = c.transactionRepo.create(
                                 CreateTransactionDto(
                                     card_id = cardId,
                                     amount = amount,
@@ -74,12 +77,17 @@ fun ReviewScreen(nav: NavHostController) {
                                     txn_date = date,
                                     source = "sms",
                                     type = item.parse.type,
+                                    is_paid = item.parse.is_paid,
                                     holder_id_at_time = null,
                                     raw_sms_encrypted = null,
                                     dedupe_hash = item.parse.dedupeHash,
                                 )
                             )
-                            ReviewStore.remove(item.id)
+                            if (res.isSuccess) {
+                                ReviewStore.remove(item.id)
+                            } else {
+                                Toast.makeText(context, "Failed to save transaction", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }, onDismiss = {
                         ReviewStore.remove(item.id)

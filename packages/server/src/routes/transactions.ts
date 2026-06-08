@@ -50,6 +50,9 @@ export async function transactionRoutes(app: FastifyInstance) {
         created_at: String(a.created_at),
       }));
       holderId = resolveHolder(parsed.data.card_id, parsed.data.txn_date, mapped);
+      if (!holderId && mapped.length > 0) {
+        holderId = mapped[0].holder_id;
+      }
     }
 
     if (!holderId) {

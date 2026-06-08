@@ -1,8 +1,11 @@
 package com.imvj.cardledger.domain
 
 import java.security.MessageDigest
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class SmsInput(val sender: String, val body: String, val timestamp: Long)
+@Serializable
 data class ParseResult(
     val bank: String, val last4: String, val amount: Double, val merchant: String,
     val date: String, val type: String, val is_paid: Boolean = false, val confidence: String, val dedupeHash: String, val raw: SmsInput,
@@ -95,7 +98,7 @@ fun parseSms(input: SmsInput, knownLast4s: List<String>? = null): ParseResult? {
             
             var merchant = rawMerchant
             if (merchant == null) {
-                val atRegex = Regex("at\\s+([a-zA-Z0-9*.\\s]+?)(?:\\s+on|\\.|$)")
+                val atRegex = Regex("at\\s+([a-zA-Z0-9*.\\s]+?)(?:\\s+on|\\.|(?:$))", RegexOption.IGNORE_CASE)
                 merchant = atRegex.find(input.body)?.groupValues?.getOrNull(1)?.trim()
             }
             
