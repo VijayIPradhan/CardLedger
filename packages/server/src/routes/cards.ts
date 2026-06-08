@@ -80,16 +80,21 @@ export async function cardRoutes(app: FastifyInstance) {
     const parsed = DetectPaletteSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
 
-    const prompt = `You are an expert in credit card designs in India. For the following credit card, provide the primary physical background color of the card.
+    const prompt = `You are an expert in credit card designs in India. Your task is to accurately generate the card background from the real card by searching.
     
     Bank: ${parsed.data.bank}
     Network: ${parsed.data.network || 'Unknown'}
     Variant: ${parsed.data.variant || 'Unknown'}
 
+    Instructions:
+    1. Search the web for images of this exact real-world physical credit card to determine its true background color. Do not just guess from memory.
+    2. Provide the exact primary hex color code that matches the real-world physical card based on your search.
+    3. Do not invent or guess "premium" colors; stick strictly to the actual brand or variant color (e.g., Amazon Pay ICICI is bright orange, Swiggy HDFC is vibrant orange, Flipkart Axis is bright blue).
+    4. If the card variant is unknown or you cannot find it by searching, fall back to the bank's primary brand color.
+    5. The hex code must be a valid 6-character hex string prefixed with "#" (e.g., "#FF5733").
+
     Return ONLY a JSON object exactly like this, with no markdown formatting:
-    {"primary_hex": "#HexCode"}
-    
-    Make the hex code a realistic, premium, deep color if possible, matching the physical real-world card.`;
+    {"primary_hex": "#HexCode"}`;
 
     try {
       let txt: string;
@@ -121,6 +126,7 @@ export async function cardRoutes(app: FastifyInstance) {
           config: {
             temperature: 0.2,
             responseMimeType: 'application/json',
+            tools: [{ googleSearch: {} }],
           },
         });
         txt = response.text || '';
