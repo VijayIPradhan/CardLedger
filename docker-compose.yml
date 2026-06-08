@@ -33,6 +33,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
       PORT: 3001
       DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-changeme123}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
     expose:
       - "3001"
     depends_on:
