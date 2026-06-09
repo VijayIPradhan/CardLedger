@@ -10,4 +10,5 @@ object Routes {
     const val ADD_CARD = "card_edit"
     const val CARD_DETAIL = "card_detail"
     const val CHANGE_PIN = "change_pin"
+    const val SEARCH = "search"
 }

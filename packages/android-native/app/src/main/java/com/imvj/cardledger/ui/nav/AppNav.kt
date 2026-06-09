@@ -39,6 +39,7 @@ fun AppNav() {
         composable(Routes.ADD_CARD) { AddEditCardScreen(nav, null) }
         composable("${Routes.ADD_CARD}?id={id}") { AddEditCardScreen(nav, it.arguments?.getString("id")) }
         composable("${Routes.CARD_DETAIL}/{id}") { CardDetailScreen(nav, it.arguments?.getString("id")!!) }
+        composable(Routes.SEARCH) { SearchScreen(nav) }
     }
 
     if (locked && token) {

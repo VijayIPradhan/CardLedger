@@ -2,6 +2,8 @@ package com.imvj.cardledger.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -107,8 +109,13 @@ fun HomeScreen(nav: NavHostController) {
                             fontWeight = FontWeight.Bold,
                             color = OnDark,
                         )
-                        TextButton(onClick = { nav.navigate(Routes.ADD_CARD) }) {
-                            Text("+ Add card", color = Gold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { nav.navigate(Routes.SEARCH) }) {
+                                Icon(Icons.Default.Search, contentDescription = "search", tint = Muted)
+                            }
+                            TextButton(onClick = { nav.navigate(Routes.ADD_CARD) }) {
+                                Text("+ Add card", color = Gold)
+                            }
                         }
                     }
                 }

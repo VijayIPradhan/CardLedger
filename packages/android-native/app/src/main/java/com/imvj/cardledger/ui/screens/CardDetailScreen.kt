@@ -1,5 +1,6 @@
 package com.imvj.cardledger.ui.screens
 
+import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.animation.core.animateFloatAsState
@@ -61,6 +64,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var showAddTxn by remember { mutableStateOf(false) }
     var showTxnSheet by remember { mutableStateOf(false) }
     var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = Base,
@@ -74,6 +78,26 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                             contentDescription = "back",
                             tint = OnDark,
                         )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        val holderMap = s.holders.associateBy { it.id }
+                        val csv = buildString {
+                            appendLine("Date,Merchant,Amount,Holder,Paid,Source")
+                            s.transactions.sortedByDescending { it.txn_date }.forEach { txn ->
+                                val holder = holderMap[txn.holder_id_at_time]?.name ?: ""
+                                appendLine("${txn.txn_date},\"${txn.merchant}\",${txn.amount},\"$holder\",${txn.is_paid},${txn.source}")
+                            }
+                        }
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, csv)
+                            putExtra(Intent.EXTRA_SUBJECT, "${s.card?.nickname ?: "Card"} — Transactions")
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Export transactions"))
+                    }) {
+                        Icon(Icons.Default.Share, contentDescription = "Export", tint = Muted)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Base),
@@ -146,12 +170,24 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 } else {
                     val holderMap = s.holders.associateBy { it.id }
                     s.cycles.forEach { cycle ->
-                        Text(
-                            cycle.label,
-                            color = Muted,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                cycle.label,
+                                color = Muted,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            val unpaidInCycle = cycle.txns.count { !it.is_paid }
+                            if (unpaidInCycle > 0) {
+                                TextButton(onClick = { vm.markCyclePaid(cycle.label, cardId) }) {
+                                    Text("Mark $unpaidInCycle paid", color = Gold, fontSize = 11.sp)
+                                }
+                            }
+                        }
                         cycle.txns.sortedByDescending { it.txn_date }.forEach { txn ->
                             val holderName = holderMap[txn.holder_id_at_time]?.name ?: txn.holder_id_at_time
                             var swipeOffset by remember { mutableFloatStateOf(0f) }

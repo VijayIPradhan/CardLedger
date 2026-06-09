@@ -110,4 +110,16 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 .onSuccess { load(cardId) }
         }
     }
+
+    fun markCyclePaid(cycleLabel: String, cardId: String) {
+        val cycle = _state.value.cycles.firstOrNull { it.label == cycleLabel } ?: return
+        val unpaid = cycle.txns.filter { !it.is_paid }
+        if (unpaid.isEmpty()) return
+        viewModelScope.launch {
+            unpaid.map { txn ->
+                async { c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = true)) }
+            }.forEach { it.await() }
+            load(cardId)
+        }
+    }
 }
