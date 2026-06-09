@@ -34,13 +34,14 @@ fun HoldersScreen(nav: NavHostController) {
     })
     LaunchedEffect(Unit) { vm.load() }
     val s by vm.state.collectAsStateWithLifecycle()
+    val reviewQueue by c.reviewStore.queue.collectAsStateWithLifecycle()
 
     var showForm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<HolderDto?>(null) }
     var paying by remember { mutableStateOf<HolderDto?>(null) }
 
     Scaffold(
-        bottomBar = { BottomBar(nav, 0) },
+        bottomBar = { BottomBar(nav, reviewQueue.size) },
         containerColor = Base,
     ) { innerPadding ->
         Column(

@@ -7,6 +7,7 @@ import com.imvj.cardledger.data.repo.*
 import com.imvj.cardledger.data.store.PrefsStore
 import com.imvj.cardledger.data.store.ReviewStore
 import com.imvj.cardledger.data.store.TokenStore
+import com.imvj.cardledger.data.store.CacheStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,6 +20,7 @@ class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
     val tokenStore = TokenStore(appContext)
     val prefsStore = PrefsStore(appContext)
+    val cacheStore = CacheStore(appContext)
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

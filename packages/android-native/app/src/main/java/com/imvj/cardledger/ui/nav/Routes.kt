@@ -11,4 +11,6 @@ object Routes {
     const val CARD_DETAIL = "card_detail"
     const val CHANGE_PIN = "change_pin"
     const val SEARCH = "search"
+    const val ANALYTICS = "analytics"
+    const val CARDS = "cards"
 }

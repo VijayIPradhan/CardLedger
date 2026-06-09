@@ -3,7 +3,9 @@ package com.imvj.cardledger.ui.lock
 import kotlinx.coroutines.flow.MutableStateFlow
 
 object AppLock {
-    val locked = MutableStateFlow(true)
+    // Starts unlocked; lock() is called after the user logs in so the PIN/biometric
+    // gate only appears for users who have authenticated at least once.
+    val locked = MutableStateFlow(false)
     private var backgroundedAt: Long = 0L
     private const val LOCK_AFTER_MS = 5 * 60 * 1000L
 

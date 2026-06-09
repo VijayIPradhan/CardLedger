@@ -1,5 +1,11 @@
 package com.imvj.cardledger.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
@@ -11,25 +17,22 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import androidx.lifecycle.compose.LifecycleResumeEffect
 
@@ -41,15 +44,12 @@ import com.imvj.cardledger.ui.nav.BottomBar
 import com.imvj.cardledger.ui.nav.Routes
 import com.imvj.cardledger.ui.theme.*
 
-private const val CARD_STACK_OFFSET_DP = 72
 private const val RECENT_TRANSACTIONS_COUNT = 5
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(nav: NavHostController) {
+fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
     val c = app().container
-    val vm: HomeViewModel = viewModel(factory = viewModelFactory {
-        initializer { HomeViewModel(c) }
-    })
     LifecycleResumeEffect(Unit) {
         vm.load()
         onPauseOrDispose { }
@@ -67,492 +67,407 @@ fun HomeScreen(nav: NavHostController) {
             FloatingActionButton(
                 onClick = { showAddTxn = true },
                 containerColor = Gold,
+                shape = CircleShape,
             ) {
-                Text("+", fontSize = 24.sp, color = Base)
+                Text("+", fontSize = 26.sp, color = Base, fontWeight = FontWeight.Bold)
             }
         },
         containerColor = Base,
     ) { innerPadding ->
-        if (s.cards.isEmpty() && !s.loading) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("No cards yet", color = Muted, style = MaterialTheme.typography.bodyLarge)
-                    Button(onClick = { nav.navigate(Routes.ADD_CARD) }) {
-                        Text("Add card")
-                    }
+        AnimatedContent(
+            targetState = s.loading && s.cards.isEmpty(),
+            label = "homeContentSwitch",
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+        ) { isInitialLoading ->
+            if (isInitialLoading) {
+                Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Gold)
                 }
-            }
-        } else {
-            LazyColumn(
-                Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
-            ) {
-                // Top row
-                item {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "CardLedger",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = OnDark,
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { nav.navigate(Routes.SEARCH) }) {
-                                Icon(Icons.Default.Search, contentDescription = "search", tint = Muted)
-                            }
-                            TextButton(onClick = { nav.navigate(Routes.ADD_CARD) }) {
-                                Text("+ Add card", color = Gold)
-                            }
-                        }
-                    }
-                }
-
-                // Portfolio card & Dashboard
-                item {
+            } else if (s.cards.isEmpty()) {
+                Box(
+                    Modifier.fillMaxSize().padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(32.dp),
                     ) {
-                        Surface(
-                            Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Elevated,
+                        Text("No cards yet", color = Muted, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Add your first credit card to start tracking spend and billing cycles.",
+                            color = MutedLow,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = { nav.navigate(Routes.ADD_CARD) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
+                            shape = MaterialTheme.shapes.medium,
                         ) {
-                            Row(
-                                Modifier.padding(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    SpendRing(s.total.spend, s.total.limit, 72, showText = false)
-                                    Text(
-                                        "${s.total.percent}%",
-                                        color = OnDark,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("Total utilization", color = Muted, fontSize = 12.sp)
-                                    Text(
-                                        "${money(s.total.spend)} / ${money(s.total.limit)}",
-                                        color = OnDark,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 16.sp,
-                                    )
-                                }
-                            }
+                            Text("Add card", fontWeight = FontWeight.SemiBold)
                         }
-
-                        // Dashboard Grid
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Surface(
-                                Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = Surface1,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                            ) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("TOTAL TO COLLECT", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                    Text(money(s.totalToCollect), color = if (s.totalToCollect > 0) Gold else Success, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text("From friends", color = Muted, fontSize = 10.sp)
-                                }
-                            }
-                            Surface(
-                                Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = Surface1,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                            ) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("TOTAL TO PAY", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                    Text(money(s.total.spend), color = if (s.total.spend > 0) Danger else Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text("Total outstanding debt", color = Muted, fontSize = 10.sp)
-                                }
-                            }
-                        }
-
-                        // 30-day spend trend
-                        Surface(
-                            Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Surface1,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                        ) {
+                    }
+                }
+            } else {
+                PullToRefreshBox(
+                    isRefreshing = s.isRefreshing,
+                    onRefresh = { vm.load(forceRefresh = true) },
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                ) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                    ) {
+                        // ── Top bar ──────────────────────────────────────────
+                        item {
                             Row(
-                                Modifier.padding(16.dp),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("30-DAY SPEND", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                    Text(money(s.monthlySpend), color = OnDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                }
-                                if (s.prevMonthSpend > 0) {
-                                    val rawChange = (s.monthlySpend - s.prevMonthSpend) / s.prevMonthSpend * 100
-                                    val isUp = rawChange >= 0
-                                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text("vs prior 30d", color = Muted, fontSize = 10.sp)
-                                        Text(
-                                            "${if (isUp) "↑" else "↓"} ${Math.abs(rawChange.toInt())}%",
-                                            color = if (isUp) Danger else Success,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.sp,
-                                        )
+                                Text(
+                                    "CardLedger",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = OnDark,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    IconButton(onClick = { nav.navigate(Routes.SEARCH) }) {
+                                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = Muted)
+                                    }
+                                    IconButton(onClick = { nav.navigate(Routes.HOLDERS) }) {
+                                        Icon(Icons.Filled.People, contentDescription = "Holders", tint = Muted)
+                                    }
+                                    IconButton(onClick = { nav.navigate(Routes.SETTINGS) }) {
+                                        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Muted)
                                     }
                                 }
                             }
                         }
 
-                        // Unpaid + Avg daily row
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // ── Hero: total outstanding ───────────────────────────
+                        item {
                             Surface(
-                                Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = Surface1,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp),
+                                shape = MaterialTheme.shapes.large,
+                                color = Elevated,
                             ) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("UNPAID", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                    Text(money(s.unpaidAmount), color = if (s.unpaidAmount > 0) Danger else Success, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text("${s.unpaidCount} txn${if (s.unpaidCount != 1) "s" else ""}", color = Muted, fontSize = 10.sp)
-                                }
-                            }
-                            Surface(
-                                Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = Surface1,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                            ) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("AVG / DAY", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                    Text(money(s.avgDailySpend), color = OnDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text("30-day average", color = Muted, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Upcoming dues
-                if (s.dues.isNotEmpty()) {
-                    item {
-                        Text(
-                            "⚠ Upcoming dues",
-                            color = Warning,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                        )
-                    }
-                    items(s.dues) { due ->
-                        val dueCard = s.cards.firstOrNull { it.id == due.cardId }
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 2.dp)
-                                .clickable { nav.navigate("${Routes.CARD_DETAIL}/${due.cardId}") },
-                            shape = RoundedCornerShape(8.dp),
-                            color = Surface1,
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    dueCard?.nickname ?: due.cardId,
-                                    color = OnDark,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    "due ${due.dueDate.drop(5)} · in ${due.daysUntil}d",
-                                    color = Warning,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                        }
-                    }
-                    item { Spacer(Modifier.height(8.dp)) }
-                }
-
-                // Spend by Holder
-                if (s.spendByHolder.isNotEmpty()) {
-                    item {
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Surface1,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("SPEND BY HOLDER", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                s.spendByHolder.forEach { hs ->
+                                Column(
+                                    Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        "TOTAL OUTSTANDING",
+                                        color = Muted,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        letterSpacing = 1.2.sp,
+                                    )
+                                    Text(
+                                        money(s.total.spend),
+                                        color = OnDark,
+                                        style = MaterialTheme.typography.headlineLarge,
+                                        fontWeight = FontWeight.Bold,
+                                    )
                                     Row(
-                                        Modifier.fillMaxWidth(),
+                                        Modifier.fillMaxWidth().padding(top = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    ) {
+                                        // Utilization
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Utilization", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                SpendRing(s.total.spend, s.total.limit, 28, showText = false)
+                                                Text(
+                                                    "${s.total.percent}%",
+                                                    color = when {
+                                                        s.total.percent < 30 -> Success
+                                                        s.total.percent <= 50 -> Warning
+                                                        else -> Danger
+                                                    },
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                            }
+                                        }
+                                        // Limit
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Credit limit", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                money(s.total.limit),
+                                                color = OnDarkMid,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Medium,
+                                            )
+                                        }
+                                        // Next due
+                                        val nextDue = s.dues.firstOrNull()
+                                        if (nextDue != null) {
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text("Next due", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                                Text(
+                                                    "in ${nextDue.daysUntil}d",
+                                                    color = if (nextDue.daysUntil <= 3) Danger else Warning,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Quick stats row ──────────────────────────────────
+                        item {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .padding(top = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                // To collect from friends
+                                Surface(
+                                    Modifier.weight(1f),
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = if (s.totalToCollect > 0) GoldSubtle else Surface1,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (s.totalToCollect > 0) Gold.copy(alpha = 0.3f) else Elevated),
+                                ) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("TO COLLECT", color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 0.8.sp)
+                                        Text(
+                                            money(s.totalToCollect),
+                                            color = if (s.totalToCollect > 0) Gold else OnDarkMid,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text("From friends", color = MutedLow, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                // Unpaid this month
+                                Surface(
+                                    Modifier.weight(1f),
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = if (s.unpaidAmount > 0) DangerSubtle else Surface1,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (s.unpaidAmount > 0) Danger.copy(alpha = 0.3f) else Elevated),
+                                ) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("UNPAID", color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 0.8.sp)
+                                        Text(
+                                            money(s.unpaidAmount),
+                                            color = if (s.unpaidAmount > 0) Danger else OnDarkMid,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text("${s.unpaidCount} transactions", color = MutedLow, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Card Pager ───────────────────────────────────────
+                        item {
+                            val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
+                            val sortedCards = s.cards.sortedByDescending { s.spendByCard[it.id] ?: 0.0 }
+
+                            Column(Modifier.fillMaxWidth().padding(top = 20.dp)) {
+                                Text(
+                                    "My Cards  ${s.cards.size}",
+                                    color = Muted,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+                                )
+
+                                val pagerState = rememberPagerState(pageCount = { sortedCards.size })
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 20.dp),
+                                    pageSpacing = 14.dp,
+                                ) { page ->
+                                    val card = sortedCards[page]
+                                    val limitRank = sortedByLimit.indexOf(card) + 1
+                                    val activeAssignment = s.assignments.firstOrNull {
+                                        it.card_id == card.id && it.returned_date == null
+                                    }
+                                    val holder = if (activeAssignment != null) {
+                                        s.holders.firstOrNull { it.id == activeAssignment.holder_id }
+                                    } else {
+                                        s.holders.firstOrNull { it.relationship == "me" }
+                                    }
+                                    val initials = holder?.let { initialsOf(it.name) }
+                                    val isMe = holder?.relationship == "me"
+                                    val spend = s.spendByCard[card.id] ?: 0.0
+
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .shadow(
+                                                elevation = 16.dp,
+                                                shape = RoundedCornerShape(24.dp),
+                                                spotColor = Color.Black.copy(alpha = 0.6f),
+                                                ambientColor = Color.Black,
+                                            )
+                                            .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
+                                    ) {
+                                        CardTile(card, initials, isMe, spend, limitRank)
+                                    }
+                                }
+
+                                // Pager indicator dots
+                                if (sortedCards.size > 1) {
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(top = 10.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        repeat(sortedCards.size) { i ->
+                                            val selected = pagerState.currentPage == i
+                                            Box(
+                                                Modifier
+                                                    .padding(horizontal = 3.dp)
+                                                    .size(if (selected) 8.dp else 5.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (selected) Gold else Muted.copy(alpha = 0.4f)),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Upcoming dues ────────────────────────────────────
+                        if (s.dues.isNotEmpty()) {
+                            item {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Box(
+                                        Modifier.size(8.dp).clip(CircleShape).background(Warning),
+                                    )
+                                    Text(
+                                        "Upcoming dues",
+                                        color = Warning,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                            items(s.dues) { due ->
+                                val dueCard = s.cards.firstOrNull { it.id == due.cardId }
+                                Surface(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp, vertical = 3.dp)
+                                        .clickable { nav.navigate("${Routes.CARD_DETAIL}/${due.cardId}") },
+                                    shape = MaterialTheme.shapes.small,
+                                    color = Surface1,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Elevated),
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            HolderBadge(initialsOf(hs.name), hs.isMe)
-                                            Text(hs.name, color = OnDark, fontSize = 14.sp)
-                                        }
-                                        Text(money(hs.spend), color = if (hs.isMe) OnDark else Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                        Text(
+                                            dueCard?.nickname ?: due.cardId,
+                                            color = OnDark,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                        Text(
+                                            "${due.dueDate.drop(5)} · ${due.daysUntil}d left",
+                                            color = if (due.daysUntil <= 3) Danger else Warning,
+                                            style = MaterialTheme.typography.labelMedium,
+                                        )
                                     }
                                 }
                             }
                         }
-                    }
-                }
 
-                // Card Stack
-                if (s.cards.isNotEmpty()) {
-                    item {
-                        val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
-                        val sortedCards = s.cards.sortedByDescending { s.spendByCard[it.id] ?: 0.0 }
-
-                        Column(
-                            Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                        ) {
-                            Text(
-                                "Your Cards (${s.cards.size})",
-                                color = Muted,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
-                            )
-                            
-                            val pagerState = rememberPagerState(pageCount = { sortedCards.size })
-                            HorizontalPager(
-                                state = pagerState,
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = 20.dp),
-                                pageSpacing = 16.dp
-                            ) { page ->
-                                val card = sortedCards[page]
-                                val limitRank = sortedByLimit.indexOf(card) + 1
-                                val activeAssignment = s.assignments.firstOrNull {
-                                    it.card_id == card.id && it.returned_date == null
+                        // ── Recent transactions ──────────────────────────────
+                        val recent = s.transactions.sortedByDescending { it.txn_date }.take(RECENT_TRANSACTIONS_COUNT)
+                        if (recent.isNotEmpty()) {
+                            item {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        "Recent",
+                                        color = OnDark,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    TextButton(onClick = { nav.navigate(Routes.CARDS) }) {
+                                        Text("See all", color = Gold, style = MaterialTheme.typography.labelMedium)
+                                    }
                                 }
-                                val holder = if (activeAssignment != null) {
-                                    s.holders.firstOrNull { it.id == activeAssignment.holder_id }
-                                } else {
-                                    s.holders.firstOrNull { it.relationship == "me" }
-                                }
-                                val initials = holder?.let { initialsOf(it.name) }
-                                val isMe = holder?.relationship == "me"
-                                val spend = s.spendByCard[card.id] ?: 0.0
-
-                                Box(
+                            }
+                            val holderMap = s.holders.associateBy { it.id }
+                            items(recent) { txn ->
+                                val txnHolder = holderMap[txn.holder_id_at_time]
+                                val holderLabel = txnHolder?.name ?: txn.holder_id_at_time
+                                val txnCard = s.cards.firstOrNull { it.id == txn.card_id }
+                                Surface(
                                     Modifier
                                         .fillMaxWidth()
-                                        .shadow(
-                                            elevation = 12.dp,
-                                            shape = RoundedCornerShape(24.dp),
-                                            spotColor = Color.Black,
-                                            ambientColor = Color.Black
-                                        )
-                                        .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
+                                        .padding(horizontal = 20.dp, vertical = 2.dp),
+                                    shape = MaterialTheme.shapes.small,
+                                    color = Surface1,
                                 ) {
-                                    CardTile(card, initials, isMe, spend, limitRank)
-                                }
-                            }
-                            Spacer(Modifier.height(16.dp))
-                        }
-                    }
-                }
-
-                // Top Merchants
-                if (s.topMerchants.isNotEmpty()) {
-                    item {
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Surface1,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("TOP MERCHANTS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                val maxAmt = (s.topMerchants.firstOrNull()?.amount ?: 1.0).coerceAtLeast(1.0)
-                                s.topMerchants.forEach { m ->
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text(m.merchant, color = OnDark, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Text(money(m.amount), color = Muted, fontSize = 12.sp)
-                                        }
-                                        Box(
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .height(3.dp)
-                                                .clip(RoundedCornerShape(2.dp))
-                                                .background(Elevated)
-                                        ) {
-                                            Box(
-                                                Modifier
-                                                    .fillMaxWidth((m.amount / maxAmt).toFloat().coerceIn(0f, 1f))
-                                                    .height(3.dp)
-                                                    .background(Gold)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 7-day spend bar chart
-                if (s.dailySpend.isNotEmpty()) {
-                    item {
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Surface1,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("LAST 7 DAYS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                val maxAmt = (s.dailySpend.maxOfOrNull { it.amount } ?: 1.0).coerceAtLeast(1.0)
-                                Row(
-                                    Modifier.fillMaxWidth().height(60.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.Bottom,
-                                ) {
-                                    s.dailySpend.forEach { day ->
-                                        val frac = (day.amount / maxAmt).toFloat().coerceIn(0.02f, 1f)
-                                        Box(
-                                            Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight(frac)
-                                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                                .background(if (day.isToday) Gold else Elevated)
-                                        )
-                                    }
-                                }
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    s.dailySpend.forEach { day ->
-                                        Text(
-                                            day.dayLabel,
-                                            Modifier.weight(1f),
-                                            color = if (day.isToday) Gold else Muted,
-                                            fontSize = 9.sp,
-                                            textAlign = TextAlign.Center,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Spend by network
-                if (s.spendByNetwork.size > 1) {
-                    item {
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Surface1,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("SPEND BY NETWORK", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                                val maxNetAmt = (s.spendByNetwork.values.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
-                                s.spendByNetwork.entries.sortedByDescending { it.value }.forEach { (network, amt) ->
                                     Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Text(network, color = OnDark, fontSize = 13.sp, modifier = Modifier.width(80.dp))
-                                        Box(
-                                            Modifier
-                                                .weight(1f)
-                                                .height(6.dp)
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(Elevated)
+                                        Row(
+                                            Modifier.weight(1f),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Box(
-                                                Modifier
-                                                    .fillMaxWidth((amt / maxNetAmt).toFloat().coerceIn(0f, 1f))
-                                                    .height(6.dp)
-                                                    .background(Gold)
-                                            )
+                                            if (txnHolder != null) {
+                                                HolderBadge(initialsOf(txnHolder.name), txnHolder.relationship == "me")
+                                            }
+                                            Column {
+                                                Text(
+                                                    txn.merchant,
+                                                    color = if (txn.is_paid) Muted else OnDark,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                                Text(
+                                                    buildString {
+                                                        append(holderLabel)
+                                                        if (txnCard != null) append(" · ${txnCard.nickname}")
+                                                        append(" · ${txn.txn_date.drop(5)}")
+                                                    },
+                                                    color = MutedLow,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                )
+                                            }
                                         }
-                                        Text(money(amt), color = Muted, fontSize = 12.sp, modifier = Modifier.width(72.dp), textAlign = TextAlign.End)
+                                        Text(
+                                            "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                            color = if (txn.is_paid) Muted else Danger,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
                                     }
                                 }
                             }
                         }
                     }
-                }
-
-                // Recent transactions
-                val recent = s.transactions.sortedByDescending { it.txn_date }.take(RECENT_TRANSACTIONS_COUNT)
-                if (recent.isNotEmpty()) {
-                    item {
-                        Text(
-                            "Recent",
-                            color = OnDark,
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                        )
-                    }
-                    val holderMap = s.holders.associateBy { it.id }
-                    items(recent) { txn ->
-                        val txnHolder = holderMap[txn.holder_id_at_time]
-                        val holderLabel = txnHolder?.name ?: txn.holder_id_at_time
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 2.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = Surface1,
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(txn.merchant, color = OnDark, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(
-                                        "$holderLabel · ${txn.txn_date.drop(5)}",
-                                        color = Muted,
-                                        fontSize = 12.sp,
-                                    )
-                                }
-                                Text(
-                                    "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                    color = if (txn.is_paid) Success else Danger,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                )
-                            }
-                        }
-                    }
-                    item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }

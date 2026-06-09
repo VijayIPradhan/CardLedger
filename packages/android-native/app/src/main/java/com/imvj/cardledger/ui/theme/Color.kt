@@ -4,16 +4,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import com.imvj.cardledger.data.net.PaletteDto
 
-val Base = Color(0xFF0A0A0A)
-val Surface1 = Color(0xFF111111)
-val Elevated = Color(0xFF1A1A1A)
+// Near-black with a subtle cool/blue undertone — premium fintech feel (CRED-inspired)
+val Base = Color(0xFF0C0C10)
+val Surface1 = Color(0xFF14141A)
+val Elevated = Color(0xFF1E1E28)
+val SurfaceTint = Color(0xFF24243040)  // 25% alpha tint for separators
 val Gold = Color(0xFFC8A96E)
 val GoldHi = Color(0xFFD9BE85)
-val Muted = Color(0xFF8A8A8A)
-val Danger = Color(0xFFE5484D)
-val Success = Color(0xFF46A758)
-val Warning = Color(0xFFE2A33C)
+val GoldSubtle = Color(0x33C8A96E)    // 20% alpha gold for backgrounds
+val Muted = Color(0xFF888899)
+val MutedLow = Color(0xFF55556A)      // lower-contrast muted for less-important text
+val Danger = Color(0xFFEF4444)
+val DangerSubtle = Color(0x22EF4444)
+val Success = Color(0xFF22C55E)
+val SuccessSubtle = Color(0x2222C55E)
+val Warning = Color(0xFFF59E0B)
 val OnDark = Color(0xFFFFFFFF)
+val OnDarkMid = Color(0xCCFFFFFF)     // 80% white for secondary text on card backgrounds
 
 val VisaGrad = listOf(Color(0xFF1A237E), Color(0xFF283593))
 val MastercardGrad = listOf(Color(0xFFB71C1C), Color(0xFFC62828))

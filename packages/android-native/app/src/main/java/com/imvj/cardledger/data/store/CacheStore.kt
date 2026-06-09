@@ -1,0 +1,41 @@
+package com.imvj.cardledger.data.store
+
+import android.content.Context
+import com.imvj.cardledger.data.net.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.File
+
+@Serializable
+data class OfflineCache(
+    val cards: List<CardDto>,
+    val holders: List<HolderDto>,
+    val assignments: List<AssignmentDto>,
+    val transactions: List<TransactionDto>,
+    val payments: List<PaymentDto>
+)
+
+class CacheStore(context: Context) {
+    private val file = File(context.filesDir, "offline_cache.json")
+    private val json = Json { ignoreUnknownKeys = true }
+
+    suspend fun save(cache: OfflineCache) = withContext(Dispatchers.IO) {
+        try {
+            file.writeText(json.encodeToString(OfflineCache.serializer(), cache))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun load(): OfflineCache? = withContext(Dispatchers.IO) {
+        if (!file.exists()) return@withContext null
+        return@withContext try {
+            json.decodeFromString(OfflineCache.serializer(), file.readText())
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+}

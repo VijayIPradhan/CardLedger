@@ -62,6 +62,19 @@ fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend:
                     Text(money(spend), color = white60, fontSize = 10.sp)
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            val limit = card.credit_limit.toDoubleOrNull() ?: 0.0
+            val pct = if (limit > 0) (spend / limit).coerceIn(0.0, 1.0).toFloat() else 0f
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { pct },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                color = when {
+                    pct < 0.3f -> com.imvj.cardledger.ui.theme.Success
+                    pct <= 0.5f -> com.imvj.cardledger.ui.theme.Warning
+                    else -> com.imvj.cardledger.ui.theme.Danger
+                },
+                trackColor = Color.White.copy(alpha = 0.2f)
+            )
         }
     }
 }

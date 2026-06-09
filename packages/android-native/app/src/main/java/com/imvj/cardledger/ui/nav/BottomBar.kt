@@ -1,35 +1,102 @@
 package com.imvj.cardledger.ui.nav
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.imvj.cardledger.ui.theme.Base
+import com.imvj.cardledger.ui.theme.Elevated
+import com.imvj.cardledger.ui.theme.Gold
+import com.imvj.cardledger.ui.theme.Muted
+import com.imvj.cardledger.ui.theme.Surface1
+
+private data class NavItem(
+    val route: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector,
+)
+
+private val navItems = listOf(
+    NavItem(Routes.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
+    NavItem(Routes.ANALYTICS, "Analytics", Icons.Filled.BarChart, Icons.Outlined.BarChart),
+    NavItem(Routes.CARDS, "Cards", Icons.Filled.CreditCard, Icons.Outlined.CreditCard),
+    NavItem(Routes.SMS, "Review", Icons.Filled.Email, Icons.Outlined.Email),
+)
 
 @Composable
 fun BottomBar(nav: NavHostController, reviewCount: Int) {
-    val items = listOf(
-        Triple(Routes.HOME, "Home", Icons.Filled.Home),
-        Triple(Routes.HOLDERS, "Holders", Icons.Filled.People),
-        Triple(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
-        Triple(Routes.SMS, "SMS", Icons.Filled.Email),
-    )
     val current = nav.currentBackStackEntryAsState().value?.destination?.route
-    NavigationBar {
-        items.forEach { (route, label, icon) ->
+
+    NavigationBar(
+        modifier = Modifier.height(64.dp),
+        containerColor = Surface1,
+        tonalElevation = 0.dp,
+        windowInsets = WindowInsets(0),
+    ) {
+        navItems.forEach { item ->
+            val selected = current == item.route
+            val iconTint by animateColorAsState(
+                targetValue = if (selected) Gold else Muted,
+                animationSpec = tween(200),
+                label = "navIconTint_${item.route}",
+            )
+
             NavigationBarItem(
-                selected = current == route,
-                onClick = { if (current != route) nav.navigate(route) { launchSingleTop = true; popUpTo(Routes.HOME) } },
-                icon = {
-                    if (route == Routes.SMS && reviewCount > 0)
-                        BadgedBox(badge = { Badge { Text(if (reviewCount > 9) "9+" else "$reviewCount") } }) { Icon(icon, label) }
-                    else Icon(icon, label)
+                selected = selected,
+                onClick = {
+                    if (current != item.route) {
+                        nav.navigate(item.route) {
+                            launchSingleTop = true
+                            popUpTo(Routes.HOME)
+                        }
+                    }
                 },
-                label = { Text(label) },
+                icon = {
+                    if (item.route == Routes.SMS && reviewCount > 0) {
+                        BadgedBox(badge = {
+                            Badge(containerColor = Gold, contentColor = Base) {
+                                Text(if (reviewCount > 9) "9+" else "$reviewCount")
+                            }
+                        }) {
+                            Icon(
+                                if (selected) item.selectedIcon else item.unselectedIcon,
+                                contentDescription = item.label,
+                                tint = iconTint,
+                            )
+                        }
+                    } else {
+                        Icon(
+                            if (selected) item.selectedIcon else item.unselectedIcon,
+                            contentDescription = item.label,
+                            tint = iconTint,
+                        )
+                    }
+                },
+                label = null, // No labels — icon-only nav, matches premium finance apps
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Gold,
+                    unselectedIconColor = Muted,
+                    indicatorColor = Elevated,
+                ),
             )
         }
     }
