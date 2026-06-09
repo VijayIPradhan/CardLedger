@@ -1,29 +1,37 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
 }
 
 android {
     namespace = "com.imvj.cardledger"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.imvj.cardledger"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
     }
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"https://cards.imvj.in/api/\"")
-            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"PLACEHOLDER_CLIENT_ID\"")
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProps.getProperty("GOOGLE_CLIENT_ID", "")}\"")
         }
         release {
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE_URL", "\"https://cards.imvj.in/api/\"")
-            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"PLACEHOLDER_CLIENT_ID\"")
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProps.getProperty("GOOGLE_CLIENT_ID", "")}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -33,7 +41,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
