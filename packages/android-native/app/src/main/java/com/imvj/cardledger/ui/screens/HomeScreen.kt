@@ -1,5 +1,6 @@
 package com.imvj.cardledger.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -177,6 +179,38 @@ fun HomeScreen(nav: NavHostController) {
                                 }
                             }
                         }
+
+                        // 30-day spend trend
+                        Surface(
+                            Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                        ) {
+                            Row(
+                                Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("30-DAY SPEND", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                    Text(money(s.monthlySpend), color = OnDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                }
+                                if (s.prevMonthSpend > 0) {
+                                    val rawChange = (s.monthlySpend - s.prevMonthSpend) / s.prevMonthSpend * 100
+                                    val isUp = rawChange >= 0
+                                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("vs prior 30d", color = Muted, fontSize = 10.sp)
+                                        Text(
+                                            "${if (isUp) "↑" else "↓"} ${Math.abs(rawChange.toInt())}%",
+                                            color = if (isUp) Danger else Success,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -219,6 +253,37 @@ fun HomeScreen(nav: NavHostController) {
                         }
                     }
                     item { Spacer(Modifier.height(8.dp)) }
+                }
+
+                // Spend by Holder
+                if (s.spendByHolder.isNotEmpty()) {
+                    item {
+                        Surface(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("SPEND BY HOLDER", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                s.spendByHolder.forEach { hs ->
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            HolderBadge(initialsOf(hs.name), hs.isMe)
+                                            Text(hs.name, color = OnDark, fontSize = 14.sp)
+                                        }
+                                        Text(money(hs.spend), color = if (hs.isMe) OnDark else Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Card Stack
@@ -273,6 +338,47 @@ fun HomeScreen(nav: NavHostController) {
                                 }
                             }
                             Spacer(Modifier.height(16.dp))
+                        }
+                    }
+                }
+
+                // Top Merchants
+                if (s.topMerchants.isNotEmpty()) {
+                    item {
+                        Surface(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("TOP MERCHANTS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                val maxAmt = (s.topMerchants.firstOrNull()?.amount ?: 1.0).coerceAtLeast(1.0)
+                                s.topMerchants.forEach { m ->
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(m.merchant, color = OnDark, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text(money(m.amount), color = Muted, fontSize = 12.sp)
+                                        }
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .height(3.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(Elevated)
+                                        ) {
+                                            Box(
+                                                Modifier
+                                                    .fillMaxWidth((m.amount / maxAmt).toFloat().coerceIn(0f, 1f))
+                                                    .height(3.dp)
+                                                    .background(Gold)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
