@@ -15,6 +15,7 @@ private const val TOP_MERCHANTS_COUNT = 5
 
 data class HolderSpend(val holderId: String, val name: String, val isMe: Boolean, val spend: Double)
 data class MerchantSpend(val merchant: String, val amount: Double, val count: Int)
+data class DailySpend(val date: String, val dayLabel: String, val amount: Double, val isToday: Boolean)
 
 data class HomeUiState(
     val loading: Boolean = true,
@@ -30,6 +31,11 @@ data class HomeUiState(
     val topMerchants: List<MerchantSpend> = emptyList(),
     val monthlySpend: Double = 0.0,
     val prevMonthSpend: Double = 0.0,
+    val dailySpend: List<DailySpend> = emptyList(),
+    val unpaidCount: Int = 0,
+    val unpaidAmount: Double = 0.0,
+    val avgDailySpend: Double = 0.0,
+    val spendByNetwork: Map<String, Double> = emptyMap(),
 )
 
 class HomeViewModel(private val c: AppContainer) : ViewModel() {
@@ -89,6 +95,28 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val monthlySpend = spendTxns.filter { it.txn_date >= cutoff30 }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             val prevMonthSpend = spendTxns.filter { it.txn_date >= cutoff60 && it.txn_date < cutoff30 }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
 
+            val dayNames = listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa")
+            val dailySpend = (6 downTo 0).map { offset ->
+                val date = todayDate.minusDays(offset.toLong())
+                val dateStr = date.toString()
+                DailySpend(
+                    date = dateStr,
+                    dayLabel = dayNames[date.dayOfWeek.value % 7],
+                    amount = spendTxns.filter { it.txn_date == dateStr }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
+                    isToday = offset == 0,
+                )
+            }
+
+            val unpaidTxns = txns.filter { it.type == "spend" && !it.is_paid }
+            val unpaidCount = unpaidTxns.size
+            val unpaidAmount = unpaidTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+
+            val cardNetworkMap = cards.associate { it.id to it.network }
+            val spendByNetwork = spendTxns
+                .groupBy { cardNetworkMap[it.card_id] ?: "Other" }
+                .mapValues { (_, entries) -> entries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } }
+                .filter { it.value > 0 }
+
             _state.value = HomeUiState(
                 loading = false, cards = cards, holders = holders, assignments = assignments,
                 transactions = txns, spendByCard = spend,
@@ -99,6 +127,11 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 topMerchants = topMerchants,
                 monthlySpend = monthlySpend,
                 prevMonthSpend = prevMonthSpend,
+                dailySpend = dailySpend,
+                unpaidCount = unpaidCount,
+                unpaidAmount = unpaidAmount,
+                avgDailySpend = monthlySpend / 30.0,
+                spendByNetwork = spendByNetwork,
             )
             com.imvj.cardledger.notif.ReminderScheduler.reschedule(
                 c.appContext, cards, c.prefsStore.reminderDays(), c.prefsStore.remindersEnabled()

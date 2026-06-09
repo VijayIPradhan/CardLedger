@@ -211,6 +211,34 @@ fun HomeScreen(nav: NavHostController) {
                                 }
                             }
                         }
+
+                        // Unpaid + Avg daily row
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Surface(
+                                Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                color = Surface1,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                            ) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("UNPAID", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                    Text(money(s.unpaidAmount), color = if (s.unpaidAmount > 0) Danger else Success, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text("${s.unpaidCount} txn${if (s.unpaidCount != 1) "s" else ""}", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                            Surface(
+                                Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                color = Surface1,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                            ) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("AVG / DAY", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                    Text(money(s.avgDailySpend), color = OnDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text("30-day average", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -376,6 +404,95 @@ fun HomeScreen(nav: NavHostController) {
                                                     .background(Gold)
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 7-day spend bar chart
+                if (s.dailySpend.isNotEmpty()) {
+                    item {
+                        Surface(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("LAST 7 DAYS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                val maxAmt = (s.dailySpend.maxOfOrNull { it.amount } ?: 1.0).coerceAtLeast(1.0)
+                                Row(
+                                    Modifier.fillMaxWidth().height(60.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.Bottom,
+                                ) {
+                                    s.dailySpend.forEach { day ->
+                                        val frac = (day.amount / maxAmt).toFloat().coerceIn(0.02f, 1f)
+                                        Box(
+                                            Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight(frac)
+                                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                                .background(if (day.isToday) Gold else Elevated)
+                                        )
+                                    }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    s.dailySpend.forEach { day ->
+                                        Text(
+                                            day.dayLabel,
+                                            Modifier.weight(1f),
+                                            color = if (day.isToday) Gold else Muted,
+                                            fontSize = 9.sp,
+                                            textAlign = TextAlign.Center,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Spend by network
+                if (s.spendByNetwork.size > 1) {
+                    item {
+                        Surface(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("SPEND BY NETWORK", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                val maxNetAmt = (s.spendByNetwork.values.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
+                                s.spendByNetwork.entries.sortedByDescending { it.value }.forEach { (network, amt) ->
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(network, color = OnDark, fontSize = 13.sp, modifier = Modifier.width(80.dp))
+                                        Box(
+                                            Modifier
+                                                .weight(1f)
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Elevated)
+                                        ) {
+                                            Box(
+                                                Modifier
+                                                    .fillMaxWidth((amt / maxNetAmt).toFloat().coerceIn(0f, 1f))
+                                                    .height(6.dp)
+                                                    .background(Gold)
+                                            )
+                                        }
+                                        Text(money(amt), color = Muted, fontSize = 12.sp, modifier = Modifier.width(72.dp), textAlign = TextAlign.End)
                                     }
                                 }
                             }
