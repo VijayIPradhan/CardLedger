@@ -10,13 +10,27 @@ import com.imvj.cardledger.data.store.TokenStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
     val tokenStore = TokenStore(appContext)
     val prefsStore = PrefsStore(appContext)
-    val api: ApiService = NetworkModule.create(tokenStore)
+
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Eagerly collect the token flow into a StateFlow so AuthInterceptor can read
+    // tokenState.value synchronously — no runBlocking needed on OkHttp threads.
+    val tokenState: StateFlow<String?> = tokenStore.tokenFlow.stateIn(
+        scope = appScope,
+        started = SharingStarted.Eagerly,
+        initialValue = null,
+    )
+
+    val api: ApiService = NetworkModule.create { tokenState.value }
 
     val authRepo = AuthRepository(api)
     val cardRepo = CardRepository(api)
@@ -25,10 +39,9 @@ class AppContainer(context: Context) {
     val transactionRepo = TransactionRepository(api)
     val metadataRepo = MetadataRepository(api)
     val paymentRepo = PaymentRepository(api)
-    
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     val reviewStore = ReviewStore(prefsStore, appScope)
-    
+
     init {
         appScope.launch {
             reviewStore.init()

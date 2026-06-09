@@ -49,46 +49,34 @@ export async function authRoutes(app: FastifyInstance) {
       });
       const payload = ticket.getPayload();
       if (!payload) {
-        return reply.status(401).send({ error: 'Invalid Google Token Payload' });
+        return reply.status(401).send({ error: 'Invalid Google token' });
       }
 
-      const { sub: googleId, email, name } = payload;
+      const { sub: googleId, email } = payload;
 
-      // Find user by Google ID or Email
+      // Look up by google_id first, fall back to email — no undefined passed to or()
       let [user] = await db
         .select()
         .from(users)
-        .where(or(eq(users.google_id, googleId), email ? eq(users.email, email) : undefined));
+        .where(
+          email
+            ? or(eq(users.google_id, googleId), eq(users.email, email))
+            : eq(users.google_id, googleId),
+        );
 
       if (!user) {
-        // Create new user
-        // Generate a random username if not provided
-        const baseUsername = email ? email.split('@')[0] : `user_${googleId.substring(0, 8)}`;
-        let uniqueUsername = baseUsername;
-        let suffix = 1;
-        while (true) {
-          const [existing] = await db
-            .select()
-            .from(users)
-            .where(eq(users.username, uniqueUsername));
-          if (!existing) break;
-          uniqueUsername = `${baseUsername}${suffix++}`;
-        }
+        // Derive a base username from the email prefix or a googleId slice.
+        // Append the googleId suffix to make it collision-proof without a retry loop.
+        const base = email ? email.split('@')[0] : 'user';
+        const uniqueUsername = `${base}_${googleId.substring(0, 8)}`;
 
         const [newUser] = await db
           .insert(users)
-          .values({
-            username: uniqueUsername,
-            email: email,
-            google_id: googleId,
-          })
+          .values({ username: uniqueUsername, email, google_id: googleId })
           .returning();
         user = newUser;
-      } else {
-        // Update existing user with google_id if missing
-        if (!user.google_id) {
-          await db.update(users).set({ google_id: googleId }).where(eq(users.id, user.id));
-        }
+      } else if (!user.google_id) {
+        await db.update(users).set({ google_id: googleId }).where(eq(users.id, user.id));
       }
 
       const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '24h' });

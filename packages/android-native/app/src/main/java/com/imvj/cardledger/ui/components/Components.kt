@@ -24,7 +24,7 @@ fun money(v: Double): String =
     "₹" + NumberFormat.getNumberInstance(Locale("en", "IN")).format(v.toLong())
 
 @Composable
-fun SpendRing(spent: Double, limit: Double, size: Int = 56) {
+fun SpendRing(spent: Double, limit: Double, size: Int = 56, showText: Boolean = true) {
     val pct = if (limit > 0) (spent / limit).coerceIn(0.0, 1.0).toFloat() else 0f
     Box(contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size.dp)) {
@@ -33,7 +33,9 @@ fun SpendRing(spent: Double, limit: Double, size: Int = 56) {
             drawArc(Elevated, -90f, 360f, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
             drawArc(Gold, -90f, 360f * pct, false, Offset(stroke / 2, stroke / 2), d, style = Stroke(stroke))
         }
-        Text("${(pct * 100).toInt()}%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        if (showText) {
+            Text("${(pct * 100).toInt()}%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 

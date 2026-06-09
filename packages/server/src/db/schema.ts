@@ -22,6 +22,9 @@ export const users = pgTable('users', {
 
 export const holders = pgTable('holders', {
   id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id')
+    .references(() => users.id)
+    .notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   phone: varchar('phone', { length: 15 }).notNull(),
   relationship: varchar('relationship', { length: 10 }).notNull(),
@@ -30,6 +33,9 @@ export const holders = pgTable('holders', {
 
 export const cards = pgTable('cards', {
   id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id')
+    .references(() => users.id)
+    .notNull(),
   last4: varchar('last4', { length: 4 }).notNull(),
   network: varchar('network', { length: 20 }).notNull(),
   bank: varchar('bank', { length: 100 }).notNull(),

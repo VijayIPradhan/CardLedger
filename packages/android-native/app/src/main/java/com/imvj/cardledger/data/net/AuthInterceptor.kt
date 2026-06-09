@@ -1,16 +1,20 @@
 package com.imvj.cardledger.data.net
 
-import com.imvj.cardledger.data.store.TokenStore
-import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
 
-class AuthInterceptor(private val tokenStore: TokenStore) : Interceptor {
+/**
+ * Attaches the Bearer token to every request.
+ * The token is supplied via a lambda so callers can back it with a hot StateFlow.value
+ * — a non-blocking field read that avoids runBlocking on OkHttp's dispatcher threads.
+ */
+class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val token = runBlocking { tokenStore.get() }
+        val token = tokenProvider()
         val req = if (token != null)
             chain.request().newBuilder().addHeader("Authorization", "Bearer $token").build()
-        else chain.request()
+        else
+            chain.request()
         return chain.proceed(req)
     }
 }

@@ -27,9 +27,18 @@ export default function HomeScreen() {
   const { data: allPayments = [] } = usePayments();
 
   const holderMap = Object.fromEntries(holders.map((h: Holder) => [h.id, h]));
+  const meHolder = holders.find((h: Holder) => h.relationship === 'me');
   const friends = holders.filter((h: Holder) => h.relationship === 'friend');
   const cardList = cards as Card[];
   const today = todayISO();
+
+  const sortedByLimit = [...cardList].sort(
+    (a, b) => Number(b.credit_limit) - Number(a.credit_limit),
+  );
+  const limitRankMap = new Map<string, number>(sortedByLimit.map((c, i) => [c.id, i + 1]));
+  const sortedCards = [...cardList].sort(
+    (a, b) => Number(b.current_spend || 0) - Number(a.current_spend || 0),
+  );
 
   // Analytics calculations
   let totalToCollect = 0;
@@ -70,9 +79,7 @@ export default function HomeScreen() {
     const active = (assignments as Assignment[]).find(
       (a) => a.card_id === cardId && !a.returned_date,
     );
-    return active
-      ? holderMap[active.holder_id]
-      : holders.find((h: Holder) => h.relationship === 'me');
+    return active ? holderMap[active.holder_id] : meHolder;
   }
 
   const recent = [...(transactions as Transaction[])]
@@ -173,48 +180,31 @@ export default function HomeScreen() {
       )}
 
       {/* Card Stack — Vertical sticky layout */}
-      {cardList.length > 0 &&
-        (() => {
-          // Calculate limit ranks (highest limit gets #1)
-          const sortedByLimit = [...cardList].sort(
-            (a, b) => Number(b.credit_limit) - Number(a.credit_limit),
-          );
-          const getLimitRank = (cardId: string) =>
-            sortedByLimit.findIndex((c) => c.id === cardId) + 1;
-
-          // Sort displayed cards by usage descending
-          const sortedCards = [...cardList].sort(
-            (a, b) => Number(b.current_spend || 0) - Number(a.current_spend || 0),
-          );
-
-          return (
-            <div className="flex flex-col px-4 mb-5 relative pb-8">
-              <p className="text-xs text-muted mb-3">Cards</p>
-              {sortedCards.map((card, i) => {
-                return (
-                  <div
-                    key={card.id}
-                    className="sticky transition-transform duration-300"
-                    style={{ top: `${i * 48 + 16}px`, zIndex: i }}
-                  >
-                    <div
-                      onClick={() => nav(`/cards/${card.id}`)}
-                      className="shadow-[0_-8px_24px_rgba(0,0,0,0.6)] rounded-card"
-                      style={{ transform: `scale(${1 - i * 0.02})`, transformOrigin: 'top center' }}
-                    >
-                      <CardTile
-                        card={card}
-                        holder={getCardHolder(card.id)}
-                        cycleSpend={groupedSpend[card.shared_limit_with || card.id] || 0}
-                        limitRank={getLimitRank(card.id)}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+      {cardList.length > 0 && (
+        <div className="flex flex-col px-4 mb-5 relative pb-8">
+          <p className="text-xs text-muted mb-3">Cards</p>
+          {sortedCards.map((card, i) => (
+            <div
+              key={card.id}
+              className="sticky transition-transform duration-300"
+              style={{ top: `${i * 48 + 16}px`, zIndex: i }}
+            >
+              <div
+                onClick={() => nav(`/cards/${card.id}`)}
+                className="shadow-[0_-8px_24px_rgba(0,0,0,0.6)] rounded-card"
+                style={{ transform: `scale(${1 - i * 0.02})`, transformOrigin: 'top center' }}
+              >
+                <CardTile
+                  card={card}
+                  holder={getCardHolder(card.id)}
+                  cycleSpend={groupedSpend[card.shared_limit_with || card.id] || 0}
+                  limitRank={limitRankMap.get(card.id) ?? 0}
+                />
+              </div>
             </div>
-          );
-        })()}
+          ))}
+        </div>
+      )}
 
       {/* Recent transactions */}
       <div className="px-4">

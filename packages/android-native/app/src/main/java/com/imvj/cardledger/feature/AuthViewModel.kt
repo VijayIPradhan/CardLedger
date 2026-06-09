@@ -33,4 +33,8 @@ class AuthViewModel(private val c: AppContainer) : ViewModel() {
                 .onFailure { _state.value = LoginUiState(error = "Google login failed") }
         }
     }
+
+    fun setError(message: String) {
+        _state.value = LoginUiState(error = message)
+    }
 }

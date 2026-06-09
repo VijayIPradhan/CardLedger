@@ -38,7 +38,6 @@ import com.imvj.cardledger.ui.nav.Routes
 import com.imvj.cardledger.ui.theme.*
 
 private const val CARD_STACK_OFFSET_DP = 72
-private const val UPCOMING_DUES_WITHIN_DAYS = 7
 private const val RECENT_TRANSACTIONS_COUNT = 5
 
 @Composable
@@ -131,7 +130,7 @@ fun HomeScreen(nav: NavHostController) {
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    SpendRing(s.total.spend, s.total.limit, 72)
+                                    SpendRing(s.total.spend, s.total.limit, 72, showText = false)
                                     Text(
                                         "${s.total.percent}%",
                                         color = OnDark,

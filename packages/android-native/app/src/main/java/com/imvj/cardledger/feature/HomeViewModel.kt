@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.imvj.cardledger.AppContainer
 import com.imvj.cardledger.data.net.*
 import com.imvj.cardledger.domain.*
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -29,11 +30,16 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
 
     fun load() {
         viewModelScope.launch {
-            val cards = c.cardRepo.list().getOrElse { emptyList() }
-            val holders = c.holderRepo.list().getOrElse { emptyList() }
-            val assignments = c.assignmentRepo.list().getOrElse { emptyList() }
-            val txns = c.transactionRepo.list().getOrElse { emptyList() }
-            val payments = c.paymentRepo.list().getOrElse { emptyList() }
+            val cardsD = async { c.cardRepo.list().getOrElse { emptyList() } }
+            val holdersD = async { c.holderRepo.list().getOrElse { emptyList() } }
+            val assignmentsD = async { c.assignmentRepo.list().getOrElse { emptyList() } }
+            val txnsD = async { c.transactionRepo.list().getOrElse { emptyList() } }
+            val paymentsD = async { c.paymentRepo.list().getOrElse { emptyList() } }
+            val cards = cardsD.await()
+            val holders = holdersD.await()
+            val assignments = assignmentsD.await()
+            val txns = txnsD.await()
+            val payments = paymentsD.await()
             
             val spend = cards.associate { card ->
                 val groupId = card.shared_limit_with ?: card.id

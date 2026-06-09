@@ -7,6 +7,7 @@ import com.imvj.cardledger.data.net.*
 import com.imvj.cardledger.data.repo.isConflict
 import com.imvj.cardledger.domain.getCycleRange
 import com.imvj.cardledger.domain.today
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -31,14 +32,22 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
     val state: StateFlow<CardDetailUiState> = _state
 
     fun load(id: String) {
+        _state.value = CardDetailUiState(loading = true)
         viewModelScope.launch {
-            val allCards = c.cardRepo.list().getOrElse { emptyList() }
-            val card = allCards.find { it.id == id }
-            val holders = c.holderRepo.list().getOrElse { emptyList() }
-            val assignments = c.assignmentRepo.list(id).getOrElse { emptyList() }
-            val txns = c.transactionRepo.list(cardId = id).getOrElse { emptyList() }
+            val cardD = async { c.cardRepo.get(id).getOrNull() }
+            val holdersD = async { c.holderRepo.list().getOrElse { emptyList() } }
+            val assignmentsD = async { c.assignmentRepo.list(id).getOrElse { emptyList() } }
+            val txnsD = async { c.transactionRepo.list(cardId = id).getOrElse { emptyList() } }
+            // Full list needed only for shared-limit group total; runs in parallel with the rest.
+            val allCardsD = async { c.cardRepo.list().getOrElse { emptyList() } }
+
+            val card = cardD.await()
+            val holders = holdersD.await()
+            val assignments = assignmentsD.await()
+            val txns = txnsD.await()
+            val allCards = allCardsD.await()
             val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
-            
+
             val total = if (card != null) {
                 val groupId = card.shared_limit_with ?: card.id
                 allCards.filter { (it.shared_limit_with ?: it.id) == groupId }

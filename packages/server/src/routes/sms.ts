@@ -26,8 +26,6 @@ function buildUserPrompt(sender: string, body: string): string {
   return `Analyze the following SMS from sender: ${sender}.\nBody: ${body}\n\nIs this a debit (spend) or credit (payment/refund)? Extract the details as JSON.`;
 }
 
-// ---------- Provider: OpenRouter (OpenAI-compatible) ----------
-
 async function parseWithOpenRouter(
   apiKey: string,
   sender: string,
@@ -64,8 +62,6 @@ async function parseWithOpenRouter(
   return JSON.parse(text);
 }
 
-// ---------- Provider: Google Gemini ----------
-
 async function parseWithGemini(
   ai: GoogleGenAI,
   sender: string,
@@ -80,25 +76,16 @@ async function parseWithGemini(
       },
       last4: { type: Type.STRING, description: 'The last 4 digits of the card or account' },
       amount: { type: Type.NUMBER, description: 'The amount of the transaction as a number' },
-      merchant: {
-        type: Type.STRING,
-        description:
-          'The name of the merchant. If this is a bill payment, it might be CRED, HDFC Bank, etc.',
-      },
-      date: {
-        type: Type.STRING,
-        description: 'The date of the transaction in YYYY-MM-DD format',
-      },
+      merchant: { type: Type.STRING, description: 'The name of the merchant' },
+      date: { type: Type.STRING, description: 'The date of the transaction in YYYY-MM-DD format' },
       type: {
         type: Type.STRING,
-        description:
-          'If the user spent money, output spend. If the user paid their credit card bill or received a refund, output payment.',
+        description: 'spend if the user spent money; payment if a bill payment or refund',
         enum: ['spend', 'payment'],
       },
       is_paid: {
         type: Type.BOOLEAN,
-        description:
-          'If the SMS explicitly indicates the spent amount was immediately paid back or settled, set to true. Otherwise false.',
+        description: 'true if the SMS explicitly indicates the amount was immediately settled',
       },
     },
     required: ['bank', 'last4', 'amount', 'merchant', 'date', 'type'],
@@ -107,18 +94,12 @@ async function parseWithGemini(
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: buildUserPrompt(sender, body),
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      temperature: 0.1,
-    },
+    config: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.1 },
   });
 
   if (!response.text) throw new Error('Gemini returned empty text');
   return JSON.parse(response.text);
 }
-
-// ---------- Route ----------
 
 export const smsRoutes: FastifyPluginAsync = async (app) => {
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -131,8 +112,9 @@ export const smsRoutes: FastifyPluginAsync = async (app) => {
   if (!hasProvider) {
     app.log.warn('No AI provider configured — set GEMINI_API_KEY or OPENROUTER_API_KEY');
   } else {
-    const provider = openRouterKey ? `OpenRouter (${openRouterModel})` : 'Gemini';
-    app.log.info(`SMS AI provider: ${provider}`);
+    app.log.info(
+      `SMS AI provider: ${openRouterKey ? `OpenRouter (${openRouterModel})` : 'Gemini'}`,
+    );
   }
 
   const auth = { onRequest: [app.authenticate] };
@@ -144,15 +126,19 @@ export const smsRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const input = parseRequestSchema.parse(req.body);
+    // Use safeParse so bad input returns 400 instead of an unhandled ZodError → 500
+    const parsed = parseRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const input = parsed.data;
 
     try {
-      // OpenRouter takes priority when both keys are set
       const extracted = openRouterKey
         ? await parseWithOpenRouter(openRouterKey, input.sender, input.body, openRouterModel)
         : await parseWithGemini(gemini!, input.sender, input.body);
 
-      const rawString = `${input.sender}|${input.body}|${input.timestamp || Date.now()}`;
+      const rawString = `${input.sender}|${input.body}|${input.timestamp ?? Date.now()}`;
       const dedupeHash = createHash('sha256').update(rawString).digest('hex');
 
       return reply.send({
