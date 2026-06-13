@@ -60,7 +60,7 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
     fun recordPayment(holderId: String, amount: Double, onDone: () -> Unit) {
         viewModelScope.launch {
             val date = java.time.LocalDate.now().toString()
-            val dto = CreatePaymentDto(holderId, amount, date)
+            val dto = CreatePaymentDto(holder_id = holderId, amount = amount, payment_date = date)
             c.paymentRepo.create(dto).onSuccess { load(); onDone() }
                 .onFailure { _state.value = _state.value.copy(error = "Could not record payment") }
         }
