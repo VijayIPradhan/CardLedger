@@ -222,7 +222,10 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                         // ── Dynamic Card Stack ───────────────────────────────
                         item {
                             val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
-                            val sortedCards = s.cards.sortedByDescending { s.spendByCard[it.id] ?: 0.0 }
+                            val sortedCards = s.cards.sortedWith(
+                                compareByDescending<com.imvj.cardledger.data.net.CardDto> { s.spendByCard[it.id] ?: 0.0 }
+                                    .thenByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
+                            )
 
                             Column(Modifier.fillMaxWidth().padding(top = 28.dp, start = 20.dp, end = 20.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

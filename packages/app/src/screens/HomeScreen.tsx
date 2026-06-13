@@ -36,9 +36,11 @@ export default function HomeScreen() {
     (a, b) => Number(b.credit_limit) - Number(a.credit_limit),
   );
   const limitRankMap = new Map<string, number>(sortedByLimit.map((c, i) => [c.id, i + 1]));
-  const sortedCards = [...cardList].sort(
-    (a, b) => Number(b.current_spend || 0) - Number(a.current_spend || 0),
-  );
+  const sortedCards = [...cardList].sort((a, b) => {
+    const diff = Number(b.current_spend || 0) - Number(a.current_spend || 0);
+    if (diff !== 0) return diff;
+    return Number(b.credit_limit || 0) - Number(a.credit_limit || 0);
+  });
 
   // Analytics calculations
   let totalToCollect = 0;

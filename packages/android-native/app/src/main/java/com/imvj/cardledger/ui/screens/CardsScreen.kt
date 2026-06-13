@@ -96,7 +96,10 @@ fun CardsScreen(nav: NavHostController, vm: HomeViewModel) {
                 }
 
                 val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
-                val sortedCards = s.cards.sortedByDescending { s.spendByCard[it.id] ?: 0.0 }
+                val sortedCards = s.cards.sortedWith(
+                    compareByDescending<com.imvj.cardledger.data.net.CardDto> { s.spendByCard[it.id] ?: 0.0 }
+                        .thenByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
+                )
 
                 items(sortedCards) { card ->
                     val limitRank = sortedByLimit.indexOf(card) + 1

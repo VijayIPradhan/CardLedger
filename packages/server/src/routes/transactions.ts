@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { transactions, assignments, holders, cards } from '../db/schema.js';
-import { eq, and, getTableColumns } from 'drizzle-orm';
+import { eq, and, getTableColumns, desc } from 'drizzle-orm';
 import {
   CreateTransactionSchema,
   UpdateTransactionSchema,
@@ -25,7 +25,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       .from(transactions)
       .innerJoin(cards, eq(transactions.card_id, cards.id))
       .where(and(...conditions))
-      .orderBy(transactions.txn_date);
+      .orderBy(desc(transactions.txn_date));
   });
 
   app.get<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
