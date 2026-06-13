@@ -29,10 +29,9 @@ services:
       context: .
       dockerfile: packages/server/Dockerfile
     environment:
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-cardledger}:${POSTGRES_PASSWORD:-cardledger}@cardledger-postgres:5432/${POSTGRES_DB:-cardledger}
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
-      PORT: 3001
-      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-changeme123}
+      POSTGRES_URL: ${POSTGRES_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
     expose:
