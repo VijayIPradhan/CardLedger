@@ -75,6 +75,7 @@ export const GoogleLoginSchema = z.object({
 
 export const CreatePaymentSchema = z.object({
   holder_id: z.string().uuid(),
+  transaction_id: z.string().uuid().optional().nullable(),
   amount: z.number().positive(),
   payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().max(200).optional().nullable(),

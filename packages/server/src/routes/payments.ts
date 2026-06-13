@@ -45,10 +45,10 @@ export async function paymentRoutes(app: FastifyInstance) {
       .where(and(eq(holders.id, parsed.data.holder_id), eq(holders.user_id, userId)));
     if (!holder) return reply.status(404).send({ error: 'Holder not found' });
 
-    const { amount, ...rest } = parsed.data;
+    const { amount, transaction_id, ...rest } = parsed.data;
     const [p] = await db
       .insert(payments)
-      .values({ ...rest, amount: String(amount) })
+      .values({ ...rest, transaction_id: transaction_id ?? null, amount: String(amount) })
       .returning();
     return reply.status(201).send(p);
   });
@@ -87,6 +87,22 @@ export async function paymentRoutes(app: FastifyInstance) {
     if (!existing) return reply.status(404).send({ error: 'Not found' });
 
     await db.delete(payments).where(eq(payments.id, req.params.id));
+    return reply.status(204).send();
+  });
+
+  app.delete<{ Params: { txnId: string } }>('/transaction/:txnId', auth, async (req, reply) => {
+    const userId = req.user.sub;
+
+    // Verify the payment belongs to a holder owned by this user
+    const existing = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .innerJoin(holders, eq(payments.holder_id, holders.id))
+      .where(and(eq(payments.transaction_id, req.params.txnId), eq(holders.user_id, userId)));
+
+    if (existing.length === 0) return reply.status(404).send({ error: 'Not found' });
+
+    await db.delete(payments).where(eq(payments.transaction_id, req.params.txnId));
     return reply.status(204).send();
   });
 }

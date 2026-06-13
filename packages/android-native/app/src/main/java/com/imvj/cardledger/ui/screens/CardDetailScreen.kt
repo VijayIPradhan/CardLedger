@@ -64,6 +64,8 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var showAddTxn by remember { mutableStateOf(false) }
     var showTxnSheet by remember { mutableStateOf(false) }
     var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
+    var showWhoPaidSheet by remember { mutableStateOf<TransactionDto?>(null) }
+    var showCyclePaidSheet by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     Scaffold(
@@ -143,19 +145,21 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Button(
+                    OutlinedButton(
                         onClick = { nav.navigate("${Routes.ADD_CARD}?id=$cardId") },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Elevated),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Gold),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.5f))
                     ) {
-                        Text("Edit card", color = OnDark)
+                        Text("Edit card", fontWeight = FontWeight.SemiBold)
                     }
-                    Button(
+                    OutlinedButton(
                         onClick = { vm.deleteCard(onDone = { nav.popBackStack() }) },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Elevated),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Danger.copy(alpha = 0.5f))
                     ) {
-                        Text("Delete card", color = Danger)
+                        Text("Delete card", fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -183,7 +187,15 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                             )
                             val unpaidInCycle = cycle.txns.count { !it.is_paid }
                             if (unpaidInCycle > 0) {
-                                TextButton(onClick = { vm.markCyclePaid(cycle.label, cardId) }) {
+                                TextButton(onClick = {
+                                    val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                    val friendsOwe = cycle.txns.any { !it.is_paid && it.holder_id_at_time != meId }
+                                    if (friendsOwe) {
+                                        showCyclePaidSheet = cycle.label
+                                    } else {
+                                        vm.markCyclePaid(cycle.label, cardId)
+                                    }
+                                }) {
                                     Text("Mark $unpaidInCycle paid", color = Gold, fontSize = 11.sp)
                                 }
                             }
@@ -216,7 +228,12 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                 ) {
                                     IconButton(
                                         onClick = {
-                                            vm.toggleTransactionPaid(txn.id, cardId, txn.is_paid)
+                                            val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                            if (!txn.is_paid && txn.holder_id_at_time != meId) {
+                                                showWhoPaidSheet = txn
+                                            } else {
+                                                vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
+                                            }
                                             swipeOffset = 0f
                                         },
                                         modifier = Modifier
@@ -314,7 +331,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
 
         val selectedHolder = s.holders.firstOrNull { it.id == editHolderId }
 
-        ModalBottomSheet(onDismissRequest = { showTxnSheet = false }) {
+        ModalBottomSheet(onDismissRequest = { showTxnSheet = false }, containerColor = Surface1) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -361,7 +378,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                         readOnly = true,
                         label = { Text("Who used") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = holderExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                     )
                     ExposedDropdownMenu(
                         expanded = holderExpanded,
@@ -427,5 +444,61 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
             onDismiss = { showAddTxn = false },
             onSaved = { vm.load(cardId) },
         )
+    }
+
+    if (showWhoPaidSheet != null) {
+        val txn = showWhoPaidSheet!!
+        val holder = s.holders.firstOrNull { it.id == txn.holder_id_at_time }
+        val holderName = holder?.name ?: "Holder"
+        ModalBottomSheet(onDismissRequest = { showWhoPaidSheet = null }, containerColor = Surface1) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Who paid this ${money(txn.amount.toDoubleOrNull() ?: 0.0)} bill?", style = MaterialTheme.typography.titleMedium, color = OnDark)
+                Button(
+                    onClick = {
+                        vm.toggleTransactionPaid(txn, cardId, txn.is_paid, holderPaid = false) {
+                            android.widget.Toast.makeText(context, "Added to 'To Collect' from $holderName", android.widget.Toast.LENGTH_SHORT).show()
+                            showWhoPaidSheet = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("I paid it (Collect later)") }
+                OutlinedButton(
+                    onClick = {
+                        vm.toggleTransactionPaid(txn, cardId, txn.is_paid, holderPaid = true) {
+                            android.widget.Toast.makeText(context, "Payment recorded from $holderName", android.widget.Toast.LENGTH_SHORT).show()
+                            showWhoPaidSheet = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("$holderName paid it") }
+            }
+        }
+    }
+
+    if (showCyclePaidSheet != null) {
+        val cycleLabel = showCyclePaidSheet!!
+        ModalBottomSheet(onDismissRequest = { showCyclePaidSheet = null }, containerColor = Surface1) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Did friends reimburse you for their share?", style = MaterialTheme.typography.titleMedium, color = OnDark)
+                Button(
+                    onClick = {
+                        vm.markCyclePaid(cycleLabel, cardId, everyonePaid = false) {
+                            android.widget.Toast.makeText(context, "Added to 'To Collect' balances", android.widget.Toast.LENGTH_SHORT).show()
+                            showCyclePaidSheet = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("I paid everything (Collect later)") }
+                OutlinedButton(
+                    onClick = {
+                        vm.markCyclePaid(cycleLabel, cardId, everyonePaid = true) {
+                            android.widget.Toast.makeText(context, "Payments recorded from friends", android.widget.Toast.LENGTH_SHORT).show()
+                            showCyclePaidSheet = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Everyone paid their share") }
+            }
+        }
     }
 }

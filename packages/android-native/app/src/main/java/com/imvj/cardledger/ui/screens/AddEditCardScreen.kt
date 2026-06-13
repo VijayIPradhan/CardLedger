@@ -103,7 +103,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                     readOnly = true,
                     label = { Text("Network") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = networkExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(
                     expanded = networkExpanded,
@@ -135,7 +135,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                     readOnly = true,
                     label = { Text("Bank") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = bankExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(
                     expanded = bankExpanded,
@@ -183,7 +183,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                     readOnly = true,
                     label = { Text("Variant (optional)") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = variantExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                     enabled = s.bank.isNotBlank() && !isCustomBank,
                 )
                 ExposedDropdownMenu(
@@ -273,7 +273,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                         readOnly = true,
                         label = { Text("Shares limit with...") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sharedLimitExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                     )
                     ExposedDropdownMenu(
                         expanded = sharedLimitExpanded,
@@ -353,7 +353,7 @@ fun AddEditCardScreen(nav: NavHostController, cardId: String?) {
                         }
                     },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(
                     expanded = colorExpanded,

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
@@ -60,6 +61,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
     val reviewCount = reviewQueue.size
 
     var showAddTxn by remember { mutableStateOf(false) }
+    var isStackExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = { BottomBar(nav, reviewCount) },
@@ -148,193 +150,158 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                             }
                         }
 
-                        // ── Hero: total outstanding ───────────────────────────
+                        // ── Hero: Net Position ───────────────────────────
                         item {
+                            val netPosition = s.total.spend - s.totalToCollect
                             Surface(
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 20.dp),
+                                    .padding(horizontal = 20.dp)
+                                    .clickable { nav.navigate(Routes.ANALYTICS) },
                                 shape = MaterialTheme.shapes.large,
                                 color = Elevated,
                             ) {
                                 Column(
-                                    Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                                    Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     Text(
-                                        "TOTAL OUTSTANDING",
+                                        "NET POSITION",
                                         color = Muted,
                                         style = MaterialTheme.typography.labelSmall,
                                         letterSpacing = 1.2.sp,
                                     )
                                     Text(
-                                        money(s.total.spend),
+                                        money(netPosition),
                                         color = OnDark,
                                         style = MaterialTheme.typography.headlineLarge,
                                         fontWeight = FontWeight.Bold,
                                     )
                                     Row(
-                                        Modifier.fillMaxWidth().padding(top = 8.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                        Modifier.fillMaxWidth().padding(top = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
-                                        // Utilization
+                                        // Total Spend
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Utilization", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text("Total spend", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                SpendRing(s.total.spend, s.total.limit, 28, showText = false)
+                                                SpendRing(s.total.spend, s.total.limit, 24, showText = false)
                                                 Text(
-                                                    "${s.total.percent}%",
-                                                    color = when {
-                                                        s.total.percent < 30 -> Success
-                                                        s.total.percent <= 50 -> Warning
-                                                        else -> Danger
-                                                    },
+                                                    money(s.total.spend),
+                                                    color = OnDarkMid,
                                                     style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.Bold,
+                                                    fontWeight = FontWeight.Medium,
                                                 )
                                             }
                                         }
-                                        // Limit
+                                        // To Collect
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Credit limit", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text("To collect", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Text(
-                                                money(s.total.limit),
-                                                color = OnDarkMid,
+                                                money(s.totalToCollect),
+                                                color = Gold,
                                                 style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Medium,
+                                                fontWeight = FontWeight.SemiBold,
                                             )
                                         }
-                                        // Next due
-                                        val nextDue = s.dues.firstOrNull()
-                                        if (nextDue != null) {
-                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text("Next due", color = Muted, style = MaterialTheme.typography.labelSmall)
-                                                Text(
-                                                    "in ${nextDue.daysUntil}d",
-                                                    color = if (nextDue.daysUntil <= 3) Danger else Warning,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                )
-                                            }
+                                        // Unpaid
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Unpaid", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                money(s.unpaidAmount),
+                                                color = if (s.unpaidAmount > 0) Danger else OnDarkMid,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // ── Quick stats row ──────────────────────────────────
-                        item {
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .padding(top = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                // To collect from friends
-                                Surface(
-                                    Modifier.weight(1f),
-                                    shape = MaterialTheme.shapes.medium,
-                                    color = if (s.totalToCollect > 0) GoldSubtle else Surface1,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (s.totalToCollect > 0) Gold.copy(alpha = 0.3f) else Elevated),
-                                ) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text("TO COLLECT", color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 0.8.sp)
-                                        Text(
-                                            money(s.totalToCollect),
-                                            color = if (s.totalToCollect > 0) Gold else OnDarkMid,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        Text("From friends", color = MutedLow, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
-                                // Unpaid this month
-                                Surface(
-                                    Modifier.weight(1f),
-                                    shape = MaterialTheme.shapes.medium,
-                                    color = if (s.unpaidAmount > 0) DangerSubtle else Surface1,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (s.unpaidAmount > 0) Danger.copy(alpha = 0.3f) else Elevated),
-                                ) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text("UNPAID", color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 0.8.sp)
-                                        Text(
-                                            money(s.unpaidAmount),
-                                            color = if (s.unpaidAmount > 0) Danger else OnDarkMid,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        Text("${s.unpaidCount} transactions", color = MutedLow, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Card Pager ───────────────────────────────────────
+                        // ── Dynamic Card Stack ───────────────────────────────
                         item {
                             val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
                             val sortedCards = s.cards.sortedByDescending { s.spendByCard[it.id] ?: 0.0 }
 
-                            Column(Modifier.fillMaxWidth().padding(top = 20.dp)) {
-                                Text(
-                                    "My Cards  ${s.cards.size}",
-                                    color = Muted,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
-                                )
-
-                                val pagerState = rememberPagerState(pageCount = { sortedCards.size })
-                                HorizontalPager(
-                                    state = pagerState,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    contentPadding = PaddingValues(horizontal = 20.dp),
-                                    pageSpacing = 14.dp,
-                                ) { page ->
-                                    val card = sortedCards[page]
-                                    val limitRank = sortedByLimit.indexOf(card) + 1
-                                    val activeAssignment = s.assignments.firstOrNull {
-                                        it.card_id == card.id && it.returned_date == null
-                                    }
-                                    val holder = if (activeAssignment != null) {
-                                        s.holders.firstOrNull { it.id == activeAssignment.holder_id }
-                                    } else {
-                                        s.holders.firstOrNull { it.relationship == "me" }
-                                    }
-                                    val initials = holder?.let { initialsOf(it.name) }
-                                    val isMe = holder?.relationship == "me"
-                                    val spend = s.spendByCard[card.id] ?: 0.0
-
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .shadow(
-                                                elevation = 16.dp,
-                                                shape = RoundedCornerShape(24.dp),
-                                                spotColor = Color.Black.copy(alpha = 0.6f),
-                                                ambientColor = Color.Black,
-                                            )
-                                            .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
-                                    ) {
-                                        CardTile(card, initials, isMe, spend, limitRank)
+                            Column(Modifier.fillMaxWidth().padding(top = 28.dp, start = 20.dp, end = 20.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "My Cards  ${s.cards.size}",
+                                        color = Muted,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                    if (sortedCards.size > 1) {
+                                        TextButton(
+                                            onClick = { isStackExpanded = !isStackExpanded },
+                                            contentPadding = PaddingValues(0.dp),
+                                            modifier = Modifier.height(24.dp)
+                                        ) {
+                                            Text(if (isStackExpanded) "Collapse" else "Expand", color = Gold, style = MaterialTheme.typography.labelMedium)
+                                        }
                                     }
                                 }
 
-                                // Pager indicator dots
-                                if (sortedCards.size > 1) {
-                                    Row(
-                                        Modifier.fillMaxWidth().padding(top = 10.dp),
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        repeat(sortedCards.size) { i ->
-                                            val selected = pagerState.currentPage == i
-                                            Box(
-                                                Modifier
-                                                    .padding(horizontal = 3.dp)
-                                                    .size(if (selected) 8.dp else 5.dp)
-                                                    .clip(CircleShape)
-                                                    .background(if (selected) Gold else Muted.copy(alpha = 0.4f)),
-                                            )
+                                Spacer(Modifier.height(12.dp))
+
+                                val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+                                val cardWidth = screenWidth - 40.dp
+                                val cardHeight = cardWidth / 1.586f
+                                val collapsedOverlap = 64.dp
+                                val expandedSpacing = 16.dp
+                                val stackHeight by animateDpAsState(
+                                    targetValue = if (isStackExpanded || sortedCards.isEmpty()) {
+                                        (cardHeight + expandedSpacing) * sortedCards.size
+                                    } else {
+                                        cardHeight + (collapsedOverlap * (sortedCards.size - 1))
+                                    },
+                                    label = "stackHeight"
+                                )
+
+                                Box(Modifier.fillMaxWidth().height(stackHeight)) {
+                                    sortedCards.forEachIndexed { i, card ->
+                                        val offset by animateDpAsState(
+                                            targetValue = if (isStackExpanded) {
+                                                (cardHeight + expandedSpacing) * i
+                                            } else {
+                                                collapsedOverlap * i
+                                            },
+                                            label = "cardOffset_$i"
+                                        )
+
+                                        val limitRank = sortedByLimit.indexOf(card) + 1
+                                        val activeAssignment = s.assignments.firstOrNull {
+                                            it.card_id == card.id && it.returned_date == null
+                                        }
+                                        val holder = if (activeAssignment != null) {
+                                            s.holders.firstOrNull { it.id == activeAssignment.holder_id }
+                                        } else {
+                                            s.holders.firstOrNull { it.relationship == "me" }
+                                        }
+                                        val initials = holder?.let { initialsOf(it.name) }
+                                        val isMe = holder?.relationship == "me"
+                                        val spend = s.spendByCard[card.id] ?: 0.0
+
+                                        Box(
+                                            Modifier
+                                                .offset(y = offset)
+                                                .fillMaxWidth()
+                                                .height(cardHeight)
+                                                .shadow(
+                                                    elevation = if (isStackExpanded) 8.dp else (16 + i * 2).dp,
+                                                    shape = RoundedCornerShape(24.dp),
+                                                    spotColor = Color.Black.copy(alpha = 0.8f),
+                                                    ambientColor = Color.Black,
+                                                )
+                                                .clickable { 
+                                                    if (!isStackExpanded && sortedCards.size > 1) {
+                                                        isStackExpanded = true
+                                                    } else {
+                                                        nav.navigate("${Routes.CARD_DETAIL}/${card.id}") 
+                                                    }
+                                                }
+                                        ) {
+                                            CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0)
                                         }
                                     }
                                 }
@@ -420,7 +387,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                 Surface(
                                     Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 20.dp, vertical = 2.dp),
+                                        .padding(horizontal = 20.dp, vertical = 2.dp)
+                                        .clickable { nav.navigate("${Routes.CARD_DETAIL}/${txn.card_id}") },
                                     shape = MaterialTheme.shapes.small,
                                     color = Surface1,
                                 ) {

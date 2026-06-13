@@ -68,7 +68,10 @@ fun CardsScreen(nav: NavHostController, vm: HomeViewModel) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("No cards yet", color = Muted, style = MaterialTheme.typography.bodyLarge)
-                    Button(onClick = { nav.navigate(Routes.ADD_CARD) }) { Text("Add card") }
+                    Button(
+                        onClick = { nav.navigate(Routes.ADD_CARD) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base)
+                    ) { Text("Add card", fontWeight = FontWeight.SemiBold) }
                 }
             }
         } else {

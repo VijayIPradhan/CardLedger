@@ -83,6 +83,69 @@ fun AnalyticsScreen(nav: NavHostController, vm: HomeViewModel) {
                     return@LazyColumn
                 }
 
+                // ── Cashflow Projections ─────────────────────────────────
+                if (s.projections.isNotEmpty()) {
+                    item {
+                        Text(
+                            "PROJECTED LIABILITY",
+                            color = Muted,
+                            style = MaterialTheme.typography.labelSmall,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
+
+                    items(s.projections) { proj ->
+                        val card = s.cards.firstOrNull { it.id == proj.cardId }
+                        if (card != null) {
+                            Surface(
+                                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                color = Surface1,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated),
+                            ) {
+                                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text(card.nickname, color = OnDark, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                        Surface(color = Surface1, shape = RoundedCornerShape(4.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Muted.copy(alpha=0.3f))) {
+                                            Text(
+                                                "Cycle: ${proj.currentCycleStart.drop(5)} to ${proj.currentCycleEnd.drop(5)}",
+                                                color = Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal=6.dp, vertical=2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Current unbilled", color = Muted, style = MaterialTheme.typography.bodySmall)
+                                        Text(money(proj.currentUnbilled), color = OnDark, style = MaterialTheme.typography.bodySmall)
+                                    }
+
+                                    if (proj.upcomingBills.isNotEmpty()) {
+                                        HorizontalDivider(color = Elevated)
+                                        Text("Upcoming Bills (Projected)", color = MutedLow, style = MaterialTheme.typography.labelSmall)
+                                        proj.upcomingBills.forEach { bill ->
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("↺", color = Gold, fontSize = 12.sp)
+                                                    Text("${bill.merchant} (${bill.expectedDate.drop(5)})", color = Muted, style = MaterialTheme.typography.bodySmall)
+                                                }
+                                                Text("+${money(bill.amount)}", color = Gold, style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalDivider(color = Elevated)
+
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Est. Statement Balance", color = OnDarkMid, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                        Text(money(proj.projectedTotal), color = Danger, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // ── 30-day spend trend ───────────────────────────────────
                 item {
                     Surface(

@@ -99,7 +99,7 @@ fun SmsScreen(nav: NavHostController) {
                         readOnly = true,
                         label = { Text("Scan range") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                         enabled = !s.scanning
                     )
                     ExposedDropdownMenu(

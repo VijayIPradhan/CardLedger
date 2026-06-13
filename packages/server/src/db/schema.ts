@@ -87,6 +87,7 @@ export const payments = pgTable('payments', {
   holder_id: uuid('holder_id')
     .references(() => holders.id)
     .notNull(),
+  transaction_id: uuid('transaction_id').references(() => transactions.id),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   payment_date: date('payment_date').notNull(),
   notes: varchar('notes', { length: 200 }),

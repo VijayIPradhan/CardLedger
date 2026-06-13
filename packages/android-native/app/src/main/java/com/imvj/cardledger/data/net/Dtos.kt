@@ -108,6 +108,7 @@ data class UpdateTransactionDto(
 data class PaymentDto(
     val id: String,
     val holder_id: String,
+    val transaction_id: String? = null,
     val amount: String,
     val payment_date: String,
     val notes: String? = null,
@@ -117,6 +118,7 @@ data class PaymentDto(
 @Serializable
 data class CreatePaymentDto(
     val holder_id: String,
+    val transaction_id: String? = null,
     val amount: Double,
     val payment_date: String,
     val notes: String? = null,

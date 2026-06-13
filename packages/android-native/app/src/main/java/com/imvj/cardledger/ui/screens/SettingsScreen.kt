@@ -37,7 +37,10 @@ fun SettingsScreen(nav: NavHostController) {
 
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
-    Scaffold(bottomBar = { BottomBar(nav, 0) }) { innerPadding ->
+    Scaffold(
+        bottomBar = { BottomBar(nav, 0) },
+        containerColor = Base,
+    ) { innerPadding ->
         Column(
             Modifier
                 .padding(innerPadding)
@@ -45,7 +48,7 @@ fun SettingsScreen(nav: NavHostController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Settings", style = MaterialTheme.typography.headlineMedium)
+            Text("Settings", style = MaterialTheme.typography.headlineMedium, color = OnDark)
 
             Surface(shape = MaterialTheme.shapes.large, color = Surface1) {
                 Column {
@@ -58,7 +61,7 @@ fun SettingsScreen(nav: NavHostController) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Lock app now")
+                        Text("Lock app now", color = OnDark)
                     }
 
                     HorizontalDivider(color = Elevated)
@@ -72,7 +75,7 @@ fun SettingsScreen(nav: NavHostController) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (s.pinSet) "Change PIN" else "Set PIN")
+                        Text(if (s.pinSet) "Change PIN" else "Set PIN", color = OnDark)
                         Text("→", color = Muted)
                     }
 
@@ -86,7 +89,7 @@ fun SettingsScreen(nav: NavHostController) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Biometric unlock")
+                        Text("Biometric unlock", color = OnDark)
                         Switch(checked = s.biometric, onCheckedChange = { vm.toggleBiometric() })
                     }
 
@@ -100,7 +103,7 @@ fun SettingsScreen(nav: NavHostController) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Due-date reminders")
+                        Text("Due-date reminders", color = OnDark)
                         Switch(
                             checked = s.reminders,
                             onCheckedChange = { enabled ->
@@ -121,7 +124,7 @@ fun SettingsScreen(nav: NavHostController) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("Remind days before")
+                            Text("Remind days before", color = OnDark)
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf(1, 2, 3, 5, 7).forEach { n ->
                                     Box(

@@ -24,6 +24,7 @@ data class CardDetailUiState(
     val cycles: List<CycleGroup> = emptyList(),
     val totalSpend: Double = 0.0,
     val currentHolder: HolderDto? = null,
+    val toCollect: Double = 0.0,
     val error: String? = null,
 )
 
@@ -38,7 +39,8 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val holdersD = async { c.holderRepo.list().getOrElse { emptyList() } }
             val assignmentsD = async { c.assignmentRepo.list(id).getOrElse { emptyList() } }
             val txnsD = async { c.transactionRepo.list(cardId = id).getOrElse { emptyList() } }
-            // Full list needed only for shared-limit group total; runs in parallel with the rest.
+            val allTxnsD = async { c.transactionRepo.list().getOrElse { emptyList() } }
+            val allPaymentsD = async { c.paymentRepo.list().getOrElse { emptyList() } }
             val allCardsD = async { c.cardRepo.list().getOrElse { emptyList() } }
 
             val card = cardD.await()
@@ -46,6 +48,8 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val assignments = assignmentsD.await()
             val txns = txnsD.await()
             val allCards = allCardsD.await()
+            val allTxns = allTxnsD.await()
+            val allPayments = allPaymentsD.await()
             val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
 
             val total = if (card != null) {
@@ -53,10 +57,31 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 allCards.filter { (it.shared_limit_with ?: it.id) == groupId }
                     .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
             } else 0.0
+            
+            var cardToCollect = 0.0
+            val friends = holders.filter { it.relationship == "friend" }
+            friends.forEach { friend ->
+                val expenses = allTxns.filter { it.holder_id_at_time == friend.id }.sortedBy { it.txn_date }
+                val paid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                var remainingPaid = paid
+                for (txn in expenses) {
+                    val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                    if (remainingPaid >= amt) {
+                        remainingPaid -= amt
+                    } else {
+                        val unpaid = amt - remainingPaid
+                        remainingPaid = 0.0
+                        if (txn.card_id == id) {
+                            cardToCollect += unpaid
+                        }
+                    }
+                }
+            }
+
             val active = assignments.firstOrNull { it.returned_date == null }
             val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }
-            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current)
+            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current, cardToCollect)
         }
     }
 
@@ -104,14 +129,25 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun toggleTransactionPaid(txnId: String, cardId: String, currentPaidStatus: Boolean) {
+    fun toggleTransactionPaid(txn: TransactionDto, cardId: String, currentPaidStatus: Boolean, holderPaid: Boolean = false, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            c.transactionRepo.update(txnId, UpdateTransactionDto(is_paid = !currentPaidStatus))
-                .onSuccess { load(cardId) }
+            val p1 = async { c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = !currentPaidStatus)) }
+            val p2 = if (holderPaid && !currentPaidStatus) {
+                async { c.paymentRepo.create(CreatePaymentDto(holder_id = txn.holder_id_at_time, transaction_id = txn.id, amount = txn.amount.toDoubleOrNull() ?: 0.0, payment_date = today())) }
+            } else null
+            val p3 = if (currentPaidStatus) {
+                async { c.paymentRepo.deleteByTransactionId(txn.id) }
+            } else null
+            
+            p1.await()
+            p2?.await()
+            p3?.await()
+            load(cardId)
+            onDone()
         }
     }
 
-    fun markCyclePaid(cycleLabel: String, cardId: String) {
+    fun markCyclePaid(cycleLabel: String, cardId: String, everyonePaid: Boolean = false, onDone: () -> Unit = {}) {
         val cycle = _state.value.cycles.firstOrNull { it.label == cycleLabel } ?: return
         val unpaid = cycle.txns.filter { !it.is_paid }
         if (unpaid.isEmpty()) return
@@ -119,7 +155,19 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             unpaid.map { txn ->
                 async { c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = true)) }
             }.forEach { it.await() }
+
+            if (everyonePaid) {
+                val meId = _state.value.holders.firstOrNull { it.relationship == "me" }?.id
+                val friendTxns = unpaid.filter { it.holder_id_at_time != meId }
+                friendTxns.forEach { txn ->
+                    val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                    if (amt > 0) {
+                        c.paymentRepo.create(CreatePaymentDto(holder_id = txn.holder_id_at_time, transaction_id = txn.id, amount = amt, payment_date = today()))
+                    }
+                }
+            }
             load(cardId)
+            onDone()
         }
     }
 }

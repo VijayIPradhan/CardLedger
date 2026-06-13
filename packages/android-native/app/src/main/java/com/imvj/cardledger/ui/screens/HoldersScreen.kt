@@ -159,7 +159,7 @@ fun HoldersScreen(nav: NavHostController) {
         var name by remember(currentEditing) { mutableStateOf(currentEditing?.name ?: "") }
         var phone by remember(currentEditing) { mutableStateOf(currentEditing?.phone ?: "") }
 
-        ModalBottomSheet(onDismissRequest = { showForm = false }) {
+        ModalBottomSheet(onDismissRequest = { showForm = false }, containerColor = Surface1) {
             Column(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
@@ -209,7 +209,7 @@ fun HoldersScreen(nav: NavHostController) {
 
     if (paying != null) {
         var paymentAmount by remember { mutableStateOf("") }
-        ModalBottomSheet(onDismissRequest = { paying = null }) {
+        ModalBottomSheet(onDismissRequest = { paying = null }, containerColor = Surface1) {
             Column(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)

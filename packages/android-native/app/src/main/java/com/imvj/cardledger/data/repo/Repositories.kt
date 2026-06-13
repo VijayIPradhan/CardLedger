@@ -53,4 +53,5 @@ class MetadataRepository(private val api: ApiService) {
 class PaymentRepository(private val api: ApiService) {
     suspend fun list(holderId: String? = null) = call { api.getPayments(holderId) }
     suspend fun create(b: CreatePaymentDto) = call { api.createPayment(b) }
+    suspend fun deleteByTransactionId(txnId: String) = call { api.deletePaymentByTransaction(txnId); Unit }
 }

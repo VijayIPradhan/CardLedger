@@ -55,7 +55,7 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
             loadCache()
             var imported = 0; var queued = 0
             readInbox(context, days).forEach { sms ->
-                when (handleParsed(sms, cachedCards, cachedServerHashes, autoCommit = true)) {
+                when (handleParsed(sms, cachedCards, cachedServerHashes, autoCommit = false)) {
                     Outcome.IMPORTED -> imported++
                     Outcome.QUEUED -> queued++
                     Outcome.SKIPPED -> {}

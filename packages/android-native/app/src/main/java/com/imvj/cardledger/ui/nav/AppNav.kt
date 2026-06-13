@@ -35,7 +35,7 @@ fun AppNav() {
     NavHost(navController = nav, startDestination = start) {
         composable(Routes.LOGIN) {
             LoginScreen(onSuccess = {
-                AppLock.lock()
+                AppLock.unlock()
                 nav.navigate(Routes.HOME) { popUpTo(Routes.LOGIN) { inclusive = true } }
             })
         }

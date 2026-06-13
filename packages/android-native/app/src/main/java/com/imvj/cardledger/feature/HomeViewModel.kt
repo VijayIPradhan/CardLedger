@@ -20,6 +20,21 @@ data class HolderSpend(val holderId: String, val name: String, val isMe: Boolean
 data class MerchantSpend(val merchant: String, val amount: Double, val count: Int)
 data class DailySpend(val date: String, val dayLabel: String, val amount: Double, val isToday: Boolean)
 
+data class RecurringBill(
+    val merchant: String,
+    val amount: Double,
+    val expectedDate: String
+)
+
+data class CardProjection(
+    val cardId: String,
+    val currentCycleStart: String,
+    val currentCycleEnd: String,
+    val currentUnbilled: Double,
+    val upcomingBills: List<RecurringBill>,
+    val projectedTotal: Double
+)
+
 data class HomeUiState(
     val loading: Boolean = true,
     val isRefreshing: Boolean = false,
@@ -40,6 +55,8 @@ data class HomeUiState(
     val unpaidAmount: Double = 0.0,
     val avgDailySpend: Double = 0.0,
     val spendByNetwork: Map<String, Double> = emptyMap(),
+    val toCollectByCard: Map<String, Double> = emptyMap(),
+    val projections: List<CardProjection> = emptyList(),
 )
 
 class HomeViewModel(private val c: AppContainer) : ViewModel() {
@@ -106,10 +123,26 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         
         val friends = holders.filter { it.relationship == "friend" }
         var totalToCollect = 0.0
+        val toCollectByCard = mutableMapOf<String, Double>()
         friends.forEach { friend ->
-            val expenses = txns.filter { it.holder_id_at_time == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            val friendTxns = txns.filter { it.holder_id_at_time == friend.id }
+            val expenses = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             totalToCollect += (expenses - paid)
+            
+            var remainingPaid = paid
+            val sortedTxns = friendTxns.sortedBy { it.txn_date }
+            for (txn in sortedTxns) {
+                val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                val cardId = txn.card_id
+                if (remainingPaid >= amt) {
+                    remainingPaid -= amt
+                } else {
+                    val unpaid = amt - remainingPaid
+                    remainingPaid = 0.0
+                    toCollectByCard[cardId] = (toCollectByCard[cardId] ?: 0.0) + unpaid
+                }
+            }
         }
 
         val holderMap = holders.associateBy { it.id }
@@ -159,6 +192,63 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             .mapValues { (_, entries) -> entries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } }
             .filter { it.value > 0 }
 
+        val recurringMerchants = mutableListOf<RecurringBill>()
+        spendTxns.groupBy { it.merchant }.forEach { (merchant, txns) ->
+            if (txns.size >= 2) {
+                val sorted = txns.sortedByDescending { it.txn_date }
+                val latest = sorted[0]
+                val previous = sorted[1]
+                val d1 = java.time.LocalDate.parse(latest.txn_date)
+                val d2 = java.time.LocalDate.parse(previous.txn_date)
+                val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(d2, d1)
+                
+                val amt1 = latest.amount.toDoubleOrNull() ?: 0.0
+                val amt2 = previous.amount.toDoubleOrNull() ?: 0.0
+                val variance = if (amt1 > 0) Math.abs(amt1 - amt2) / amt1 else 0.0
+                
+                if (daysBetween in 25..35 && variance < 0.1) {
+                    val expected = d1.plusMonths(1)
+                    recurringMerchants.add(RecurringBill(merchant, amt1, expected.toString()))
+                }
+            }
+        }
+
+        val projections = cards.map { card ->
+            var start = todayDate.withDayOfMonth(card.billing_cycle_day.coerceIn(1, 28))
+            if (start.isAfter(todayDate)) {
+                start = start.minusMonths(1)
+            }
+            val end = start.plusMonths(1).minusDays(1)
+            
+            val cardTxns = spendTxns.filter { it.card_id == card.id }
+            val unbilledTxns = cardTxns.filter { 
+                val d = java.time.LocalDate.parse(it.txn_date)
+                !d.isBefore(start) && !d.isAfter(end)
+            }
+            val currentUnbilled = unbilledTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            
+            val cardRecurringMerchants = recurringMerchants.filter { rb ->
+                val latestTxn = spendTxns.filter { it.merchant == rb.merchant }.maxByOrNull { it.txn_date }
+                latestTxn?.card_id == card.id
+            }
+
+            val upcoming = cardRecurringMerchants.filter { rb ->
+                val exp = java.time.LocalDate.parse(rb.expectedDate)
+                (!exp.isBefore(start) && !exp.isAfter(end)) && !exp.isBefore(todayDate)
+            }
+            
+            val projectedUpcoming = upcoming.sumOf { it.amount }
+            
+            CardProjection(
+                cardId = card.id,
+                currentCycleStart = start.toString(),
+                currentCycleEnd = end.toString(),
+                currentUnbilled = currentUnbilled,
+                upcomingBills = upcoming.sortedBy { it.expectedDate },
+                projectedTotal = currentUnbilled + projectedUpcoming
+            )
+        }
+
         _state.value = _state.value.copy(
             loading = false,
             cards = cards, holders = holders, assignments = assignments,
@@ -175,6 +265,8 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             unpaidAmount = unpaidAmount,
             avgDailySpend = monthlySpend / 30.0,
             spendByNetwork = spendByNetwork,
+            toCollectByCard = toCollectByCard,
+            projections = projections,
         )
         
         com.imvj.cardledger.notif.ReminderScheduler.reschedule(
