@@ -1,10 +1,10 @@
 # CardLedger — Native Android
 
-A native Kotlin + Jetpack Compose app for CardLedger. Talks to the existing backend at **`https://cards.imvj.in/api`**. This is separate from the Capacitor app (`packages/app`) and uses a distinct app id so both can be installed side by side.
+A native Kotlin + Jetpack Compose app for CardLedger. Talks to the existing backend at **`https://cards.imvj.host/api`**. This is separate from the Capacitor app (`packages/app`) and uses a distinct app id so both can be installed side by side.
 
 - **appId:** `com.imvj.cardledger`
 - **min SDK:** 24 · **target/compile SDK:** 34 · **JDK:** 17
-- **API base URL:** `https://cards.imvj.in/api/` (set via `buildConfigField API_BASE_URL` in `app/build.gradle.kts`)
+- **API base URL:** `https://cards.imvj.host/api/` (set via `buildConfigField API_BASE_URL` in `app/build.gradle.kts`)
 
 ## Features
 - JWT login against the server; PIN + biometric app lock; 5-minute background auto-lock
