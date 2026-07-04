@@ -1,5 +1,6 @@
 node_modules/
 dist/
+Script
 .env
 *.local
 .turbo/

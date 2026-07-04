@@ -71,11 +71,32 @@ export function CardTile({ card, holder, cycleSpend, limitRank, onClick }: CardT
               alt={card.network}
               className="h-6 w-auto object-contain"
             />
-            {limitRank !== undefined && (
-              <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30 backdrop-blur-sm">
-                #{limitRank}
-              </span>
-            )}
+            <div className="flex gap-1.5 items-center">
+              {limitRank !== undefined && (
+                <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30 backdrop-blur-sm">
+                  #{limitRank}
+                </span>
+              )}
+              {(() => {
+                const limit = Number(card.credit_limit || 0);
+                const pct = limit > 0 ? Math.round((cycleSpend / limit) * 100) : 0;
+                const isSafe = pct < 30;
+                const isWarn = pct >= 30 && pct <= 50;
+                return (
+                  <span
+                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full backdrop-blur-md border ${
+                      isSafe
+                        ? 'bg-emerald-500/30 text-emerald-300 border-emerald-400/40'
+                        : isWarn
+                          ? 'bg-amber-500/30 text-amber-300 border-amber-400/40'
+                          : 'bg-rose-500/30 text-rose-300 border-rose-400/40'
+                    }`}
+                  >
+                    {isSafe ? '⚡ <30%' : isWarn ? '⚠️ 30-50%' : '🚨 >50%'}
+                  </span>
+                );
+              })()}
+            </div>
           </div>
         </div>
         <div className="flex justify-between items-end">

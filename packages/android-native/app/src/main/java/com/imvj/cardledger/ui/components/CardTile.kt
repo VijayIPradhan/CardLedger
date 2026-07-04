@@ -61,18 +61,45 @@ fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend:
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     NetworkLogo(card.network)
-                    if (limitRank != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (limitRank != null) {
+                            Surface(
+                                shape = RoundedCornerShape(percent = 50),
+                                color = Color.White.copy(alpha = 0.2f),
+                                modifier = Modifier.clip(RoundedCornerShape(percent = 50))
+                            ) {
+                                Text(
+                                    "#$limitRank",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        val limit = card.credit_limit.toDoubleOrNull() ?: 0.0
+                        val pct = if (limit > 0) ((spend / limit) * 100).toInt() else 0
+                        val badgeColor = when {
+                            pct < 30 -> com.imvj.cardledger.ui.theme.Success
+                            pct <= 50 -> com.imvj.cardledger.ui.theme.Warning
+                            else -> com.imvj.cardledger.ui.theme.Danger
+                        }
                         Surface(
                             shape = RoundedCornerShape(percent = 50),
-                            color = Color.White.copy(alpha = 0.2f),
+                            color = badgeColor.copy(alpha = 0.3f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.8f)),
                             modifier = Modifier.clip(RoundedCornerShape(percent = 50))
                         ) {
                             Text(
-                                "#$limitRank",
+                                when {
+                                    pct < 30 -> "⚡ <30%"
+                                    pct <= 50 -> "⚠️ 30-50%"
+                                    else -> "🚨 >50%"
+                                },
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }

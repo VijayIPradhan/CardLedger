@@ -140,6 +140,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             card.id to groupSpend
         }
         
+        val collectedCards = c.prefsStore.getCollectedCards()
         val friends = holders.filter { it.relationship == "friend" }
         var totalToCollect = 0.0
         val toCollectByCard = mutableMapOf<String, Double>()
@@ -149,8 +150,9 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             totalToCollect += (expenses - paid)
             
-            var remainingPaid = paid
-            val sortedTxns = friendTxns.sortedBy { it.txn_date }
+            val collectedExpenses = friendTxns.filter { collectedCards.contains(it.card_id) }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            var remainingPaid = maxOf(0.0, paid - collectedExpenses)
+            val sortedTxns = friendTxns.filter { !collectedCards.contains(it.card_id) }.sortedBy { it.txn_date }
             for (txn in sortedTxns) {
                 val amt = txn.amount.toDoubleOrNull() ?: 0.0
                 val cardId = txn.card_id

@@ -117,43 +117,97 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Dashboard & Total Utilization */}
+      {/* Dashboard: Hero Net Position & Smart Tip */}
       {cardList.length > 0 && (
-        <div className="px-4 mb-5 space-y-4">
-          <div className="flex items-center gap-6">
-            <SpendRing
-              spent={total.spend}
-              limit={total.limit}
-              percentText={`${Math.round(total.percent)}%`}
-            />
-            <div>
-              <p className="text-xs text-muted">Total utilization</p>
-              <p className="text-2xl font-bold">₹{total.spend.toLocaleString('en-IN')}</p>
-              <p className="text-sm text-muted">of ₹{total.limit.toLocaleString('en-IN')}</p>
+        <div className="px-4 mb-6 space-y-3">
+          {/* Hero Net Position Card */}
+          <div
+            onClick={() => nav('/analytics')}
+            className="p-5 rounded-2xl bg-gradient-to-br from-surface to-elevated border border-gold/40 shadow-xl cursor-pointer hover:border-gold transition-all duration-300 group relative overflow-hidden"
+          >
+            <div className="absolute -right-10 -top-10 w-36 h-36 bg-gold/10 rounded-full blur-2xl pointer-events-none group-hover:bg-gold/20 transition-all" />
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-[11px] font-extrabold tracking-widest text-muted uppercase">
+                  NET POSITION
+                </p>
+                <p className="text-3xl font-black text-on-dark mt-0.5">
+                  ₹{(total.spend - totalToCollect).toLocaleString('en-IN')}
+                </p>
+              </div>
+              <span className="text-xs font-bold text-gold bg-gold/10 px-2.5 py-1 rounded-full border border-gold/30 flex items-center gap-1 group-hover:scale-105 transition-transform">
+                <span>📊</span> Analytics ➔
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-elevated/80 text-center">
+              <div className="p-2 rounded-xl bg-base/50">
+                <p className="text-[10px] text-muted">Total Spend</p>
+                <p className="text-sm font-bold text-on-dark mt-0.5">
+                  ₹{total.spend.toLocaleString('en-IN')}
+                </p>
+                <p className="text-[9px] text-muted">{Math.round(total.percent)}% utilized</p>
+              </div>
+              <div className="p-2 rounded-xl bg-base/50">
+                <p className="text-[10px] text-muted">To Collect</p>
+                <p
+                  className={`text-sm font-bold mt-0.5 ${totalToCollect > 0 ? 'text-gold' : 'text-emerald-400'}`}
+                >
+                  ₹{totalToCollect.toLocaleString('en-IN')}
+                </p>
+                <p className="text-[9px] text-muted">From friends</p>
+              </div>
+              <div className="p-2 rounded-xl bg-base/50">
+                <p className="text-[10px] text-muted">To Pay</p>
+                <p
+                  className={`text-sm font-bold mt-0.5 ${total.spend > 0 ? 'text-rose-400' : 'text-on-dark'}`}
+                >
+                  ₹{total.spend.toLocaleString('en-IN')}
+                </p>
+                <p className="text-[9px] text-muted">Total debt</p>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
-              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-                Total to Collect
-              </p>
-              <p
-                className={`text-xl font-bold ${totalToCollect > 0 ? 'text-gold' : 'text-success'}`}
+
+          {/* Smart Tip Banner */}
+          {(() => {
+            const bestCard = cardList
+              .map((c) => {
+                const limit = Number(c.credit_limit || 0);
+                const spend = Number(c.current_spend || 0);
+                const pct = limit > 0 ? Math.round((spend / limit) * 100) : 0;
+                if (pct >= 50) return null;
+                const cycleDay = c.billing_cycle_day || 1;
+                const todayDay = new Date().getDate();
+                const daysSince =
+                  todayDay >= cycleDay ? todayDay - cycleDay : 30 - (cycleDay - todayDay);
+                return { card: c, daysSince, pct };
+              })
+              .filter(Boolean)
+              .sort((a, b) => (a?.daysSince || 0) - (b?.daysSince || 0))[0];
+
+            if (!bestCard) return null;
+            return (
+              <div
+                onClick={() => nav('/analytics')}
+                className="p-3.5 rounded-xl bg-surface border border-gold/40 flex items-center justify-between cursor-pointer hover:bg-elevated/40 transition-colors shadow-md"
               >
-                ₹{totalToCollect.toLocaleString('en-IN')}
-              </p>
-              <p className="text-[10px] text-muted leading-tight mt-1">From friends</p>
-            </div>
-            <div className="bg-surface rounded-card p-4 flex flex-col gap-1 border border-elevated">
-              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-                Total to Pay
-              </p>
-              <p className={`text-xl font-bold ${total.spend > 0 ? 'text-danger' : 'text-white'}`}>
-                ₹{total.spend.toLocaleString('en-IN')}
-              </p>
-              <p className="text-[10px] text-muted leading-tight mt-1">Total outstanding debt</p>
-            </div>
-          </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">⚡</span>
+                  <div>
+                    <p className="text-xs font-bold text-on-dark">
+                      Smart Tip: Use <span className="text-gold">{bestCard.card.nickname}</span>{' '}
+                      today!
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      Max interest-free credit window (~48 days)
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-gold">View ➔</span>
+              </div>
+            );
+          })()}
         </div>
       )}
 

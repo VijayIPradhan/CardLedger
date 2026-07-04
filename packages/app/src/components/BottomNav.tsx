@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 const TABS = [
   { path: '/', label: 'Home', icon: '⬡' },
+  { path: '/analytics', label: 'Analytics', icon: '📊' },
   { path: '/holders', label: 'Holders', icon: '◎' },
   { path: '/settings', label: 'Settings', icon: '◈' },
 ];

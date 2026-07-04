@@ -16,6 +16,7 @@ class PrefsStore(private val context: Context) {
     private val SMS_SETUP = booleanPreferencesKey("cl_sms_setup")
     private val REVIEW_QUEUE = stringPreferencesKey("cl_review_queue")
     private val PROCESSED_HASHES = stringSetPreferencesKey("cl_processed_hashes")
+    private val COLLECTED_CARDS = stringSetPreferencesKey("cl_collected_cards")
 
     private fun hash(pin: String): String {
         val md = MessageDigest.getInstance("SHA-256")
@@ -42,4 +43,16 @@ class PrefsStore(private val context: Context) {
 
     suspend fun getProcessedHashes(): Set<String> = ds.data.map { it[PROCESSED_HASHES] ?: emptySet() }.first()
     suspend fun setProcessedHashes(hashes: Set<String>) { ds.edit { it[PROCESSED_HASHES] = hashes } }
+
+    suspend fun getCollectedCards(): Set<String> = ds.data.map { it[COLLECTED_CARDS] ?: emptySet() }.first()
+    suspend fun toggleCollectedCard(cardId: String) {
+        ds.edit { prefs ->
+            val current = prefs[COLLECTED_CARDS] ?: emptySet()
+            if (current.contains(cardId)) {
+                prefs[COLLECTED_CARDS] = current - cardId
+            } else {
+                prefs[COLLECTED_CARDS] = current + cardId
+            }
+        }
+    }
 }

@@ -4,6 +4,7 @@ import { AuthGuard } from './guards/AuthGuard.js';
 import { AppLockGuard } from './guards/AppLockGuard.js';
 import LoginScreen from './screens/LoginScreen.js';
 import HomeScreen from './screens/HomeScreen.js';
+import AnalyticsScreen from './screens/AnalyticsScreen.js';
 import CardDetailScreen from './screens/CardDetailScreen.js';
 import HolderViewScreen from './screens/HolderViewScreen.js';
 import SettingsScreen from './screens/SettingsScreen.js';
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/lock" element={<AppLockScreen />} />
         <Route element={<AppLockGuard />}>
           <Route path="/" element={<HomeScreen />} />
+          <Route path="/analytics" element={<AnalyticsScreen />} />
           <Route path="/cards/new" element={<AddCardScreen />} />
           <Route path="/cards/:id" element={<CardDetailScreen />} />
           <Route path="/cards/:id/edit" element={<AddCardScreen />} />

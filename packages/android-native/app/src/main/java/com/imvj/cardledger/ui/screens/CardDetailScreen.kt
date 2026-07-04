@@ -193,18 +193,21 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         vm.markCollected(cardId) {
                                             android.widget.Toast.makeText(
                                                 context,
-                                                "Marked ₹${s.toCollect.toLong()} as collected",
+                                                if (s.isMarkedCollected) "Unmarked card collected status" else "Marked card as collected",
                                                 android.widget.Toast.LENGTH_SHORT
                                             ).show()
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (s.isMarkedCollected) Success else Gold,
+                                        contentColor = if (s.isMarkedCollected) Color.White else Base
+                                    ),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 ) {
-                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(if (s.isMarkedCollected) Icons.Default.Check else Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Mark Collected", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(if (s.isMarkedCollected) "Collected ✓" else "Mark Collected", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                             // Per-friend breakdown

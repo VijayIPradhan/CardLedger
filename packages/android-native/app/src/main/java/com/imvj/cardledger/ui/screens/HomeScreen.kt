@@ -225,6 +225,49 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                             }
                         }
 
+                        // ── Smart Tip Banner ─────────────────────────────────
+                        if (s.cards.isNotEmpty()) {
+                            item {
+                                val bestCard = s.cards.minByOrNull { card ->
+                                    val cycleDay = card.billing_cycle_day ?: 1
+                                    val todayDay = java.time.LocalDate.now().dayOfMonth
+                                    val daysSince = if (todayDay >= cycleDay) todayDay - cycleDay else 30 - (cycleDay - todayDay)
+                                    daysSince
+                                }
+                                if (bestCard != null) {
+                                    val limit = bestCard.credit_limit.toDoubleOrNull() ?: 0.0
+                                    val spend = s.spendByCard[bestCard.id] ?: 0.0
+                                    val pct = if (limit > 0) ((spend / limit) * 100).toInt() else 0
+                                    if (pct < 50) {
+                                        Surface(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                                                .clickable { nav.navigate(Routes.ANALYTICS) },
+                                            shape = MaterialTheme.shapes.medium,
+                                            color = Surface1,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.5f))
+                                        ) {
+                                            Row(
+                                                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                    Text("⚡", fontSize = 20.sp)
+                                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                        Text("Smart Tip: Use ${bestCard.nickname} today!", color = OnDark, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                                        Text("Max interest-free credit window (~48 days)", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                                    }
+                                                }
+                                                Text("Analytics ➔", color = Gold, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // ── Dynamic Card Stack ───────────────────────────────
                         item {
                             val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
