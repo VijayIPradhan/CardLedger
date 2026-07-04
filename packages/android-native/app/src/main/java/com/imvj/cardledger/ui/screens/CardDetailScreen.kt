@@ -163,6 +163,64 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     }
                 }
 
+                // To Collect section
+                if (s.toCollect > 0) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Elevated,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column {
+                                    Text("To Collect", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                    Text(
+                                        money(s.toCollect),
+                                        color = Gold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        vm.markCollected(cardId) {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Marked ₹${s.toCollect.toLong()} as collected",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Mark Collected", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            // Per-friend breakdown
+                            s.friendBreakdown.forEach { fc ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text(fc.holderName, color = Muted, fontSize = 12.sp)
+                                    Text(money(fc.amount), color = OnDark, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Error message
                 s.error?.let {
                     Text(it, color = Danger, style = MaterialTheme.typography.bodySmall)

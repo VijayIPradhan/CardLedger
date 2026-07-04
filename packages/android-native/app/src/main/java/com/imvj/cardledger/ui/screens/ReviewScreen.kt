@@ -84,14 +84,14 @@ fun ReviewScreen(nav: NavHostController) {
                                 )
                             )
                             if (res.isSuccess) {
-                                c.reviewStore.addHash(item.parse.dedupeHash)
+                                c.reviewStore.addCommittedHash(item.parse.dedupeHash)
                                 c.reviewStore.remove(item.id)
                             } else {
                                 Toast.makeText(context, "Failed to save transaction", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }, onDismiss = {
-                        c.reviewStore.addHash(item.parse.dedupeHash)
+                        c.reviewStore.addCommittedHash(item.parse.dedupeHash)
                         c.reviewStore.remove(item.id)
                     })
                 }

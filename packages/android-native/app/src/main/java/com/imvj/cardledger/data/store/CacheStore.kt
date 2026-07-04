@@ -14,12 +14,18 @@ data class OfflineCache(
     val holders: List<HolderDto>,
     val assignments: List<AssignmentDto>,
     val transactions: List<TransactionDto>,
-    val payments: List<PaymentDto>
+    val payments: List<PaymentDto>,
+    val savedAtMillis: Long = System.currentTimeMillis(),
 )
 
 class CacheStore(context: Context) {
     private val file = File(context.filesDir, "offline_cache.json")
     private val json = Json { ignoreUnknownKeys = true }
+
+    companion object {
+        /** Cache considered stale after 5 minutes of inactivity */
+        const val MAX_AGE_MS = 5L * 60 * 1000
+    }
 
     suspend fun save(cache: OfflineCache) = withContext(Dispatchers.IO) {
         try {
@@ -38,4 +44,8 @@ class CacheStore(context: Context) {
             null
         }
     }
+
+    /** Returns true if the cached data is still within the staleness window */
+    fun isFresh(cache: OfflineCache): Boolean =
+        (System.currentTimeMillis() - cache.savedAtMillis) < MAX_AGE_MS
 }

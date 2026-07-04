@@ -9,6 +9,7 @@ import com.imvj.cardledger.data.net.CardDto
 import com.imvj.cardledger.data.net.CreateTransactionDto
 import com.imvj.cardledger.data.store.ReviewItem
 import com.imvj.cardledger.domain.SmsInput
+import com.imvj.cardledger.domain.isOtpMessage
 import com.imvj.cardledger.domain.parseSms
 import com.imvj.cardledger.sms.SmsBus
 import com.imvj.cardledger.sms.readInbox
@@ -26,10 +27,14 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
     val state: StateFlow<SmsUiState> = _state
 
     // Cached once at startup; refreshed explicitly before a scan.
-    // MutableSet so handleParsed can add committed hashes in-place, making
-    // duplicates visible within the same scan pass without a second network call.
     private var cachedCards: List<CardDto> = emptyList()
+
+    // Server-side hashes — refreshed each scan to stay in sync
     private val cachedServerHashes: MutableSet<String> = mutableSetOf()
+
+    // Session-local dedup: tracks (amount|last4|date) keys seen within the current scan
+    // to prevent the same transaction appearing from both spend SMS and OTP SMS.
+    private val sessionTxnKeys: MutableSet<String> = mutableSetOf()
 
     init {
         viewModelScope.launch {
@@ -53,6 +58,8 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
         _state.value = SmsUiState(scanning = true)
         viewModelScope.launch {
             loadCache()
+            sessionTxnKeys.clear()
+
             var imported = 0; var queued = 0
             readInbox(context, days).forEach { sms ->
                 when (handleParsed(sms, cachedCards, cachedServerHashes, autoCommit = false)) {
@@ -73,8 +80,16 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
         serverHashes: MutableSet<String>,
         autoCommit: Boolean,
     ): Outcome {
+        // ── 1. Pre-filter OTP/security messages before any processing ──
+        if (isOtpMessage(sms.body)) return Outcome.SKIPPED
+
         val hash = com.imvj.cardledger.domain.dedupeHash(sms)
-        if (hash in serverHashes || hash in c.reviewStore.knownHashes) return Outcome.SKIPPED
+
+        // ── 2. Check server hashes only (not the bloated local set) ──
+        if (hash in serverHashes) return Outcome.SKIPPED
+
+        // ── 3. Check review store's committed hashes (items already queued/imported) ──
+        if (hash in c.reviewStore.committedHashes) return Outcome.SKIPPED
 
         val r = try {
             c.api.parseSmsAi(sms)
@@ -83,16 +98,18 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
             parseSms(sms, cards.map { it.last4 })
         }
 
-        if (r == null) {
-            c.reviewStore.addHash(hash)
-            return Outcome.SKIPPED
-        }
+        if (r == null) return Outcome.SKIPPED
 
-        if (r.dedupeHash in serverHashes || r.dedupeHash in c.reviewStore.knownHashes) return Outcome.SKIPPED
+        if (r.dedupeHash in serverHashes || r.dedupeHash in c.reviewStore.committedHashes) return Outcome.SKIPPED
+
+        // ── 4. Session-local dedup: same amount + last4 + date = same transaction ──
+        val txnKey = "${r.amount}|${r.last4}|${r.date}"
+        if (txnKey in sessionTxnKeys) return Outcome.SKIPPED
+        sessionTxnKeys.add(txnKey)
+
         val matched = if (r.last4.isNotBlank()) cards.firstOrNull { it.last4 == r.last4 } else null
 
         if (matched == null) {
-            c.reviewStore.addHash(r.dedupeHash)
             return Outcome.SKIPPED
         }
 
@@ -105,9 +122,9 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
                 )
             )
             if (res.isSuccess) {
-                // Add both hashes so scan-pass duplicates and re-scans are both skipped.
-                c.reviewStore.addHash(r.dedupeHash)
-                c.reviewStore.addHash(hash)
+                // Persist both hashes so re-scans are skipped
+                c.reviewStore.addCommittedHash(r.dedupeHash)
+                c.reviewStore.addCommittedHash(hash)
                 serverHashes.add(r.dedupeHash)
                 serverHashes.add(hash)
                 return Outcome.IMPORTED
@@ -121,3 +138,4 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
         const val SMS_SCAN_DAYS_BACK = 90
     }
 }
+

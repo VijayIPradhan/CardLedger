@@ -63,44 +63,63 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state
 
-    fun load(forceRefresh: Boolean = false) {
-        if (forceRefresh) {
-            _state.value = _state.value.copy(isRefreshing = true)
-        } else {
-            _state.value = _state.value.copy(loading = true)
-        }
+    /** Guards against duplicate concurrent loads */
+    @Volatile private var loadJob: kotlinx.coroutines.Job? = null
 
-        viewModelScope.launch {
-            var cachedUsed = false
+    /** Tracks the last successful network fetch to detect staleness on resume */
+    @Volatile private var lastNetworkFetchMs: Long = 0L
+
+    fun load(forceRefresh: Boolean = false) {
+        // Cancel any in-flight load to avoid race conditions
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            if (forceRefresh) {
+                _state.value = _state.value.copy(isRefreshing = true)
+            } else if (_state.value.cards.isEmpty()) {
+                _state.value = _state.value.copy(loading = true)
+            }
+
+            var showedCache = false
+
+            // Always try to show cached data first (instant UI)
             if (!forceRefresh) {
                 val cache = c.cacheStore.load()
                 if (cache != null) {
                     processData(cache.cards, cache.holders, cache.assignments, cache.transactions, cache.payments)
-                    cachedUsed = true
+                    showedCache = true
+
+                    // If cache is fresh AND we recently fetched from network, skip network call
+                    val isFresh = c.cacheStore.isFresh(cache)
+                    val recentNetworkFetch = (System.currentTimeMillis() - lastNetworkFetchMs) < com.imvj.cardledger.data.store.CacheStore.MAX_AGE_MS
+                    if (isFresh && recentNetworkFetch) {
+                        _state.value = _state.value.copy(loading = false, isRefreshing = false)
+                        return@launch
+                    }
+                    // Cache is stale → continue to network refresh below (silently, no loading spinner)
                 }
             }
 
-            if (forceRefresh || !cachedUsed) {
-                try {
-                    val cardsD = async { c.cardRepo.list() }
-                    val holdersD = async { c.holderRepo.list() }
-                    val assignmentsD = async { c.assignmentRepo.list() }
-                    val txnsD = async { c.transactionRepo.list() }
-                    val paymentsD = async { c.paymentRepo.list() }
-                    
-                    val cards = cardsD.await().getOrNull()
-                    val holders = holdersD.await().getOrNull()
-                    val assignments = assignmentsD.await().getOrNull() ?: emptyList()
-                    val txns = txnsD.await().getOrNull()
-                    val payments = paymentsD.await().getOrNull() ?: emptyList()
+            // Network refresh (always if forceRefresh, or if cache was stale/missing)
+            try {
+                val cardsD = async { c.cardRepo.list() }
+                val holdersD = async { c.holderRepo.list() }
+                val assignmentsD = async { c.assignmentRepo.list() }
+                val txnsD = async { c.transactionRepo.list() }
+                val paymentsD = async { c.paymentRepo.list() }
 
-                    if (cards != null && holders != null && txns != null) {
-                        c.cacheStore.save(OfflineCache(cards, holders, assignments, txns, payments))
-                        processData(cards, holders, assignments, txns, payments)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                val cards = cardsD.await().getOrNull()
+                val holders = holdersD.await().getOrNull()
+                val assignments = assignmentsD.await().getOrNull() ?: emptyList()
+                val txns = txnsD.await().getOrNull()
+                val payments = paymentsD.await().getOrNull() ?: emptyList()
+
+                if (cards != null && holders != null && txns != null) {
+                    c.cacheStore.save(OfflineCache(cards, holders, assignments, txns, payments))
+                    lastNetworkFetchMs = System.currentTimeMillis()
+                    processData(cards, holders, assignments, txns, payments)
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
 
             _state.value = _state.value.copy(loading = false, isRefreshing = false)

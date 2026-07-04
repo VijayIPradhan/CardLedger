@@ -13,7 +13,24 @@ data class ParseResult(
 
 private data class Rule(val bank: String, val senders: List<String>, val patterns: List<Regex>)
 
-private val OTP = Regex("\\bOTP\\b|one[-\\s]?time[-\\s]?pass|verification code", RegexOption.IGNORE_CASE)
+private val OTP_PATTERNS = listOf(
+    Regex("\\bOTP\\b", RegexOption.IGNORE_CASE),
+    Regex("one[-\\s]?time[-\\s]?pass", RegexOption.IGNORE_CASE),
+    Regex("verification code", RegexOption.IGNORE_CASE),
+    Regex("\\bOTP\\s+is\\b", RegexOption.IGNORE_CASE),
+    Regex("\\bCVV\\b", RegexOption.IGNORE_CASE),
+    Regex("\\bdo\\s+not\\s+share\\b", RegexOption.IGNORE_CASE),
+    Regex("\\bvalid\\s+for\\s+\\d+\\s+min", RegexOption.IGNORE_CASE),
+    Regex("\\bexpires?\\s+in\\s+\\d+\\s+min", RegexOption.IGNORE_CASE),
+    Regex("\\bPIN\\s+is\\b", RegexOption.IGNORE_CASE),
+    Regex("\\bsecurity\\s+code\\b", RegexOption.IGNORE_CASE),
+    Regex("\\bverification\\s+PIN\\b", RegexOption.IGNORE_CASE),
+    Regex("\\b2FA\\b", RegexOption.IGNORE_CASE),
+    Regex("\\bpasscode\\b", RegexOption.IGNORE_CASE),
+)
+
+/** Returns true if the SMS body is an OTP/security message (not a transaction). */
+fun isOtpMessage(body: String): Boolean = OTP_PATTERNS.any { it.containsMatchIn(body) }
 
 private val MONTHS = mapOf(
     "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
@@ -72,7 +89,7 @@ fun dedupeHash(input: SmsInput): String {
 }
 
 fun parseSms(input: SmsInput, knownLast4s: List<String>? = null): ParseResult? {
-    if (OTP.containsMatchIn(input.body)) return null
+    if (isOtpMessage(input.body)) return null
     val matched = RULES.firstOrNull { r -> r.senders.any { input.sender.contains(it) } }
     val rules = if (matched != null) listOf(matched, FALLBACK) else listOf(FALLBACK)
     for (rule in rules) {

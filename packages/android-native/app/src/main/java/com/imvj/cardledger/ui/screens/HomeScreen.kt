@@ -182,7 +182,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
                                         // Total Spend
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text("Total spend", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 SpendRing(s.total.spend, s.total.limit, 24, showText = false)
@@ -193,6 +193,12 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                     fontWeight = FontWeight.Medium,
                                                 )
                                             }
+                                            Text(
+                                                "${Math.round(s.total.percent)}% of ${money(s.total.limit)}",
+                                                color = Muted,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontSize = 10.sp
+                                            )
                                         }
                                         // To Collect
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

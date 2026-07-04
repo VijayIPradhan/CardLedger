@@ -15,6 +15,8 @@ import java.time.LocalDate
 
 data class CycleGroup(val label: String, val txns: List<TransactionDto>)
 
+data class FriendCollectable(val holderId: String, val holderName: String, val amount: Double)
+
 data class CardDetailUiState(
     val loading: Boolean = true,
     val card: CardDto? = null,
@@ -25,6 +27,7 @@ data class CardDetailUiState(
     val totalSpend: Double = 0.0,
     val currentHolder: HolderDto? = null,
     val toCollect: Double = 0.0,
+    val friendBreakdown: List<FriendCollectable> = emptyList(),
     val error: String? = null,
 )
 
@@ -59,11 +62,13 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             } else 0.0
             
             var cardToCollect = 0.0
+            val friendBreakdown = mutableListOf<FriendCollectable>()
             val friends = holders.filter { it.relationship == "friend" }
             friends.forEach { friend ->
                 val expenses = allTxns.filter { it.holder_id_at_time == friend.id }.sortedBy { it.txn_date }
                 val paid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                 var remainingPaid = paid
+                var friendCardAmount = 0.0
                 for (txn in expenses) {
                     val amt = txn.amount.toDoubleOrNull() ?: 0.0
                     if (remainingPaid >= amt) {
@@ -73,15 +78,19 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                         remainingPaid = 0.0
                         if (txn.card_id == id) {
                             cardToCollect += unpaid
+                            friendCardAmount += unpaid
                         }
                     }
+                }
+                if (friendCardAmount > 0) {
+                    friendBreakdown.add(FriendCollectable(friend.id, friend.name, friendCardAmount))
                 }
             }
 
             val active = assignments.firstOrNull { it.returned_date == null }
             val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }
-            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current, cardToCollect)
+            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current, cardToCollect, friendBreakdown)
         }
     }
 
@@ -164,6 +173,33 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     if (amt > 0) {
                         c.paymentRepo.create(CreatePaymentDto(holder_id = txn.holder_id_at_time, transaction_id = txn.id, amount = amt, payment_date = today()))
                     }
+                }
+            }
+            load(cardId)
+            onDone()
+        }
+    }
+
+    /**
+     * Marks all outstanding friend transactions on this card as collected.
+     * Creates payment records for each friend for their unpaid amount on this card.
+     * The remaining balances on other cards auto-adjust via the FIFO logic.
+     */
+    fun markCollected(cardId: String, onDone: () -> Unit = {}) {
+        val s = _state.value
+        val breakdown = s.friendBreakdown
+        if (breakdown.isEmpty()) return
+        viewModelScope.launch {
+            breakdown.forEach { fc ->
+                if (fc.amount > 0) {
+                    c.paymentRepo.create(
+                        CreatePaymentDto(
+                            holder_id = fc.holderId,
+                            amount = fc.amount,
+                            payment_date = today(),
+                            notes = "Collected for card ${s.card?.nickname ?: cardId}",
+                        )
+                    )
                 }
             }
             load(cardId)
