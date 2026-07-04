@@ -30,9 +30,20 @@ fun getDaysUntilDue(paymentDueDay: Int, today: String): Int {
     val (y, m, d) = today.split("-").map { it.toInt() }
     var dy = y; var dm = m
     if (d > paymentDueDay) { dm += 1; if (dm == 13) { dm = 1; dy += 1 } }
-    val due = LocalDate.of(dy, dm, paymentDueDay)
+    val maxDay = LocalDate.of(dy, dm, 1).lengthOfMonth()
+    val due = LocalDate.of(dy, dm, minOf(paymentDueDay, maxDay))
     val now = LocalDate.of(y, m, d)
     return maxOf(0, java.time.temporal.ChronoUnit.DAYS.between(now, due).toInt())
+}
+
+fun getDaysUntilStatement(billingCycleDay: Int, today: String): Int {
+    val (y, m, d) = today.split("-").map { it.toInt() }
+    var sy = y; var sm = m
+    if (d > billingCycleDay) { sm += 1; if (sm == 13) { sm = 1; sy += 1 } }
+    val maxDay = LocalDate.of(sy, sm, 1).lengthOfMonth()
+    val stmt = LocalDate.of(sy, sm, minOf(billingCycleDay, maxDay))
+    val now = LocalDate.of(y, m, d)
+    return maxOf(0, java.time.temporal.ChronoUnit.DAYS.between(now, stmt).toInt())
 }
 
 data class Utilization(val spend: Double, val limit: Double, val percent: Double)
@@ -56,7 +67,9 @@ fun upcomingDues(cards: List<CardDto>, today: String, withinDays: Int): List<Upc
     return cards.map { c ->
         var dy = y; var dm = m
         if (d > c.payment_due_day) { dm += 1; if (dm == 13) { dm = 1; dy += 1 } }
-        UpcomingDue(c.id, iso(dy, dm, c.payment_due_day), getDaysUntilDue(c.payment_due_day, today))
+        val maxDay = LocalDate.of(dy, dm, 1).lengthOfMonth()
+        val safeDay = minOf(c.payment_due_day, maxDay)
+        UpcomingDue(c.id, iso(dy, dm, safeDay), getDaysUntilDue(c.payment_due_day, today))
     }.filter { it.daysUntil <= withinDays }.sortedBy { it.daysUntil }
 }
 

@@ -11,6 +11,7 @@ import type { Card, Holder, Transaction, Payment } from '@cardledger/shared';
 const TABS = [
   { id: 'shield', label: '🛡️ 30% Shield' },
   { id: 'recommender', label: '⚡ Recommender' },
+  { id: 'rewards', label: '👑 Rewards & Yield' },
   { id: 'recovery', label: '🤝 Recovery' },
   { id: 'insights', label: '📊 Insights' },
 ];
@@ -353,7 +354,153 @@ export default function AnalyticsScreen() {
           </div>
         )}
 
-        {/* ── TAB 2: 🤝 DEBT RECOVERY RADAR ─────────────────────────────── */}
+        {/* ── TAB 3: 👑 REWARDS & CASHBACK YIELD MAXIMIZER ──────────────── */}
+        {activeTab === 'rewards' && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Hero Reward Stat Card */}
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-surface to-elevated border-2 border-gold/80 shadow-xl space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold tracking-widest text-gold flex items-center gap-1.5">
+                  <span>👑</span> WALLET YIELD MAXIMIZER
+                </span>
+                <span className="px-2.5 py-1 rounded-md text-xs font-extrabold bg-gold/20 text-gold">
+                  ~3.8% AVG YIELD
+                </span>
+              </div>
+
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-xs text-muted">Estimated Annual Reward Value</p>
+                  <p className="text-3xl font-black text-gold">
+                    {money(totalSpendVal * 12 * 0.038)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted">Monthly Yield</p>
+                  <p className="text-sm font-bold text-on-dark">
+                    {money(totalSpendVal * 0.038)} / mo
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-low leading-relaxed pt-1 border-t border-elevated/60">
+                💡 <strong className="text-on-dark">1% Rule:</strong> Matching specific spend
+                categories to the right credit card can boost your reward yield from 1% to over 5%!
+              </p>
+            </div>
+
+            {/* Smart Category Optimizer Engine */}
+            <div className="space-y-3 pt-1">
+              <h3 className="text-xs font-bold tracking-wider text-muted">
+                CATEGORY OPTIMIZATION ENGINE
+              </h3>
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  {
+                    cat: '🛍️ Online Shopping',
+                    best: 'SBI Cashback / Millennia',
+                    yield: '5.0%',
+                    note: 'Direct cashback on Amazon/Flipkart',
+                  },
+                  {
+                    cat: '✈️ Travel & Flights',
+                    best: 'HDFC Infinia / Atlas',
+                    yield: '10.0%',
+                    note: 'Via SmartBuy / Edge Miles',
+                  },
+                  {
+                    cat: '🍽️ Dining & Food',
+                    best: 'Axis Airtel / Swiggy',
+                    yield: '10.0%',
+                    note: '10% off on Zomato/Swiggy/Dine',
+                  },
+                  {
+                    cat: '💡 Utilities & Bills',
+                    best: 'Tata Neu / Airtel Axis',
+                    yield: '5.0%',
+                    note: '5% NeuCoins via Tata Neu app',
+                  },
+                  {
+                    cat: '🛒 Groceries & Instamart',
+                    best: 'Swiggy HDFC / Amazon Pay',
+                    yield: '5.0%',
+                    note: 'Instant discount on grocery apps',
+                  },
+                  {
+                    cat: '⛽ Fuel & Petrol',
+                    best: 'BPCL SBI / IndianOil',
+                    yield: '4.2%',
+                    note: 'Surcharge waiver + fuel points',
+                  },
+                ].map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl bg-surface border border-elevated hover:border-gold/40 transition-all space-y-1.5 shadow-sm"
+                  >
+                    <p className="text-xs font-bold text-on-dark flex items-center justify-between">
+                      <span>{item.cat}</span>
+                      <span className="text-gold font-extrabold text-[11px] bg-gold/10 px-1.5 py-0.5 rounded">
+                        {item.yield}
+                      </span>
+                    </p>
+                    <p className="text-[11px] font-semibold text-gold">🥇 Best: {item.best}</p>
+                    <p className="text-[10px] text-muted leading-tight">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Debt Paydown Strategy Simulator: Snowball vs Avalanche */}
+            <div className="p-4 rounded-xl bg-surface border border-elevated space-y-3 pt-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-on-dark flex items-center gap-1.5">
+                  <span>⚡</span> Debt Paydown Strategy Simulator
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">
+                  AVALANCHE RECOMMENDED
+                </span>
+              </div>
+              <p className="text-xs text-muted leading-relaxed">
+                When paying down card balances, use the{' '}
+                <strong className="text-gold">Avalanche Method</strong> (clearing highest
+                utilization / interest rate cards first) to save maximum interest, or the{' '}
+                <strong className="text-on-dark">Snowball Method</strong> (clearing smallest
+                balances first) for rapid psychological momentum!
+              </p>
+              <div className="space-y-2 pt-1">
+                {cardList
+                  .filter((c) => Number(c.current_spend || 0) > 0)
+                  .sort((a, b) => {
+                    const pctA =
+                      Number(a.credit_limit) > 0
+                        ? Number(a.current_spend) / Number(a.credit_limit)
+                        : 0;
+                    const pctB =
+                      Number(b.credit_limit) > 0
+                        ? Number(b.current_spend) / Number(b.credit_limit)
+                        : 0;
+                    return pctB - pctA;
+                  })
+                  .slice(0, 3)
+                  .map((card, idx) => (
+                    <div
+                      key={card.id}
+                      className="flex justify-between items-center p-2.5 rounded-lg bg-elevated/40 text-xs"
+                    >
+                      <span className="font-semibold text-on-dark">
+                        #{idx + 1} Priority: {card.nickname}
+                      </span>
+                      <span className="font-bold text-gold">
+                        {money(Number(card.current_spend || 0))} balance
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 4: 🤝 DEBT RECOVERY RADAR ─────────────────────────────── */}
         {activeTab === 'recovery' && (
           <div className="space-y-4 animate-fade-in">
             {(() => {
@@ -422,22 +569,44 @@ export default function AnalyticsScreen() {
                   return (
                     <div
                       key={friend.id}
-                      className="p-4 rounded-xl bg-surface border border-elevated flex justify-between items-center"
+                      className="p-4 rounded-xl bg-surface border border-elevated flex flex-col gap-3"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-elevated text-gold flex items-center justify-center font-bold text-sm">
-                          {friend.name.slice(0, 2).toUpperCase()}
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-elevated text-gold flex items-center justify-center font-bold text-sm">
+                            {friend.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm text-on-dark">{friend.name}</p>
+                            <p className="text-xs text-muted">
+                              Total volume: {money(friendExpenses)}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-sm text-on-dark">{friend.name}</p>
-                          <p className="text-xs text-muted">
-                            Total volume: {money(friendExpenses)}
-                          </p>
+                        <div className="text-right">
+                          <p className="font-black text-sm text-gold">{money(owed)}</p>
+                          <p className="text-[10px] text-muted">Outstanding</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-black text-sm text-gold">{money(owed)}</p>
-                        <p className="text-[10px] text-muted">Outstanding</p>
+
+                      <div className="pt-2 border-t border-elevated/60 flex items-center justify-between">
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded font-bold ${owed === 0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-gold/10 text-gold border border-gold/30'}`}
+                        >
+                          {owed === 0 ? '🟢 100% RELIABILITY RATING' : '🟡 BATCH PAYMENT DUE'}
+                        </span>
+                        {owed > 0 && (
+                          <button
+                            onClick={() => {
+                              const msg = `Hey ${friend.name}! 🌟 Here is your CardLedger batch payment summary: Total Volume: ₹${friendExpenses.toLocaleString('en-IN')}, Paid: ₹${friendPaid.toLocaleString('en-IN')}, Outstanding Balance: ₹${owed.toLocaleString('en-IN')}. Please pay when convenient! 🙏`;
+                              navigator.clipboard.writeText(msg);
+                              alert(`Copied WhatsApp Summary for ${friend.name} to clipboard!`);
+                            }}
+                            className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors"
+                          >
+                            <span>💬</span> WhatsApp Summary
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

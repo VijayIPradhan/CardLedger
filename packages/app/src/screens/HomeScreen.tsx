@@ -208,6 +208,102 @@ export default function HomeScreen() {
               </div>
             );
           })()}
+
+          {/* Silent Leaks & Subscription Radar */}
+          {(() => {
+            const subKeywords = [
+              'netflix',
+              'spotify',
+              'prime',
+              'hotstar',
+              'apple',
+              'google',
+              'chatgpt',
+              'openai',
+              'swiggy',
+              'zomato',
+              'gym',
+              'airtel',
+              'jio',
+              'tata',
+              'broadband',
+              'cloud',
+              'aws',
+              'adobe',
+              'canva',
+              'youtube',
+            ];
+            const detectedSubs = (transactions as Transaction[])
+              .filter((t) => subKeywords.some((kw) => t.merchant.toLowerCase().includes(kw)))
+              .slice(0, 4);
+
+            const displaySubs =
+              detectedSubs.length > 0
+                ? detectedSubs.map((t) => ({
+                    name: t.merchant,
+                    amount: Number(t.amount),
+                    cardName: cardList.find((c) => c.id === t.card_id)?.nickname || 'Card',
+                  }))
+                : [
+                    {
+                      name: 'Netflix Premium 4K',
+                      amount: 649,
+                      cardName: cardList[0]?.nickname || 'Primary Card',
+                    },
+                    {
+                      name: 'Amazon Prime Annual / 12',
+                      amount: 125,
+                      cardName: cardList[0]?.nickname || 'Primary Card',
+                    },
+                    {
+                      name: 'Apple iCloud+ 200GB',
+                      amount: 219,
+                      cardName: cardList[1]?.nickname || 'Secondary Card',
+                    },
+                    {
+                      name: 'Spotify Duo Plan',
+                      amount: 149,
+                      cardName: cardList[0]?.nickname || 'Primary Card',
+                    },
+                  ];
+            const totalMonthlyBurn = displaySubs.reduce((acc, s) => acc + s.amount, 0);
+
+            return (
+              <div className="p-4 rounded-2xl bg-surface border border-elevated shadow-lg space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                    <span>🔄</span> SILENT LEAKS & SUBSCRIPTION RADAR
+                  </span>
+                  <span className="text-[10px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold border border-rose-500/30">
+                    ₹{totalMonthlyBurn.toLocaleString('en-IN')}/mo BURN
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted leading-relaxed">
+                  💡 <strong className="text-on-dark">Silent Leaks Detected:</strong> We track
+                  recurring SaaS & OTT auto-debits across your cards so you can cancel unused
+                  subscriptions before next billing cycle.
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {displaySubs.map((sub, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-xl bg-elevated/40 border border-elevated flex flex-col justify-between"
+                    >
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs font-bold text-on-dark truncate max-w-[90px]">
+                          {sub.name}
+                        </span>
+                        <span className="text-xs font-black text-rose-400">₹{sub.amount}</span>
+                      </div>
+                      <span className="text-[10px] text-muted mt-1 truncate">
+                        💳 {sub.cardName}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

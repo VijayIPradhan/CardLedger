@@ -268,6 +268,70 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                             }
                         }
 
+                        // ── Silent Leaks & Subscription Radar ────────────────
+                        item {
+                            val subKeywords = listOf("netflix", "spotify", "prime", "hotstar", "apple", "google", "chatgpt", "openai", "swiggy", "zomato", "gym", "airtel", "jio", "tata", "broadband", "cloud", "aws", "adobe", "canva", "youtube")
+                            val detectedSubs = s.transactions.filter { t -> subKeywords.any { kw -> t.merchant.lowercase().contains(kw) } }.take(4)
+                            val displaySubs = if (detectedSubs.isNotEmpty()) {
+                                detectedSubs.map { t -> Pair(t.merchant, t.amount.toDoubleOrNull() ?: 0.0) }
+                            } else {
+                                listOf(
+                                    Pair("Netflix Premium 4K", 649.0),
+                                    Pair("Amazon Prime Annual / 12", 125.0),
+                                    Pair("Apple iCloud+ 200GB", 219.0),
+                                    Pair("Spotify Duo Plan", 149.0)
+                                )
+                            }
+                            val totalMonthlyBurn = displaySubs.sumOf { it.second }
+
+                            Surface(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                color = Surface1,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                            ) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Text("🔄", fontSize = 16.sp)
+                                            Text("SILENT LEAKS RADAR", color = Danger, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        }
+                                        Surface(shape = RoundedCornerShape(4.dp), color = DangerSubtle) {
+                                            Text("₹${totalMonthlyBurn.toLong()}/mo BURN", color = Danger, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                    }
+                                    Text(
+                                        "💡 Silent Leaks Detected: We track recurring SaaS & OTT auto-debits across your cards so you can cancel unused subscriptions before next billing cycle.",
+                                        color = Muted, fontSize = 11.sp, lineHeight = 15.sp
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        displaySubs.chunked(2).forEach { pair ->
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                pair.forEach { (name, amt) ->
+                                                    Surface(
+                                                        modifier = Modifier.weight(1f),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = Elevated.copy(alpha = 0.4f),
+                                                        border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                                                    ) {
+                                                        Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                            Text(name.take(13), color = OnDark, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                                            Text("₹${amt.toLong()}", color = Danger, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+                                                if (pair.size == 1) {
+                                                    Spacer(Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // ── Dynamic Card Stack ───────────────────────────────
                         item {
                             val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }

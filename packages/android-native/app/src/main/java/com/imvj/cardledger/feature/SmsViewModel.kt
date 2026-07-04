@@ -20,7 +20,15 @@ import java.util.UUID
 
 private const val TAG = "SmsViewModel"
 
-data class SmsUiState(val scanning: Boolean = false, val summary: String? = null)
+data class SmsStats(
+    val totalScanned: Int = 0,
+    val otpsIgnored: Int = 0,
+    val importedCount: Int = 0,
+    val queuedCount: Int = 0,
+    val byBank: Map<String, Int> = emptyMap()
+)
+
+data class SmsUiState(val scanning: Boolean = false, val summary: String? = null, val stats: SmsStats? = null)
 
 class SmsViewModel(private val c: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(SmsUiState())
@@ -60,15 +68,40 @@ class SmsViewModel(private val c: AppContainer) : ViewModel() {
             loadCache()
             sessionTxnKeys.clear()
 
-            var imported = 0; var queued = 0
+            var imported = 0; var queued = 0; var totalScanned = 0; var otps = 0
+            val bankCounts = mutableMapOf<String, Int>()
             readInbox(context, days).forEach { sms ->
-                when (handleParsed(sms, cachedCards, cachedServerHashes, autoCommit = false)) {
-                    Outcome.IMPORTED -> imported++
-                    Outcome.QUEUED -> queued++
-                    Outcome.SKIPPED -> {}
+                totalScanned++
+                if (isOtpMessage(sms.body)) {
+                    otps++
+                } else {
+                    when (handleParsed(sms, cachedCards, cachedServerHashes, autoCommit = false)) {
+                        Outcome.IMPORTED -> imported++
+                        Outcome.QUEUED -> queued++
+                        Outcome.SKIPPED -> {}
+                    }
+                    val bodyLower = sms.body.lowercase()
+                    val bank = when {
+                        "hdfc" in bodyLower -> "HDFC Bank"
+                        "icici" in bodyLower -> "ICICI Bank"
+                        "sbi" in bodyLower || "sbicard" in bodyLower -> "SBI Card"
+                        "axis" in bodyLower -> "Axis Bank"
+                        "amex" in bodyLower || "american express" in bodyLower -> "Amex"
+                        "kotak" in bodyLower -> "Kotak Bank"
+                        "indusind" in bodyLower -> "IndusInd Bank"
+                        "onecard" in bodyLower -> "OneCard"
+                        else -> null
+                    }
+                    if (bank != null) {
+                        bankCounts[bank] = (bankCounts[bank] ?: 0) + 1
+                    }
                 }
             }
-            _state.value = SmsUiState(scanning = false, summary = "$imported imported · $queued need review")
+            _state.value = SmsUiState(
+                scanning = false,
+                summary = "$imported imported · $queued need review",
+                stats = SmsStats(totalScanned, otps, imported, queued, bankCounts)
+            )
         }
     }
 

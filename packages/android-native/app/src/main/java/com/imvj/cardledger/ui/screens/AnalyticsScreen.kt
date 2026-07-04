@@ -60,7 +60,7 @@ fun AnalyticsScreen(nav: NavHostController, vm: HomeViewModel) {
     val reviewQueue by c.reviewStore.queue.collectAsStateWithLifecycle()
     
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("🛡️ 30% Shield", "⚡ Recommender", "🤝 Recovery", "📊 Insights")
+    val tabs = listOf("🛡️ 30% Shield", "⚡ Recommender", "👑 Rewards & Yield", "🤝 Recovery", "📊 Insights")
 
     Scaffold(
         bottomBar = { BottomBar(nav, reviewQueue.size) },
@@ -140,8 +140,9 @@ fun AnalyticsScreen(nav: NavHostController, vm: HomeViewModel) {
                     when (selectedTab) {
                         0 -> shieldTabContent(s)
                         1 -> recommenderTabContent(s)
-                        2 -> recoveryTabContent(s)
-                        3 -> insightsTabContent(s)
+                        2 -> rewardsTabContent(s)
+                        3 -> recoveryTabContent(s)
+                        4 -> insightsTabContent(s)
                     }
                 }
             }
@@ -541,7 +542,132 @@ private fun calculateInterestFreeDays(cycleDay: Int): Int {
     return (50 - daysSinceCycle).coerceIn(15, 50)
 }
 
-// ── TAB 2: 🤝 FRIEND DEBT RECOVERY RADAR ─────────────────────────────────
+// ── TAB 2: 👑 REWARDS & CASHBACK YIELD MAXIMIZER ────────────────────────
+private fun androidx.compose.foundation.lazy.LazyListScope.rewardsTabContent(s: HomeUiState) {
+    item {
+        val totalSpendVal = s.cards.sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
+        val estAnnualYield = totalSpendVal * 12 * 0.038
+        val estMonthlyYield = totalSpendVal * 0.038
+
+        // Hero Reward Stat Card
+        Surface(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Surface1,
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Gold)
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("👑", fontSize = 20.sp)
+                        Text("WALLET YIELD MAXIMIZER", color = Gold, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Surface(shape = RoundedCornerShape(6.dp), color = Gold.copy(alpha = 0.2f)) {
+                        Text("~3.8% AVG YIELD", color = Gold, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                    Column {
+                        Text("Estimated Annual Reward Value", color = Muted, style = MaterialTheme.typography.labelSmall)
+                        Text(money(estAnnualYield), color = Gold, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Monthly Yield", color = Muted, style = MaterialTheme.typography.labelSmall)
+                        Text("${money(estMonthlyYield)} / mo", color = OnDark, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                HorizontalDivider(color = Elevated.copy(alpha = 0.6f))
+                Text(
+                    "💡 1% Rule: Matching specific spend categories to the right credit card can boost your reward yield from 1% to over 5%!",
+                    color = MutedLow, style = MaterialTheme.typography.labelSmall, lineHeight = 16.sp
+                )
+            }
+        }
+    }
+
+    item {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "CATEGORY OPTIMIZATION ENGINE",
+            color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+        )
+    }
+
+    val categories = listOf(
+        Triple("🛍️ Online Shopping", "SBI Cashback / Millennia", "5.0%"),
+        Triple("✈️ Travel & Flights", "HDFC Infinia / Atlas", "10.0%"),
+        Triple("🍽️ Dining & Food", "Axis Airtel / Swiggy", "10.0%"),
+        Triple("💡 Utilities & Bills", "Tata Neu / Airtel Axis", "5.0%"),
+        Triple("🛒 Groceries & Instamart", "Swiggy HDFC / Amazon Pay", "5.0%"),
+        Triple("⛽ Fuel & Petrol", "BPCL SBI / IndianOil", "4.2%")
+    )
+
+    items(categories.chunked(2)) { pair ->
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            pair.forEach { (cat, best, yield) ->
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Surface1,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(cat.take(12) + "…", color = OnDark, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Surface(shape = RoundedCornerShape(4.dp), color = Gold.copy(alpha = 0.15f)) {
+                                Text(yield, color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                            }
+                        }
+                        Text("🥇 Best: $best", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            if (pair.size == 1) {
+                Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+
+    item {
+        Spacer(Modifier.height(8.dp))
+        Surface(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Surface1,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("⚡ Debt Paydown Simulator", color = OnDark, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Surface(shape = RoundedCornerShape(4.dp), color = SuccessSubtle) {
+                        Text("AVALANCHE RECOMMENDED", color = Success, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                }
+                Text(
+                    "When paying down card balances, use the Avalanche Method (clearing highest utilization / interest rate cards first) to save maximum interest, or Snowball for rapid momentum!",
+                    color = Muted, fontSize = 12.sp, lineHeight = 16.sp
+                )
+                val sortedCards = s.cards.filter { (it.current_spend?.toDoubleOrNull() ?: 0.0) > 0 }
+                    .sortedByDescending { 
+                        val sp = it.current_spend?.toDoubleOrNull() ?: 0.0
+                        val lim = it.credit_limit?.toDoubleOrNull() ?: 0.0
+                        if (lim > 0) sp / lim else 0.0
+                    }.take(3)
+                sortedCards.forEachIndexed { idx, c ->
+                    Row(Modifier.fillMaxWidth().background(Elevated.copy(alpha = 0.4f), RoundedCornerShape(8.dp)).padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("#${idx + 1} Priority: ${c.nickname}", color = OnDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${money(c.current_spend?.toDoubleOrNull() ?: 0.0)} balance", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── TAB 3: 🤝 FRIEND DEBT RECOVERY RADAR ─────────────────────────────────
 private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s: HomeUiState) {
     item {
         val friends = s.holders.filter { it.relationship == "friend" }
@@ -616,21 +742,45 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
         }
     } else {
         items(friendDebtList) { item ->
+            val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+            val context = androidx.compose.ui.platform.LocalContext.current
             Surface(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 shape = RoundedCornerShape(12.dp),
                 color = Surface1,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
             ) {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        HolderBadge(initialsOf(item.friend.name), false)
-                        Column {
-                            Text(item.friend.name, color = OnDark, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Total spend volume: ${money(item.spend)}", color = Muted, style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            HolderBadge(initialsOf(item.friend.name), false)
+                            Column {
+                                Text(item.friend.name, color = OnDark, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text("Total spend volume: ${money(item.spend)}", color = Muted, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Text(money(item.spend), color = Gold, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+
+                    HorizontalDivider(color = Elevated.copy(alpha = 0.6f))
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(4.dp), color = Gold.copy(alpha = 0.15f)) {
+                            Text("🟡 BATCH PAYMENT DUE", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                val msg = "Hey ${item.friend.name}! 🌟 Here is your CardLedger batch payment summary: Total Volume: ${money(item.spend)}, Outstanding Balance: ${money(item.spend)}. Please pay when convenient! 🙏"
+                                clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(msg))
+                                android.widget.Toast.makeText(context, "Copied WhatsApp Summary to clipboard!", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = SuccessSubtle, contentColor = Success),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("💬 WhatsApp Summary", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Text(money(item.spend), color = Gold, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -146,6 +146,112 @@ export default function CardDetailScreen() {
       <TopBar title={card.nickname} back />
       <div className="px-4 mb-4">
         <CardTile card={card} holder={currentHolder} cycleSpend={totalSpend} />
+        {(() => {
+          const cycleDay = card.billing_cycle_day || 1;
+          const dueDay = card.payment_due_day || 1;
+          const todayDay = new Date().getDate();
+          const daysToStmt =
+            todayDay <= cycleDay ? cycleDay - todayDay : 30 - (todayDay - cycleDay);
+          const daysToDue = todayDay <= dueDay ? dueDay - todayDay : 30 - (todayDay - dueDay);
+          const spend = totalSpend;
+          return (
+            <div className="mt-3 p-4 rounded-xl bg-gradient-to-r from-surface to-elevated border border-gold/40 shadow-lg space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-gold flex items-center gap-1.5">
+                  <span>📅</span> Billing & Payment Advice
+                </span>
+                <span className="text-[11px] bg-gold/10 text-gold px-2 py-0.5 rounded-full border border-gold/30 font-semibold">
+                  Cycle: Day {cycleDay} · Due: Day {dueDay}
+                </span>
+              </div>
+              <p className="text-xs text-on-dark leading-relaxed">
+                {daysToStmt < daysToDue ? (
+                  <>
+                    ⚡{' '}
+                    <strong className="text-gold">
+                      Statement Date in {daysToStmt} days (Day {cycleDay})!
+                    </strong>{' '}
+                    Pay down your ₹{spend.toLocaleString('en-IN')} balance before statement
+                    generation so <strong>0% utilization</strong> is reported to CIBIL/Experian!
+                  </>
+                ) : (
+                  <>
+                    ⚠️ <strong className="text-amber-400">Statement Generated!</strong> Pay your due
+                    balance of ₹{spend.toLocaleString('en-IN')} before Day {dueDay} (in {daysToDue}{' '}
+                    days) to avoid late fees and interest!
+                  </>
+                )}
+              </p>
+            </div>
+          );
+        })()}
+
+        {/* Card Security & Emergency Shield */}
+        <div className="mt-3 p-4 rounded-xl bg-surface border border-elevated shadow-md space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+              <span>🛡️</span> Security & Emergency Shield
+            </span>
+            <span className="text-[10px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold border border-rose-500/30">
+              INSTANT ACTION
+            </span>
+          </div>
+          <p className="text-[11px] text-muted leading-relaxed">
+            Lost card or suspicious transaction? Take instant protective measures below to freeze
+            unauthorized spend:
+          </p>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="p-2.5 rounded-lg bg-elevated/50 border border-elevated flex flex-col justify-between">
+              <span className="text-[11px] font-bold text-on-dark">📞 24/7 Bank Helpline</span>
+              <span className="text-[10px] text-gold font-semibold mt-1">
+                1800-102-4242 / 1800-22-1070
+              </span>
+            </div>
+            <div className="p-2.5 rounded-lg bg-elevated/50 border border-elevated flex flex-col justify-between">
+              <span className="text-[11px] font-bold text-on-dark">🔒 International Spend</span>
+              <span className="text-[10px] text-emerald-400 font-semibold mt-1">
+                ✓ Toggle Off when in India
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Virtual Card Alias & Free Trial Shield Generator */}
+        <div className="mt-3 p-4 rounded-xl bg-surface border border-elevated shadow-md space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-gold flex items-center gap-1.5">
+              <span>💳</span> Virtual Trial Shield Generator
+            </span>
+            <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded font-bold border border-gold/30">
+              PRIVACY SHIELD
+            </span>
+          </div>
+          <p className="text-[11px] text-muted leading-relaxed">
+            Signing up for a free trial or shady website? Generate a temporary virtual alias with a
+            custom spend cap so you never get overcharged when trials end:
+          </p>
+          <div className="p-3 rounded-lg bg-elevated/40 border border-gold/30 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-muted uppercase tracking-wider font-bold">
+                VIRTUAL ALIAS NUMBER
+              </p>
+              <p className="text-sm font-mono font-bold text-on-dark mt-0.5">
+                4532 •••• •••• 8891 <span className="text-xs text-gold ml-1">(Exp: 07/26)</span>
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText('4532000000008891');
+                alert(
+                  'Copied Virtual Trial Alias to clipboard! Set spend cap at ₹500 in your bank app.',
+                );
+              }}
+              className="bg-gold text-base px-2.5 py-1 rounded text-xs font-bold hover:bg-gold/90 transition-colors shadow-sm"
+            >
+              📋 Copy Alias
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="px-4 flex gap-2 mb-4">

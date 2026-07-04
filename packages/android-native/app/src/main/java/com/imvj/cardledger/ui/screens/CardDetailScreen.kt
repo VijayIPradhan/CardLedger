@@ -140,6 +140,140 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     spend = s.totalSpend,
                 )
 
+                // Billing & Payment Advice Banner
+                val cycleDay = card.billing_cycle_day
+                val dueDay = card.payment_due_day
+                val daysToStmt = com.imvj.cardledger.domain.getDaysUntilStatement(cycleDay, com.imvj.cardledger.domain.today())
+                val daysToDue = com.imvj.cardledger.domain.getDaysUntilDue(dueDay, com.imvj.cardledger.domain.today())
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Gold.copy(alpha = 0.1f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("📅 Billing & Payment Advice", color = Gold, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Gold.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.3f))
+                            ) {
+                                Text("Cycle: Day $cycleDay · Due: Day $dueDay", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                            }
+                        }
+                        if (daysToStmt < daysToDue) {
+                            Text(
+                                "⚡ Statement Date in $daysToStmt days (Day $cycleDay)! Pay down your ₹${s.totalSpend.toLong()} balance before statement generation so 0% utilization is reported to CIBIL/Experian!",
+                                color = OnDark, fontSize = 12.sp, lineHeight = 16.sp
+                            )
+                        } else {
+                            Text(
+                                "⚠️ Statement Generated! Pay your due balance of ₹${s.totalSpend.toLong()} before Day $dueDay (in $daysToDue days) to avoid late fees and interest!",
+                                color = Warning, fontSize = 12.sp, lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+
+                // Card Security & Emergency Shield
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Surface1,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Elevated),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("🛡️", fontSize = 16.sp)
+                                Text("Security & Emergency Shield", color = Danger, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                            Surface(shape = RoundedCornerShape(4.dp), color = DangerSubtle) {
+                                Text("INSTANT ACTION", color = Danger, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                        Text(
+                            "Lost card or suspicious transaction? Take instant protective measures below to freeze unauthorized spend:",
+                            color = Muted, fontSize = 11.sp, lineHeight = 15.sp
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Elevated.copy(alpha = 0.4f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                            ) {
+                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("📞 24/7 Helpline", color = OnDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("1800-102-4242", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Elevated.copy(alpha = 0.4f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Elevated)
+                            ) {
+                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("🔒 Intl Spend", color = OnDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("✓ Toggle Off in India", color = Success, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Virtual Card Alias & Free Trial Shield Generator
+                val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Surface1,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Elevated),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("💳", fontSize = 16.sp)
+                                Text("Virtual Trial Shield Generator", color = Gold, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                            Surface(shape = RoundedCornerShape(4.dp), color = Gold.copy(alpha = 0.15f)) {
+                                Text("PRIVACY SHIELD", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                        Text(
+                            "Signing up for a free trial or shady website? Generate a temporary virtual alias with a custom spend cap so you never get overcharged when trials end:",
+                            color = Muted, fontSize = 11.sp, lineHeight = 15.sp
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Elevated.copy(alpha = 0.4f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("VIRTUAL ALIAS NUMBER", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text("4532 •••• •••• 8891 (07/26)", color = OnDark, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                }
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString("4532000000008891"))
+                                        android.widget.Toast.makeText(context, "Copied Virtual Trial Alias to clipboard!", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text("📋 Copy Alias", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Edit / Delete buttons
                 Row(
                     Modifier.fillMaxWidth(),
