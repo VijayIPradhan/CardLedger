@@ -67,38 +67,33 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
             } else 0.0
             
-            val collectedCards = c.prefsStore.getCollectedCards()
-            val isMarkedCollected = collectedCards.contains(id)
-
             var cardToCollect = 0.0
             val friendBreakdown = mutableListOf<FriendCollectable>()
             val friends = holders.filter { it.relationship == "friend" }
-            if (!isMarkedCollected) {
-                if (summary != null) {
-                    cardToCollect = summary.toCollectByCard[id] ?: 0.0
-                    summary.friendDebts.forEach { debt ->
-                        val amt = debt.byCard[id] ?: 0.0
-                        if (amt > 0) {
-                            friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, amt))
+            if (summary != null) {
+                cardToCollect = summary.toCollectByCard[id] ?: 0.0
+                summary.friendDebts.forEach { debt ->
+                    val amt = debt.byCard[id] ?: 0.0
+                    if (amt > 0) {
+                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, amt))
+                    }
+                }
+            } else {
+                friends.forEach { friend ->
+                    val friendCardTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
+                    var unpaidAmount = 0.0
+                    friendCardTxns.forEach { txn ->
+                        val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                        if (txn.type == "payment") {
+                            if (!txn.is_paid && amt > 0) unpaidAmount -= amt
+                        } else {
+                            if (!txn.is_paid && amt > 0) unpaidAmount += amt
                         }
                     }
-                } else {
-                    friends.forEach { friend ->
-                        val friendCardTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
-                        var unpaidAmount = 0.0
-                        friendCardTxns.forEach { txn ->
-                            val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                            if (txn.type == "payment") {
-                                if (!txn.is_paid && amt > 0) unpaidAmount -= amt
-                            } else {
-                                if (!txn.is_paid && amt > 0) unpaidAmount += amt
-                            }
-                        }
-                        unpaidAmount = kotlin.math.round(maxOf(0.0, unpaidAmount) * 100.0) / 100.0
-                        if (unpaidAmount > 0.0) {
-                            cardToCollect += unpaidAmount
-                            friendBreakdown.add(FriendCollectable(friend.id, friend.name, unpaidAmount))
-                        }
+                    unpaidAmount = kotlin.math.round(maxOf(0.0, unpaidAmount) * 100.0) / 100.0
+                    if (unpaidAmount > 0.0) {
+                        cardToCollect += unpaidAmount
+                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, unpaidAmount))
                     }
                 }
             }
@@ -106,7 +101,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val active = assignments.firstOrNull { it.returned_date == null }
             val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }
-            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current, cardToCollect, friendBreakdown, isMarkedCollected)
+            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current, cardToCollect, friendBreakdown, false)
         }
     }
 

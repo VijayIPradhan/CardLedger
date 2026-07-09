@@ -397,7 +397,12 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                         // ── Dynamic Card Stack ───────────────────────────────
                         item {
                             val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
-                            val sortedCards = s.cards.sortedWith(
+                            val activeCards = s.cards.filter { card ->
+                                val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
+                                val toCollect = s.toCollectByCard[card.id] ?: 0.0
+                                spend > 0.0 || toCollect > 0.0
+                            }
+                            val sortedCards = (if (activeCards.isNotEmpty()) activeCards else s.cards.take(1)).sortedWith(
                                 compareByDescending<com.imvj.cardledger.data.net.CardDto> { s.spendByCard[it.id] ?: 0.0 }
                                     .thenByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
                             )
@@ -405,7 +410,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                             Column(Modifier.fillMaxWidth().padding(top = 28.dp, start = 20.dp, end = 20.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        "My Cards  ${s.cards.size}",
+                                        "My Cards  ${if (activeCards.isNotEmpty()) activeCards.size else 0}",
                                         color = Muted,
                                         style = MaterialTheme.typography.labelMedium,
                                     )

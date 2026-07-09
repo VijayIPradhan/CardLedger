@@ -317,31 +317,18 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                     Text("To Collect", color = Muted, style = MaterialTheme.typography.labelSmall)
                                     Text(
                                         money(s.toCollect),
-                                        color = Gold,
+                                        color = if (s.toCollect > 0) Gold else Muted,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
                                 }
-                                Button(
-                                    onClick = {
-                                        vm.markCollected(cardId) {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                if (s.isMarkedCollected) "Unmarked card collected status" else "Marked card as collected",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
+                                if (s.toCollect <= 0) {
+                                    Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(6.dp)) {
+                                        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(14.dp))
+                                            Text("All Collected ✓", color = Success, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (s.isMarkedCollected) Success else Gold,
-                                        contentColor = if (s.isMarkedCollected) Color.White else Base
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                ) {
-                                    Icon(if (s.isMarkedCollected) Icons.Default.Check else Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(if (s.isMarkedCollected) "Collected ✓" else "Mark Collected", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    }
                                 }
                             }
                             // Per-friend breakdown
@@ -467,6 +454,33 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
+                                        IconButton(
+                                            onClick = {
+                                                val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                                if (!txn.is_paid && txn.holder_id_at_time != meId) {
+                                                    showWhoPaidSheet = txn
+                                                } else {
+                                                    vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
+                                                }
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            if (txn.is_paid) {
+                                                Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Success, modifier = Modifier.size(22.dp)) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.Check, contentDescription = "Paid", tint = Color.White, modifier = Modifier.size(14.dp))
+                                                    }
+                                                }
+                                            } else {
+                                                Surface(
+                                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                                    color = Color.Transparent,
+                                                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MutedLow),
+                                                    modifier = Modifier.size(22.dp)
+                                                ) {}
+                                            }
+                                        }
+                                        Spacer(Modifier.width(8.dp))
                                         Column(Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 Text(

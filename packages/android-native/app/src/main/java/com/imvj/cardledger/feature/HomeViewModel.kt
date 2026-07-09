@@ -192,10 +192,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         payments: List<PaymentDto>
     ) = withContext(Dispatchers.Default) {
         val spend = cards.associate { card ->
-            val groupId = card.shared_limit_with ?: card.id
-            val groupSpend = cards.filter { (it.shared_limit_with ?: it.id) == groupId }
-                .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
-            card.id to groupSpend
+            card.id to (card.current_spend?.toDoubleOrNull() ?: 0.0)
         }
         
         val collectedCards = c.prefsStore.getCollectedCards()
@@ -230,9 +227,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val byCard = mutableMapOf<String, Double>()
             byCardMap.filter { it.value > 0.0 }.forEach { (cid, amt) ->
                 byCard[cid] = amt
-                if (!collectedCards.contains(cid)) {
-                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
-                }
+                toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
             }
             friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard))
         }

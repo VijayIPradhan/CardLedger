@@ -65,14 +65,10 @@ export async function summaryRoutes(app: FastifyInstance) {
       .where(eq(holders.user_id, userId))
       .orderBy(desc(payments.payment_date));
 
-    // ── 1. Spend by Card (with Shared Limit group handling) ──
+    // ── 1. Spend by Card ──
     const spendByCard: Record<string, number> = {};
     userCards.forEach((card) => {
-      const groupId = card.shared_limit_with || card.id;
-      const groupSpend = userCards
-        .filter((c) => (c.shared_limit_with || c.id) === groupId)
-        .reduce((sum, c) => sum + (parseFloat(c.current_spend) || 0), 0);
-      spendByCard[card.id] = groupSpend;
+      spendByCard[card.id] = parseFloat(card.current_spend) || 0;
     });
 
     // ── 2. Friend Collections & Remaining ──
