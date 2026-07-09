@@ -80,26 +80,67 @@ export async function summaryRoutes(app: FastifyInstance) {
     let friendTotalSpend = 0;
     let friendTotalPaid = 0;
     const toCollectByCard: Record<string, number> = {};
+    const friendDebts: Array<{
+      holderId: string;
+      holderName: string;
+      phone: string;
+      totalSpend: number;
+      totalPaid: number;
+      remainingToPay: number;
+      byCard: Record<string, number>;
+    }> = [];
 
     friends.forEach((friend) => {
       const friendTxns = userTxns.filter((t) => t.transactions.holder_id_at_time === friend.id);
-      const expenses = friendTxns.reduce(
-        (sum, t) => sum + (parseFloat(t.transactions.amount) || 0),
-        0,
-      );
+      let expenses = 0;
+      const rawByCard: Record<string, number> = {};
+
+      friendTxns.forEach((t) => {
+        const amt = parseFloat(t.transactions.amount) || 0;
+        const cId = t.transactions.card_id;
+        if (t.transactions.type === 'payment') {
+          expenses -= amt;
+          rawByCard[cId] = (rawByCard[cId] || 0) - amt;
+        } else {
+          expenses += amt;
+          rawByCard[cId] = (rawByCard[cId] || 0) + amt;
+        }
+      });
+
       const paid = userPayments
         .filter((p) => p.payments.holder_id === friend.id)
         .reduce((sum, p) => sum + (parseFloat(p.payments.amount) || 0), 0);
 
       friendTotalSpend += expenses;
       friendTotalPaid += paid;
+      const remainingToPay = Math.max(0, expenses - paid);
 
-      friendTxns.forEach((t) => {
-        const amt = parseFloat(t.transactions.amount) || 0;
-        const cId = t.transactions.card_id;
-        toCollectByCard[cId] = (toCollectByCard[cId] || 0) + amt;
+      const byCard: Record<string, number> = {};
+      const positiveCards = Object.entries(rawByCard).filter(([_, amt]) => amt > 0);
+      const totalPositive = positiveCards.reduce((sum, [_, amt]) => sum + amt, 0);
+
+      if (remainingToPay > 0 && totalPositive > 0) {
+        positiveCards.forEach(([cId, amt]) => {
+          const alloc = Math.round(amt * (remainingToPay / totalPositive) * 100) / 100;
+          if (alloc > 0) {
+            byCard[cId] = alloc;
+            toCollectByCard[cId] = (toCollectByCard[cId] || 0) + alloc;
+          }
+        });
+      }
+
+      friendDebts.push({
+        holderId: friend.id,
+        holderName: friend.name,
+        phone: friend.phone,
+        totalSpend: expenses,
+        totalPaid: paid,
+        remainingToPay,
+        byCard,
       });
     });
+
+    friendDebts.sort((a, b) => b.remainingToPay - a.remainingToPay);
 
     const totalToCollect = Object.values(toCollectByCard).reduce((a, b) => a + b, 0);
     const friendRemainingToPay = Math.max(0, friendTotalSpend - friendTotalPaid);
@@ -352,6 +393,7 @@ export async function summaryRoutes(app: FastifyInstance) {
       topMerchants,
       dailySpend,
       projections,
+      friendDebts,
     };
   });
 }

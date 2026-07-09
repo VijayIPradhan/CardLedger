@@ -291,7 +291,7 @@ fun HoldersScreen(nav: NavHostController) {
             LedgerEntry(
                 id = p.id,
                 title = "Payment Recorded",
-                subtitle = "🤝 Collection · ${p.payment_date.drop(5)}${if (!p.notes.isNullOrBlank()) " · ${p.notes}" else ""}",
+                subtitle = "Collection · ${p.payment_date.drop(5)}${if (!p.notes.isNullOrBlank()) " · ${p.notes}" else ""}",
                 amount = p.amount.toDoubleOrNull() ?: 0.0,
                 date = p.payment_date,
                 isPayment = true,

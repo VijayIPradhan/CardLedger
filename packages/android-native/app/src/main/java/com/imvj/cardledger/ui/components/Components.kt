@@ -189,7 +189,6 @@ fun LedgerTile(
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = Surface1,
-        border = if (item.isPayment) androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.4f)) else null
     ) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -219,12 +218,9 @@ fun LedgerTile(
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (item.isPayment) {
-                            Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                                Text("PAID", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-                            }
-                        } else if (item.isPaid) {
+                        if (!item.isPayment && item.isPaid) {
                             Surface(color = Muted.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
                                 Text("SETTLED", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                             }

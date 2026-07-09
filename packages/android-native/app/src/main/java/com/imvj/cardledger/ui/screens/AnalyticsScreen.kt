@@ -723,16 +723,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
         )
     }
 
-    val friends = s.holders.filter { it.relationship == "friend" }
-    val friendDebtList = friends.map { friend ->
-        val friendTxns = s.transactions.filter { it.holder_id_at_time == friend.id }
-        val totalSpent = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-        val hs = s.spendByHolder.firstOrNull { it.holderId == friend.id }
-        val spend = hs?.spend ?: totalSpent
-        val paid = s.payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-        val remaining = maxOf(0.0, spend - paid)
-        FriendDebtSummary(friend, spend, paid, remaining)
-    }.filter { it.spend > 0 || it.paid > 0 }.sortedByDescending { it.remaining }
+    val friendDebtList = s.friendDebts.filter { it.totalSpend > 0 || it.totalPaid > 0 }
 
     if (friendDebtList.isEmpty()) {
         item {
@@ -753,14 +744,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            HolderBadge(initialsOf(item.friend.name), false)
+                            HolderBadge(initialsOf(item.holderName), false)
                             Column {
-                                Text(item.friend.name, color = OnDark, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                Text("Total spend: ${money(item.spend)} · Paid: ${money(item.paid)}", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                Text(item.holderName, color = OnDark, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text("Total spend: ${money(item.totalSpend)} · Paid: ${money(item.totalPaid)}", color = Muted, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(money(item.remaining), color = if (item.remaining > 0) Gold else Success, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(money(item.remainingToPay), color = if (item.remainingToPay > 0) Gold else Success, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text("Remaining", color = MutedLow, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
                         }
                     }
@@ -773,7 +764,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
                         }
                         androidx.compose.material3.Button(
                             onClick = {
-                                val msg = "Hey ${item.friend.name}! 🌟 Here is your CardLedger batch payment summary: Total Volume: ${money(item.spend)}, Outstanding Balance: ${money(item.spend)}. Please pay when convenient! 🙏"
+                                val msg = "Hey ${item.holderName}! 🌟 Here is your CardLedger batch payment summary: Total Volume: ${money(item.totalSpend)}, Outstanding Balance: ${money(item.remainingToPay)}. Please pay when convenient! 🙏"
                                 clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(msg))
                                 android.widget.Toast.makeText(context, "Copied WhatsApp Summary to clipboard!", android.widget.Toast.LENGTH_SHORT).show()
                             },
@@ -833,8 +824,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
         }
     }
 }
-
-private data class FriendDebtSummary(val friend: HolderDto, val spend: Double, val paid: Double, val remaining: Double)
 
 // ── TAB 3: 📊 SPEND VELOCITY & REWARDS INSIGHTS ──────────────────────────
 private fun androidx.compose.foundation.lazy.LazyListScope.insightsTabContent(s: HomeUiState) {

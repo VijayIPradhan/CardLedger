@@ -36,25 +36,41 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
             val txns = c.transactionRepo.list().getOrElse { emptyList() }
             val payments = c.paymentRepo.list().getOrElse { emptyList() }
             val cardMap = cards.associateBy { it.id }
-            val friends = holders.filter { it.relationship == "friend" }.map { h ->
-                val mine = txns.filter { it.holder_id_at_time == h.id }
-                val myPayments = payments.filter { it.holder_id == h.id }
-                val total = mine.sumOf { 
-                    val a = it.amount.toDoubleOrNull() ?: 0.0
-                    if (it.type == "payment") -a else a 
+
+            val summaryRes = c.dashboardRepo.getSummary()
+            val friends = if (summaryRes.isSuccess && summaryRes.getOrNull() != null) {
+                val summary = summaryRes.getOrNull()!!
+                val debtMap = summary.friendDebts.associateBy { it.holderId }
+                holders.filter { it.relationship == "friend" }.map { h ->
+                    val debt = debtMap[h.id]
+                    val total = debt?.totalSpend ?: 0.0
+                    val outstanding = debt?.remainingToPay ?: 0.0
+                    val byCard = debt?.byCard?.entries?.mapNotNull { (cid, amt) ->
+                        cardMap[cid]?.let { card -> card to amt }
+                    } ?: emptyList()
+                    FriendRow(h, total, outstanding, byCard)
                 }
-                val totalPaid = myPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                val outstanding = total - totalPaid
-                val byCard = mine.groupBy { it.card_id }
-                    .mapNotNull { (cid, list) -> 
-                        cardMap[cid]?.let { card ->
-                            card to list.sumOf { t -> 
-                                val a = t.amount.toDoubleOrNull() ?: 0.0
-                                if (t.type == "payment") -a else a
-                            }
-                        } 
+            } else {
+                holders.filter { it.relationship == "friend" }.map { h ->
+                    val mine = txns.filter { it.holder_id_at_time == h.id }
+                    val myPayments = payments.filter { it.holder_id == h.id }
+                    val total = mine.sumOf { 
+                        val a = it.amount.toDoubleOrNull() ?: 0.0
+                        if (it.type == "payment") -a else a 
                     }
-                FriendRow(h, total, outstanding, byCard)
+                    val totalPaid = myPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    val outstanding = total - totalPaid
+                    val byCard = mine.groupBy { it.card_id }
+                        .mapNotNull { (cid, list) -> 
+                            cardMap[cid]?.let { card ->
+                                card to list.sumOf { t -> 
+                                    val a = t.amount.toDoubleOrNull() ?: 0.0
+                                    if (t.type == "payment") -a else a
+                                }
+                            } 
+                        }
+                    FriendRow(h, total, outstanding, byCard)
+                }
             }
             _state.value = HoldersUiState(false, friends, txns, payments, cards)
         }

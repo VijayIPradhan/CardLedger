@@ -56,7 +56,12 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val allPayments = allPaymentsD.await()
             val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
 
-            val total = if (card != null) {
+            val summaryRes = c.dashboardRepo.getSummary()
+            val summary = summaryRes.getOrNull()
+
+            val total = if (summary != null && card != null && summary.spendByCard.containsKey(card.id)) {
+                summary.spendByCard[card.id] ?: 0.0
+            } else if (card != null) {
                 val groupId = card.shared_limit_with ?: card.id
                 allCards.filter { (it.shared_limit_with ?: it.id) == groupId }
                     .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
@@ -69,12 +74,41 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val friendBreakdown = mutableListOf<FriendCollectable>()
             val friends = holders.filter { it.relationship == "friend" }
             if (!isMarkedCollected) {
-                friends.forEach { friend ->
-                    val friendTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
-                    val friendCardAmount = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    if (friendCardAmount > 0) {
-                        cardToCollect += friendCardAmount
-                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, friendCardAmount))
+                if (summary != null) {
+                    cardToCollect = summary.toCollectByCard[id] ?: 0.0
+                    summary.friendDebts.forEach { debt ->
+                        val amt = debt.byCard[id] ?: 0.0
+                        if (amt > 0) {
+                            friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, amt))
+                        }
+                    }
+                } else {
+                    friends.forEach { friend ->
+                        val friendAllTxns = allTxns.filter { it.holder_id_at_time == friend.id }
+                        var expenses = 0.0
+                        val rawByCard = mutableMapOf<String, Double>()
+                        friendAllTxns.forEach { txn ->
+                            val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                            val cid = txn.card_id
+                            if (txn.type == "payment") {
+                                expenses -= amt
+                                rawByCard[cid] = (rawByCard[cid] ?: 0.0) - amt
+                            } else {
+                                expenses += amt
+                                rawByCard[cid] = (rawByCard[cid] ?: 0.0) + amt
+                            }
+                        }
+                        val paid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                        val remainingToPay = maxOf(0.0, expenses - paid)
+                        val totalPositive = rawByCard.filter { it.value > 0.0 }.values.sum()
+                        val friendCardAmount = rawByCard[id] ?: 0.0
+                        if (remainingToPay > 0.0 && totalPositive > 0.0 && friendCardAmount > 0.0) {
+                            val alloc = kotlin.math.round((friendCardAmount * (remainingToPay / totalPositive)) * 100.0) / 100.0
+                            if (alloc > 0.0) {
+                                cardToCollect += alloc
+                                friendBreakdown.add(FriendCollectable(friend.id, friend.name, alloc))
+                            }
+                        }
                     }
                 }
             }

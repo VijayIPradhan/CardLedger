@@ -61,6 +61,7 @@ data class HomeUiState(
     val friendTotalPaid: Double = 0.0,
     val friendRemainingToPay: Double = 0.0,
     val payments: List<PaymentDto> = emptyList(),
+    val friendDebts: List<FriendDebtDto> = emptyList(),
 )
 
 class HomeViewModel(private val c: AppContainer) : ViewModel() {
@@ -175,6 +176,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend = summary.friendTotalSpend,
             friendTotalPaid = summary.friendTotalPaid,
             friendRemainingToPay = summary.friendRemainingToPay,
+            friendDebts = summary.friendDebts,
         )
 
         com.imvj.cardledger.notif.ReminderScheduler.reschedule(
@@ -201,19 +203,43 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         var friendTotalSpend = 0.0
         var friendTotalPaid = 0.0
         val toCollectByCard = mutableMapOf<String, Double>()
+        val friendDebts = mutableListOf<FriendDebtDto>()
         friends.forEach { friend ->
             val friendTxns = txns.filter { it.holder_id_at_time == friend.id }
-            val expenses = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            var expenses = 0.0
+            val rawByCard = mutableMapOf<String, Double>()
+            friendTxns.forEach { txn ->
+                val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                val cid = txn.card_id
+                if (txn.type == "payment") {
+                    expenses -= amt
+                    rawByCard[cid] = (rawByCard[cid] ?: 0.0) - amt
+                } else {
+                    expenses += amt
+                    rawByCard[cid] = (rawByCard[cid] ?: 0.0) + amt
+                }
+            }
             val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             friendTotalSpend += expenses
             friendTotalPaid += paid
-            
-            friendTxns.filter { !collectedCards.contains(it.card_id) }.forEach { txn ->
-                val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                val cardId = txn.card_id
-                toCollectByCard[cardId] = (toCollectByCard[cardId] ?: 0.0) + amt
+            val remainingToPay = maxOf(0.0, expenses - paid)
+            val byCard = mutableMapOf<String, Double>()
+            val positiveCards = rawByCard.filter { it.value > 0.0 }
+            val totalPositive = positiveCards.values.sum()
+            if (remainingToPay > 0.0 && totalPositive > 0.0) {
+                positiveCards.forEach { (cid, amt) ->
+                    val alloc = kotlin.math.round((amt * (remainingToPay / totalPositive)) * 100.0) / 100.0
+                    if (alloc > 0.0) {
+                        byCard[cid] = alloc
+                        if (!collectedCards.contains(cid)) {
+                            toCollectByCard[cid] = (toCollectByCard[cid] ?: 0.0) + alloc
+                        }
+                    }
+                }
             }
+            friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard))
         }
+        friendDebts.sortByDescending { it.remainingToPay }
         val totalToCollect = toCollectByCard.values.sum()
         val friendRemainingToPay = maxOf(0.0, friendTotalSpend - friendTotalPaid)
 
@@ -343,6 +369,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalPaid = friendTotalPaid,
             friendRemainingToPay = friendRemainingToPay,
             payments = payments,
+            friendDebts = friendDebts,
         )
         
         com.imvj.cardledger.notif.ReminderScheduler.reschedule(

@@ -214,6 +214,17 @@ data class ProjectionDto(
 )
 
 @Serializable
+data class FriendDebtDto(
+    val holderId: String,
+    val holderName: String,
+    val phone: String = "",
+    val totalSpend: Double = 0.0,
+    val totalPaid: Double = 0.0,
+    val remainingToPay: Double = 0.0,
+    val byCard: Map<String, Double> = emptyMap(),
+)
+
+@Serializable
 data class DashboardSummaryDto(
     val totalSpend: Double = 0.0,
     val totalLimit: Double = 0.0,
@@ -236,4 +247,5 @@ data class DashboardSummaryDto(
     val topMerchants: List<TopMerchantDto> = emptyList(),
     val dailySpend: List<DailySpendDto> = emptyList(),
     val projections: List<ProjectionDto> = emptyList(),
+    val friendDebts: List<FriendDebtDto> = emptyList(),
 )
