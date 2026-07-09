@@ -152,7 +152,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
 
                         // ── Hero: Net Position ───────────────────────────
                         item {
-                            val netPosition = s.total.spend - s.totalToCollect
+                            val netPosition = s.total.spend - s.friendRemainingToPay
                             Surface(
                                 Modifier
                                     .fillMaxWidth()
@@ -204,7 +204,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text("To collect", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Text(
-                                                money(s.totalToCollect),
+                                                money(s.friendRemainingToPay),
                                                 color = Gold,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.SemiBold,
@@ -219,6 +219,68 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                             )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Friend Collections & Payments Summary (New Place) ─
+                        if (s.friendTotalSpend > 0 || s.friendTotalPaid > 0) {
+                            item {
+                                Surface(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                                        .clickable { nav.navigate(Routes.ANALYTICS) },
+                                    shape = MaterialTheme.shapes.large,
+                                    color = Surface1,
+                                    border = androidx.compose.foundation.BorderStroke(1.2.dp, if (s.friendRemainingToPay > 0) Gold else Success)
+                                ) {
+                                    Column(
+                                        Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Text("🤝", fontSize = 18.sp)
+                                                Text("FRIEND COLLECTIONS & REMAINING", color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Text("Details ➔", color = Gold, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Column(Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text("Remaining to pay", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                                Text(
+                                                    money(s.friendRemainingToPay),
+                                                    color = if (s.friendRemainingToPay > 0) Gold else Success,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text("Collected (Paid)", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                                Text(
+                                                    money(s.friendTotalPaid),
+                                                    color = Success,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text("To collect / card", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                                Text(
+                                                    money(s.totalToCollect),
+                                                    color = OnDarkMid,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -475,8 +537,40 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                             }
                         }
 
-                        // ── Recent transactions ──────────────────────────────
-                        val recent = s.transactions.sortedByDescending { it.txn_date }.take(RECENT_TRANSACTIONS_COUNT)
+                        // ── Recent activity (Transactions & Payments) ─────────
+                        val holderMap = s.holders.associateBy { it.id }
+                        val cardMap = s.cards.associateBy { it.id }
+                        val recentTxns = s.transactions.map { txn ->
+                            val txnHolder = holderMap[txn.holder_id_at_time]
+                            val txnCard = cardMap[txn.card_id]
+                            LedgerEntry(
+                                id = txn.id,
+                                title = txn.merchant,
+                                subtitle = "${txnHolder?.name ?: txn.holder_id_at_time}${if (txnCard != null) " · ${txnCard.nickname}" else ""} · ${txn.txn_date.drop(5)}",
+                                amount = txn.amount.toDoubleOrNull() ?: 0.0,
+                                date = txn.txn_date,
+                                isPayment = txn.type == "payment",
+                                isPaid = txn.is_paid,
+                                holderId = txn.holder_id_at_time,
+                                cardId = txn.card_id,
+                                txnDto = txn
+                            )
+                        }
+                        val recentPayments = s.payments.map { p ->
+                            val pHolder = holderMap[p.holder_id]
+                            LedgerEntry(
+                                id = p.id,
+                                title = "Payment Recorded · ${pHolder?.name ?: "Friend"}",
+                                subtitle = "🤝 Collection · ${p.payment_date.drop(5)}${if (!p.notes.isNullOrBlank()) " · ${p.notes}" else ""}",
+                                amount = p.amount.toDoubleOrNull() ?: 0.0,
+                                date = p.payment_date,
+                                isPayment = true,
+                                isPaid = true,
+                                holderId = p.holder_id,
+                                paymentDto = p
+                            )
+                        }
+                        val recent = (recentTxns + recentPayments).sortedByDescending { it.date }.take(RECENT_TRANSACTIONS_COUNT)
                         if (recent.isNotEmpty()) {
                             item {
                                 Row(
@@ -485,70 +579,27 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        "Recent",
+                                        "Recent Activity",
                                         color = OnDark,
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.SemiBold,
                                     )
-                                    TextButton(onClick = { nav.navigate(Routes.CARDS) }) {
+                                    TextButton(onClick = { nav.navigate(Routes.SEARCH) }) {
                                         Text("See all", color = Gold, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
-                            val holderMap = s.holders.associateBy { it.id }
-                            items(recent) { txn ->
-                                val txnHolder = holderMap[txn.holder_id_at_time]
-                                val holderLabel = txnHolder?.name ?: txn.holder_id_at_time
-                                val txnCard = s.cards.firstOrNull { it.id == txn.card_id }
-                                Surface(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp, vertical = 2.dp)
-                                        .clickable { nav.navigate("${Routes.CARD_DETAIL}/${txn.card_id}") },
-                                    shape = MaterialTheme.shapes.small,
-                                    color = Surface1,
-                                ) {
-                                    Row(
-                                        Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Row(
-                                            Modifier.weight(1f),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            if (txnHolder != null) {
-                                                HolderBadge(initialsOf(txnHolder.name), txnHolder.relationship == "me")
-                                            }
-                                            Column {
-                                                Text(
-                                                    txn.merchant,
-                                                    color = if (txn.is_paid) Muted else OnDark,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                                Text(
-                                                    buildString {
-                                                        append(holderLabel)
-                                                        if (txnCard != null) append(" · ${txnCard.nickname}")
-                                                        append(" · ${txn.txn_date.drop(5)}")
-                                                    },
-                                                    color = MutedLow,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                )
-                                            }
+                            items(recent, key = { it.id }) { item ->
+                                LedgerTile(
+                                    item = item,
+                                    onClick = {
+                                        if (item.cardId != null) {
+                                            nav.navigate("${Routes.CARD_DETAIL}/${item.cardId}")
+                                        } else {
+                                            nav.navigate(Routes.HOLDERS)
                                         }
-                                        Text(
-                                            "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                            color = if (txn.is_paid) Muted else Danger,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
                                     }
-                                }
+                                )
                             }
                         }
                     }

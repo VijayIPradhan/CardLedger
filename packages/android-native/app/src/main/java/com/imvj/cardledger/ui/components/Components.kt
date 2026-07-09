@@ -19,8 +19,16 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import com.imvj.cardledger.data.net.PaymentDto
+import com.imvj.cardledger.data.net.TransactionDto
 import com.imvj.cardledger.ui.theme.*
 import java.text.NumberFormat
 import java.util.Locale
@@ -150,6 +158,100 @@ fun DonutChart(
                 )
             }
             angle += (slice.value / total) * 360f
+        }
+    }
+}
+
+data class LedgerEntry(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val amount: Double,
+    val date: String,
+    val isPayment: Boolean,
+    val isPaid: Boolean = false,
+    val holderId: String? = null,
+    val cardId: String? = null,
+    val txnDto: TransactionDto? = null,
+    val paymentDto: PaymentDto? = null
+)
+
+@Composable
+fun LedgerTile(
+    item: LedgerEntry,
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    Surface(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 3.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = Surface1,
+        border = if (item.isPayment) androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.4f)) else null
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (item.isPayment) SuccessSubtle else Elevated,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(if (item.isPayment) "🤝" else "💳", fontSize = 16.sp)
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            item.title,
+                            color = if (item.isPaid && !item.isPayment) Muted else OnDark,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (item.isPayment) {
+                            Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
+                                Text("PAID", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                            }
+                        } else if (item.isPaid) {
+                            Surface(color = Muted.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
+                                Text("SETTLED", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                            }
+                        }
+                    }
+                    Text(
+                        item.subtitle,
+                        color = MutedLow,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (item.isPayment) "+${money(item.amount)}" else "−${money(item.amount)}",
+                    color = if (item.isPayment) Success else if (item.isPaid) Muted else Danger,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (onDelete != null) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                        Text("🗑️", fontSize = 14.sp)
+                    }
+                }
+            }
         }
     }
 }

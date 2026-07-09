@@ -42,4 +42,6 @@ interface ApiService {
     @DELETE("payments/transaction/{txnId}") suspend fun deletePaymentByTransaction(@Path("txnId") txnId: String): Response<Unit>
 
     @POST("sms/parse/ai") suspend fun parseSmsAi(@Body body: com.imvj.cardledger.domain.SmsInput): com.imvj.cardledger.domain.ParseResult
+
+    @GET("dashboard/summary") suspend fun getDashboardSummary(): DashboardSummaryDto
 }

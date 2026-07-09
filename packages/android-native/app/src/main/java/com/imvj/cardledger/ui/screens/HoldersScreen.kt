@@ -1,6 +1,8 @@
 package com.imvj.cardledger.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,9 +21,7 @@ import androidx.navigation.NavHostController
 import com.imvj.cardledger.feature.HoldersViewModel
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.data.net.HolderDto
-import com.imvj.cardledger.ui.components.HolderBadge
-import com.imvj.cardledger.ui.components.initialsOf
-import com.imvj.cardledger.ui.components.money
+import com.imvj.cardledger.ui.components.*
 import com.imvj.cardledger.ui.nav.BottomBar
 import com.imvj.cardledger.ui.theme.*
 
@@ -39,6 +39,7 @@ fun HoldersScreen(nav: NavHostController) {
     var showForm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<HolderDto?>(null) }
     var paying by remember { mutableStateOf<HolderDto?>(null) }
+    var viewingHistory by remember { mutableStateOf<HolderDto?>(null) }
 
     Scaffold(
         bottomBar = { BottomBar(nav, reviewQueue.size) },
@@ -123,27 +124,38 @@ fun HoldersScreen(nav: NavHostController) {
                             }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(
                                 onClick = { paying = friendRow.holder },
-                                modifier = Modifier.weight(1.5f),
+                                modifier = Modifier.weight(1.3f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Gold),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("Record Payment", color = Base, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Record Payment", color = Base, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Button(
+                                onClick = { viewingHistory = friendRow.holder },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Elevated),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("History", color = OnDark, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                             }
                             TextButton(
                                 onClick = { editing = friendRow.holder; showForm = true },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(0.7f),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("Edit", color = Gold, fontSize = 13.sp)
+                                Text("Edit", color = Gold, fontSize = 12.sp)
                             }
                             TextButton(
                                 onClick = { vm.delete(friendRow.holder.id) },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(0.8f),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("Delete", color = Danger, fontSize = 13.sp)
+                                Text("Delete", color = Danger, fontSize = 12.sp)
                             }
                         }
                     }
@@ -252,6 +264,85 @@ fun HoldersScreen(nav: NavHostController) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Cancel", color = Muted)
+                }
+            }
+        }
+    }
+
+    if (viewingHistory != null) {
+        val friend = viewingHistory!!
+        val cardMap = s.cards.associateBy { it.id }
+        val friendTxns = s.allTransactions.filter { it.holder_id_at_time == friend.id }.map { txn ->
+            val card = cardMap[txn.card_id]
+            LedgerEntry(
+                id = txn.id,
+                title = txn.merchant,
+                subtitle = "${if (card != null) "${card.nickname} · " else ""}${txn.txn_date.drop(5)}",
+                amount = txn.amount.toDoubleOrNull() ?: 0.0,
+                date = txn.txn_date,
+                isPayment = txn.type == "payment",
+                isPaid = txn.is_paid,
+                holderId = txn.holder_id_at_time,
+                cardId = txn.card_id,
+                txnDto = txn
+            )
+        }
+        val friendPayments = s.allPayments.filter { it.holder_id == friend.id }.map { p ->
+            LedgerEntry(
+                id = p.id,
+                title = "Payment Recorded",
+                subtitle = "🤝 Collection · ${p.payment_date.drop(5)}${if (!p.notes.isNullOrBlank()) " · ${p.notes}" else ""}",
+                amount = p.amount.toDoubleOrNull() ?: 0.0,
+                date = p.payment_date,
+                isPayment = true,
+                isPaid = true,
+                holderId = p.holder_id,
+                paymentDto = p
+            )
+        }
+        val historyList = (friendTxns + friendPayments).sortedByDescending { it.date }
+
+        ModalBottomSheet(onDismissRequest = { viewingHistory = null }, containerColor = Surface1) {
+            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    "${friend.name}'s Ledger History",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = OnDark,
+                    fontWeight = FontWeight.SemiBold,
+                )
+
+                if (historyList.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No transactions or payments recorded", color = Muted, fontSize = 14.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(historyList, key = { it.id }) { item ->
+                            LedgerTile(
+                                item = item,
+                                onClick = {
+                                    if (item.cardId != null) {
+                                        viewingHistory = null
+                                        nav.navigate("${com.imvj.cardledger.ui.nav.Routes.CARD_DETAIL}/${item.cardId}")
+                                    }
+                                },
+                                onDelete = if (item.paymentDto != null) {
+                                    { vm.deletePayment(item.id) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = { viewingHistory = null },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold),
+                ) {
+                    Text("Close", color = Base)
                 }
             }
         }

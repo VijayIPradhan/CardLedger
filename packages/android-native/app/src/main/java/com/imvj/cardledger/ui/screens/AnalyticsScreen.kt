@@ -670,18 +670,16 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rewardsTabContent(s: 
 // ── TAB 3: 🤝 FRIEND DEBT RECOVERY RADAR ─────────────────────────────────
 private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s: HomeUiState) {
     item {
-        val friends = s.holders.filter { it.relationship == "friend" }
-        val totalFriendSpend = friends.sumOf { friend ->
-            s.transactions.filter { it.holder_id_at_time == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-        }
-        val totalCollected = maxOf(0.0, totalFriendSpend - s.totalToCollect)
-        val recoveryPct = if (totalFriendSpend > 0) ((totalCollected / totalFriendSpend) * 100).toInt() else 100
+        val totalFriendSpend = s.friendTotalSpend
+        val totalCollected = s.friendTotalPaid
+        val remainingToPay = s.friendRemainingToPay
+        val recoveryPct = if (totalFriendSpend > 0) ((totalCollected / totalFriendSpend) * 100).toInt().coerceIn(0, 100) else 100
 
         Surface(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp),
             shape = RoundedCornerShape(16.dp),
             color = Surface1,
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, if (s.totalToCollect > 0) Gold else Success)
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, if (remainingToPay > 0) Gold else Success)
         ) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -695,13 +693,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
                 }
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                    Column {
-                        Text("Net Outstanding Debt", color = Muted, style = MaterialTheme.typography.bodySmall)
-                        Text(money(s.totalToCollect), color = if (s.totalToCollect > 0) Gold else Success, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
+                    Column(Modifier.weight(1.2f)) {
+                        Text("Remaining to pay", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        Text(money(remainingToPay), color = if (remainingToPay > 0) Gold else Success, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Total Collected", color = Muted, style = MaterialTheme.typography.bodySmall)
-                        Text(money(totalCollected), color = OnDarkMid, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                        Text("Collected (Paid)", color = Muted, style = MaterialTheme.typography.bodySmall)
+                        Text(money(totalCollected), color = Success, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -731,8 +729,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
         val totalSpent = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
         val hs = s.spendByHolder.firstOrNull { it.holderId == friend.id }
         val spend = hs?.spend ?: totalSpent
-        FriendDebtSummary(friend, spend)
-    }.filter { it.spend > 0 }.sortedByDescending { it.spend }
+        val paid = s.payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+        val remaining = maxOf(0.0, spend - paid)
+        FriendDebtSummary(friend, spend, paid, remaining)
+    }.filter { it.spend > 0 || it.paid > 0 }.sortedByDescending { it.remaining }
 
     if (friendDebtList.isEmpty()) {
         item {
@@ -756,10 +756,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
                             HolderBadge(initialsOf(item.friend.name), false)
                             Column {
                                 Text(item.friend.name, color = OnDark, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                Text("Total spend volume: ${money(item.spend)}", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                Text("Total spend: ${money(item.spend)} · Paid: ${money(item.paid)}", color = Muted, style = MaterialTheme.typography.labelSmall)
                             }
                         }
-                        Text(money(item.spend), color = Gold, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(money(item.remaining), color = if (item.remaining > 0) Gold else Success, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Remaining", color = MutedLow, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                        }
                     }
 
                     HorizontalDivider(color = Elevated.copy(alpha = 0.6f))
@@ -831,7 +834,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
     }
 }
 
-private data class FriendDebtSummary(val friend: HolderDto, val spend: Double)
+private data class FriendDebtSummary(val friend: HolderDto, val spend: Double, val paid: Double, val remaining: Double)
 
 // ── TAB 3: 📊 SPEND VELOCITY & REWARDS INSIGHTS ──────────────────────────
 private fun androidx.compose.foundation.lazy.LazyListScope.insightsTabContent(s: HomeUiState) {

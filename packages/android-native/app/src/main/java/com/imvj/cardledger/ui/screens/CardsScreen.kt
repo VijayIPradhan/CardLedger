@@ -127,7 +127,7 @@ fun CardsScreen(nav: NavHostController, vm: HomeViewModel) {
                             )
                             .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
                     ) {
-                        CardTile(card, initials, isMe, spend, limitRank)
+                        CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0)
                     }
                 }
             }

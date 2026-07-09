@@ -26,7 +26,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import com.imvj.cardledger.feature.SearchViewModel
 import com.imvj.cardledger.feature.app
-import com.imvj.cardledger.ui.components.money
+import com.imvj.cardledger.ui.components.*
 import com.imvj.cardledger.ui.nav.Routes
 import com.imvj.cardledger.ui.theme.*
 
@@ -53,7 +53,7 @@ fun SearchScreen(nav: NavHostController) {
                     OutlinedTextField(
                         value = s.query,
                         onValueChange = { vm.search(it) },
-                        placeholder = { Text("Search transactions…", color = Muted) },
+                        placeholder = { Text("Search transactions & payments…", color = Muted) },
                         modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -102,51 +102,23 @@ fun SearchScreen(nav: NavHostController) {
                 } else {
                     item {
                         Text(
-                            "${s.results.size} transaction${if (s.results.size != 1) "s" else ""}",
+                            "${s.results.size} record${if (s.results.size != 1) "s" else ""}",
                             color = Muted,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                         )
                     }
-                    items(s.results, key = { it.id }) { txn ->
-                        val card = cardMap[txn.card_id]
-                        val holder = holderMap[txn.holder_id_at_time]
-                        Surface(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 2.dp)
-                                .clickable { nav.navigate("${Routes.CARD_DETAIL}/${txn.card_id}") },
-                            shape = RoundedCornerShape(8.dp),
-                            color = Surface1,
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        txn.merchant,
-                                        color = if (txn.is_paid) Muted else OnDark,
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 14.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        "${card?.nickname ?: "?"} · ${holder?.name ?: "?"} · ${txn.txn_date.drop(5)}",
-                                        color = Muted,
-                                        fontSize = 12.sp,
-                                    )
+                    items(s.results, key = { it.id }) { item ->
+                        LedgerTile(
+                            item = item,
+                            onClick = {
+                                if (item.cardId != null) {
+                                    nav.navigate("${Routes.CARD_DETAIL}/${item.cardId}")
+                                } else {
+                                    nav.navigate(Routes.HOLDERS)
                                 }
-                                Text(
-                                    "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                    color = if (txn.is_paid) Muted else Danger,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                )
                             }
-                        }
+                        )
                     }
                     item { Spacer(Modifier.height(16.dp)) }
                 }

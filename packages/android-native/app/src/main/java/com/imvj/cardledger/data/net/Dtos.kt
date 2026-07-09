@@ -165,3 +165,75 @@ data class PaletteResponse(
     val gradient_direction: String? = null,
     val svg: String? = null,
 )
+
+@Serializable
+data class DueItemDto(
+    val cardId: String,
+    val dueDate: String,
+    val daysUntil: Int,
+)
+
+@Serializable
+data class SpendByHolderDto(
+    val holderId: String,
+    val holderName: String,
+    val isMe: Boolean = false,
+    val spend: Double = 0.0,
+)
+
+@Serializable
+data class TopMerchantDto(
+    val merchant: String,
+    val amount: Double = 0.0,
+    val count: Int = 0,
+)
+
+@Serializable
+data class DailySpendDto(
+    val date: String,
+    val dayLabel: String,
+    val amount: Double = 0.0,
+    val isToday: Boolean = false,
+)
+
+@Serializable
+data class UpcomingBillDto(
+    val merchant: String,
+    val amount: Double = 0.0,
+    val expectedDate: String,
+)
+
+@Serializable
+data class ProjectionDto(
+    val cardId: String,
+    val currentCycleStart: String,
+    val currentCycleEnd: String,
+    val currentUnbilled: Double = 0.0,
+    val upcomingBills: List<UpcomingBillDto> = emptyList(),
+    val projectedTotal: Double = 0.0,
+)
+
+@Serializable
+data class DashboardSummaryDto(
+    val totalSpend: Double = 0.0,
+    val totalLimit: Double = 0.0,
+    val totalUtilizationPercent: Double = 0.0,
+    val friendTotalSpend: Double = 0.0,
+    val friendTotalPaid: Double = 0.0,
+    val friendRemainingToPay: Double = 0.0,
+    val totalToCollect: Double = 0.0,
+    val netPosition: Double = 0.0,
+    val unpaidCount: Int = 0,
+    val unpaidAmount: Double = 0.0,
+    val monthlySpend: Double = 0.0,
+    val prevMonthSpend: Double = 0.0,
+    val avgDailySpend: Double = 0.0,
+    val spendByNetwork: Map<String, Double> = emptyMap(),
+    val spendByCard: Map<String, Double> = emptyMap(),
+    val toCollectByCard: Map<String, Double> = emptyMap(),
+    val dues: List<DueItemDto> = emptyList(),
+    val spendByHolder: List<SpendByHolderDto> = emptyList(),
+    val topMerchants: List<TopMerchantDto> = emptyList(),
+    val dailySpend: List<DailySpendDto> = emptyList(),
+    val projections: List<ProjectionDto> = emptyList(),
+)

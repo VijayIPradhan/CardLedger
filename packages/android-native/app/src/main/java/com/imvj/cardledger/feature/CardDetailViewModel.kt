@@ -70,29 +70,10 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val friends = holders.filter { it.relationship == "friend" }
             if (!isMarkedCollected) {
                 friends.forEach { friend ->
-                    val friendTxns = allTxns.filter { it.holder_id_at_time == friend.id }
-                    val paid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    
-                    val collectedTxns = friendTxns.filter { collectedCards.contains(it.card_id) }
-                    val collectedExpenses = collectedTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    var remainingPaid = maxOf(0.0, paid - collectedExpenses)
-                    
-                    val activeTxns = friendTxns.filter { !collectedCards.contains(it.card_id) }.sortedBy { it.txn_date }
-                    var friendCardAmount = 0.0
-                    for (txn in activeTxns) {
-                        val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                        if (remainingPaid >= amt) {
-                            remainingPaid -= amt
-                        } else {
-                            val unpaid = amt - remainingPaid
-                            remainingPaid = 0.0
-                            if (txn.card_id == id) {
-                                cardToCollect += unpaid
-                                friendCardAmount += unpaid
-                            }
-                        }
-                    }
+                    val friendTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
+                    val friendCardAmount = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                     if (friendCardAmount > 0) {
+                        cardToCollect += friendCardAmount
                         friendBreakdown.add(FriendCollectable(friend.id, friend.name, friendCardAmount))
                     }
                 }

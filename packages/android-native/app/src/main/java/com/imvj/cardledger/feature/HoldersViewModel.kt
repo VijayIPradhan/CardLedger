@@ -19,6 +19,9 @@ data class FriendRow(
 data class HoldersUiState(
     val loading: Boolean = true,
     val friends: List<FriendRow> = emptyList(),
+    val allTransactions: List<TransactionDto> = emptyList(),
+    val allPayments: List<PaymentDto> = emptyList(),
+    val cards: List<CardDto> = emptyList(),
     val error: String? = null,
 )
 
@@ -53,7 +56,14 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
                     }
                 FriendRow(h, total, outstanding, byCard)
             }
-            _state.value = HoldersUiState(false, friends)
+            _state.value = HoldersUiState(false, friends, txns, payments, cards)
+        }
+    }
+
+    fun deletePayment(txnIdOrPaymentId: String) {
+        viewModelScope.launch {
+            c.paymentRepo.deleteByTransactionId(txnIdOrPaymentId)
+            load()
         }
     }
 

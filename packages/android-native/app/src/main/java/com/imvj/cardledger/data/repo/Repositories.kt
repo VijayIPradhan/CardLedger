@@ -55,3 +55,7 @@ class PaymentRepository(private val api: ApiService) {
     suspend fun create(b: CreatePaymentDto) = call { api.createPayment(b) }
     suspend fun deleteByTransactionId(txnId: String) = call { api.deletePaymentByTransaction(txnId); Unit }
 }
+
+class DashboardRepository(private val api: ApiService) {
+    suspend fun getSummary() = call { api.getDashboardSummary() }
+}

@@ -57,6 +57,10 @@ data class HomeUiState(
     val spendByNetwork: Map<String, Double> = emptyMap(),
     val toCollectByCard: Map<String, Double> = emptyMap(),
     val projections: List<CardProjection> = emptyList(),
+    val friendTotalSpend: Double = 0.0,
+    val friendTotalPaid: Double = 0.0,
+    val friendRemainingToPay: Double = 0.0,
+    val payments: List<PaymentDto> = emptyList(),
 )
 
 class HomeViewModel(private val c: AppContainer) : ViewModel() {
@@ -101,12 +105,14 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
 
             // Network refresh (always if forceRefresh, or if cache was stale/missing)
             try {
+                val summaryD = async { c.dashboardRepo.getSummary() }
                 val cardsD = async { c.cardRepo.list() }
                 val holdersD = async { c.holderRepo.list() }
                 val assignmentsD = async { c.assignmentRepo.list() }
                 val txnsD = async { c.transactionRepo.list() }
                 val paymentsD = async { c.paymentRepo.list() }
 
+                val summary = summaryD.await().getOrNull()
                 val cards = cardsD.await().getOrNull()
                 val holders = holdersD.await().getOrNull()
                 val assignments = assignmentsD.await().getOrNull() ?: emptyList()
@@ -116,7 +122,11 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 if (cards != null && holders != null && txns != null) {
                     c.cacheStore.save(OfflineCache(cards, holders, assignments, txns, payments))
                     lastNetworkFetchMs = System.currentTimeMillis()
-                    processData(cards, holders, assignments, txns, payments)
+                    if (summary != null) {
+                        applySummary(summary, cards, holders, assignments, txns, payments)
+                    } else {
+                        processData(cards, holders, assignments, txns, payments)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -124,6 +134,52 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
 
             _state.value = _state.value.copy(loading = false, isRefreshing = false)
         }
+    }
+
+    private suspend fun applySummary(
+        summary: DashboardSummaryDto,
+        cards: List<CardDto>,
+        holders: List<HolderDto>,
+        assignments: List<AssignmentDto>,
+        txns: List<TransactionDto>,
+        payments: List<PaymentDto>
+    ) = withContext(Dispatchers.Default) {
+        _state.value = _state.value.copy(
+            loading = false,
+            cards = cards, holders = holders, assignments = assignments,
+            transactions = txns, payments = payments,
+            spendByCard = summary.spendByCard,
+            total = Utilization(summary.totalSpend, summary.totalLimit, summary.totalUtilizationPercent),
+            totalToCollect = summary.totalToCollect,
+            dues = summary.dues.map { d -> UpcomingDue(d.cardId, d.dueDate, d.daysUntil) },
+            spendByHolder = summary.spendByHolder.map { h -> HolderSpend(h.holderId, h.holderName, h.isMe, h.spend) },
+            topMerchants = summary.topMerchants.map { m -> MerchantSpend(m.merchant, m.amount, m.count) },
+            monthlySpend = summary.monthlySpend,
+            prevMonthSpend = summary.prevMonthSpend,
+            dailySpend = summary.dailySpend.map { d -> DailySpend(d.date, d.dayLabel, d.amount, d.isToday) },
+            unpaidCount = summary.unpaidCount,
+            unpaidAmount = summary.unpaidAmount,
+            avgDailySpend = summary.avgDailySpend,
+            spendByNetwork = summary.spendByNetwork,
+            toCollectByCard = summary.toCollectByCard,
+            projections = summary.projections.map { p ->
+                CardProjection(
+                    cardId = p.cardId,
+                    currentCycleStart = p.currentCycleStart,
+                    currentCycleEnd = p.currentCycleEnd,
+                    currentUnbilled = p.currentUnbilled,
+                    upcomingBills = p.upcomingBills.map { b -> RecurringBill(b.merchant, b.amount, b.expectedDate) },
+                    projectedTotal = p.projectedTotal
+                )
+            },
+            friendTotalSpend = summary.friendTotalSpend,
+            friendTotalPaid = summary.friendTotalPaid,
+            friendRemainingToPay = summary.friendRemainingToPay,
+        )
+
+        com.imvj.cardledger.notif.ReminderScheduler.reschedule(
+            c.appContext, cards, c.prefsStore.reminderDays(), c.prefsStore.remindersEnabled()
+        )
     }
 
     private suspend fun processData(
@@ -142,29 +198,24 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         
         val collectedCards = c.prefsStore.getCollectedCards()
         val friends = holders.filter { it.relationship == "friend" }
-        var totalToCollect = 0.0
+        var friendTotalSpend = 0.0
+        var friendTotalPaid = 0.0
         val toCollectByCard = mutableMapOf<String, Double>()
         friends.forEach { friend ->
             val friendTxns = txns.filter { it.holder_id_at_time == friend.id }
             val expenses = friendTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
             val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-            totalToCollect += (expenses - paid)
+            friendTotalSpend += expenses
+            friendTotalPaid += paid
             
-            val collectedExpenses = friendTxns.filter { collectedCards.contains(it.card_id) }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-            var remainingPaid = maxOf(0.0, paid - collectedExpenses)
-            val sortedTxns = friendTxns.filter { !collectedCards.contains(it.card_id) }.sortedBy { it.txn_date }
-            for (txn in sortedTxns) {
+            friendTxns.filter { !collectedCards.contains(it.card_id) }.forEach { txn ->
                 val amt = txn.amount.toDoubleOrNull() ?: 0.0
                 val cardId = txn.card_id
-                if (remainingPaid >= amt) {
-                    remainingPaid -= amt
-                } else {
-                    val unpaid = amt - remainingPaid
-                    remainingPaid = 0.0
-                    toCollectByCard[cardId] = (toCollectByCard[cardId] ?: 0.0) + unpaid
-                }
+                toCollectByCard[cardId] = (toCollectByCard[cardId] ?: 0.0) + amt
             }
         }
+        val totalToCollect = toCollectByCard.values.sum()
+        val friendRemainingToPay = maxOf(0.0, friendTotalSpend - friendTotalPaid)
 
         val holderMap = holders.associateBy { it.id }
         val spendTxns = txns.filter { it.type == "spend" }
@@ -288,6 +339,10 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             spendByNetwork = spendByNetwork,
             toCollectByCard = toCollectByCard,
             projections = projections,
+            friendTotalSpend = friendTotalSpend,
+            friendTotalPaid = friendTotalPaid,
+            friendRemainingToPay = friendRemainingToPay,
+            payments = payments,
         )
         
         com.imvj.cardledger.notif.ReminderScheduler.reschedule(
