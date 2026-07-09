@@ -111,7 +111,7 @@ fun HoldersScreen(nav: NavHostController) {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
                                     Text(
-                                        "${card.network} ···${card.last4}",
+                                        "${if (card.nickname.isNotBlank()) card.nickname else card.network} ···${card.last4}",
                                         color = Muted,
                                         fontSize = 12.sp,
                                     )

@@ -54,22 +54,28 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
                 holders.filter { it.relationship == "friend" }.map { h ->
                     val mine = txns.filter { it.holder_id_at_time == h.id }
                     val myPayments = payments.filter { it.holder_id == h.id }
-                    val total = mine.sumOf { 
-                        val a = it.amount.toDoubleOrNull() ?: 0.0
-                        if (it.type == "payment") -a else a 
+                    var total = 0.0
+                    val byCardMap = mutableMapOf<String, Double>()
+                    mine.forEach { t ->
+                        val a = t.amount.toDoubleOrNull() ?: 0.0
+                        if (t.type == "payment") {
+                            total -= a
+                            if (!t.is_paid && a > 0) {
+                                byCardMap[t.card_id] = kotlin.math.round(((byCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
+                            }
+                        } else {
+                            total += a
+                            if (!t.is_paid && a > 0) {
+                                byCardMap[t.card_id] = kotlin.math.round(((byCardMap[t.card_id] ?: 0.0) + a) * 100.0) / 100.0
+                            }
+                        }
                     }
                     val totalPaid = myPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    val outstanding = total - totalPaid
-                    val byCard = mine.groupBy { it.card_id }
-                        .mapNotNull { (cid, list) -> 
-                            cardMap[cid]?.let { card ->
-                                card to list.sumOf { t -> 
-                                    val a = t.amount.toDoubleOrNull() ?: 0.0
-                                    if (t.type == "payment") -a else a
-                                }
-                            } 
-                        }
-                    FriendRow(h, total, outstanding, byCard)
+                    val outstanding = maxOf(0.0, total - totalPaid)
+                    val byCardList = byCardMap.filter { it.value > 0.0 }.mapNotNull { (cid, amt) ->
+                        cardMap[cid]?.let { card -> card to amt }
+                    }
+                    FriendRow(h, total, outstanding, byCardList)
                 }
             }
             _state.value = HoldersUiState(false, friends, txns, payments, cards)

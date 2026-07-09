@@ -84,30 +84,20 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     }
                 } else {
                     friends.forEach { friend ->
-                        val friendAllTxns = allTxns.filter { it.holder_id_at_time == friend.id }
-                        var expenses = 0.0
-                        val rawByCard = mutableMapOf<String, Double>()
-                        friendAllTxns.forEach { txn ->
+                        val friendCardTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
+                        var unpaidAmount = 0.0
+                        friendCardTxns.forEach { txn ->
                             val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                            val cid = txn.card_id
                             if (txn.type == "payment") {
-                                expenses -= amt
-                                rawByCard[cid] = (rawByCard[cid] ?: 0.0) - amt
+                                if (!txn.is_paid && amt > 0) unpaidAmount -= amt
                             } else {
-                                expenses += amt
-                                rawByCard[cid] = (rawByCard[cid] ?: 0.0) + amt
+                                if (!txn.is_paid && amt > 0) unpaidAmount += amt
                             }
                         }
-                        val paid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                        val remainingToPay = maxOf(0.0, expenses - paid)
-                        val totalPositive = rawByCard.filter { it.value > 0.0 }.values.sum()
-                        val friendCardAmount = rawByCard[id] ?: 0.0
-                        if (remainingToPay > 0.0 && totalPositive > 0.0 && friendCardAmount > 0.0) {
-                            val alloc = kotlin.math.round((friendCardAmount * (remainingToPay / totalPositive)) * 100.0) / 100.0
-                            if (alloc > 0.0) {
-                                cardToCollect += alloc
-                                friendBreakdown.add(FriendCollectable(friend.id, friend.name, alloc))
-                            }
+                        unpaidAmount = kotlin.math.round(maxOf(0.0, unpaidAmount) * 100.0) / 100.0
+                        if (unpaidAmount > 0.0) {
+                            cardToCollect += unpaidAmount
+                            friendBreakdown.add(FriendCollectable(friend.id, friend.name, unpaidAmount))
                         }
                     }
                 }

@@ -92,18 +92,24 @@ export async function summaryRoutes(app: FastifyInstance) {
 
     friends.forEach((friend) => {
       const friendTxns = userTxns.filter((t) => t.transactions.holder_id_at_time === friend.id);
+      const byCard: Record<string, number> = {};
       let expenses = 0;
-      const rawByCard: Record<string, number> = {};
 
       friendTxns.forEach((t) => {
         const amt = parseFloat(t.transactions.amount) || 0;
         const cId = t.transactions.card_id;
         if (t.transactions.type === 'payment') {
           expenses -= amt;
-          rawByCard[cId] = (rawByCard[cId] || 0) - amt;
+          if (!t.transactions.is_paid && amt > 0) {
+            byCard[cId] = Math.round(((byCard[cId] || 0) - amt) * 100) / 100;
+            toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) - amt) * 100) / 100;
+          }
         } else {
           expenses += amt;
-          rawByCard[cId] = (rawByCard[cId] || 0) + amt;
+          if (!t.transactions.is_paid && amt > 0) {
+            byCard[cId] = Math.round(((byCard[cId] || 0) + amt) * 100) / 100;
+            toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) + amt) * 100) / 100;
+          }
         }
       });
 
@@ -114,20 +120,6 @@ export async function summaryRoutes(app: FastifyInstance) {
       friendTotalSpend += expenses;
       friendTotalPaid += paid;
       const remainingToPay = Math.max(0, expenses - paid);
-
-      const byCard: Record<string, number> = {};
-      const positiveCards = Object.entries(rawByCard).filter(([_, amt]) => amt > 0);
-      const totalPositive = positiveCards.reduce((sum, [_, amt]) => sum + amt, 0);
-
-      if (remainingToPay > 0 && totalPositive > 0) {
-        positiveCards.forEach(([cId, amt]) => {
-          const alloc = Math.round(amt * (remainingToPay / totalPositive) * 100) / 100;
-          if (alloc > 0) {
-            byCard[cId] = alloc;
-            toCollectByCard[cId] = (toCollectByCard[cId] || 0) + alloc;
-          }
-        });
-      }
 
       friendDebts.push({
         holderId: friend.id,
