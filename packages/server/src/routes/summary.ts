@@ -129,8 +129,7 @@ export async function summaryRoutes(app: FastifyInstance) {
       );
       const byCard: Record<string, number> = {};
 
-      const baseCards = totalRawUnpaid > 0 ? rawByCard : totalSpendByCard;
-      const baseTotal = totalRawUnpaid > 0 ? totalRawUnpaid : totalFriendCardSpend;
+      const baseCards = rawByCard;
 
       Object.entries(baseCards).forEach(([cId, amt]) => {
         if (amt <= 0) {

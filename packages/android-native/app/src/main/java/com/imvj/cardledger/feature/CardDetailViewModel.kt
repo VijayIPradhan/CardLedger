@@ -75,9 +75,19 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val friendBreakdown = mutableListOf<FriendCollectable>()
             val friends = holders.filter { it.relationship == "friend" }
             if (summary != null) {
-                cardToCollect = summary.friendDebts.sumOf { debt -> debt.rawByCard[id] ?: debt.byCard[id] ?: 0.0 }
+                cardToCollect = summary.friendDebts.sumOf { debt ->
+                    if (debt.rawByCard.isNotEmpty() || summary.friendDebts.any { it.rawByCard.isNotEmpty() }) {
+                        debt.rawByCard[id] ?: 0.0
+                    } else {
+                        debt.byCard[id] ?: 0.0
+                    }
+                }
                 summary.friendDebts.forEach { debt ->
-                    val rawAmt = debt.rawByCard[id] ?: debt.byCard[id] ?: 0.0
+                    val rawAmt = if (debt.rawByCard.isNotEmpty() || summary.friendDebts.any { it.rawByCard.isNotEmpty() }) {
+                        debt.rawByCard[id] ?: 0.0
+                    } else {
+                        debt.byCard[id] ?: 0.0
+                    }
                     val netAmt = rawAmt
                     val inHand = maxOf(0.0, (debt.rawByCard[id] ?: 0.0) - (debt.byCard[id] ?: 0.0))
                     if (netAmt > 0.0 || inHand > 0.0) {
@@ -104,8 +114,8 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     val totalFriendSpend = allTxns.filter { it.holder_id_at_time == friend.id && it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                     val remainingToPay = maxOf(0.0, totalFriendSpend - totalPaid)
                     val allRawUnpaid = allTxns.filter { it.holder_id_at_time == friend.id && !it.is_paid && it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    val baseAmt = if (allRawUnpaid > 0.0) rawUnpaid else totalFriendSpendOnCard
-                    val baseTotal = if (allRawUnpaid > 0.0) allRawUnpaid else totalFriendSpend
+                    val baseAmt = rawUnpaid
+                    val baseTotal = allRawUnpaid
 
                     val netAmt = if (baseAmt <= 0.0) {
                         0.0

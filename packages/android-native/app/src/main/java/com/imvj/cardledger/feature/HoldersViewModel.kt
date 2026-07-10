@@ -77,8 +77,7 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
                     val outstanding = maxOf(0.0, total - totalPaid)
                     val totalRawUnpaid = rawByCardMap.values.sumOf { maxOf(0.0, it) }
                     val totalFriendCardSpend = totalSpendByCardMap.values.sumOf { maxOf(0.0, it) }
-                    val baseCards = if (totalRawUnpaid > 0.0) rawByCardMap else totalSpendByCardMap
-                    val baseTotal = if (totalRawUnpaid > 0.0) totalRawUnpaid else totalFriendCardSpend
+                    val baseCards = rawByCardMap
 
                     val byCardList = baseCards.mapNotNull { (cid, amt) ->
                         val card = cardMap[cid]

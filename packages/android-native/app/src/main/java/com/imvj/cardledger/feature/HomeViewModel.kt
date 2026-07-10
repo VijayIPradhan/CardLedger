@@ -165,7 +165,13 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             spendByNetwork = summary.spendByNetwork,
             toCollectByCard = cards.associate { card ->
                 val cid = card.id
-                val rawSum = summary.friendDebts.sumOf { debt -> debt.rawByCard[cid] ?: debt.byCard[cid] ?: 0.0 }
+                val rawSum = summary.friendDebts.sumOf { debt ->
+                    if (debt.rawByCard.isNotEmpty() || summary.friendDebts.any { it.rawByCard.isNotEmpty() }) {
+                        debt.rawByCard[cid] ?: 0.0
+                    } else {
+                        debt.byCard[cid] ?: 0.0
+                    }
+                }
                 cid to rawSum
             },
             projections = summary.projections.map { p ->
@@ -240,8 +246,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val totalFriendCardSpend = totalSpendByCard.values.sumOf { maxOf(0.0, it) }
             val byCard = mutableMapOf<String, Double>()
 
-            val baseCards = if (totalRawUnpaid > 0.0) rawByCard else totalSpendByCard
-            val baseTotal = if (totalRawUnpaid > 0.0) totalRawUnpaid else totalFriendCardSpend
+            val baseCards = rawByCard
 
             baseCards.forEach { (cid, amt) ->
                 if (amt <= 0.0) {
