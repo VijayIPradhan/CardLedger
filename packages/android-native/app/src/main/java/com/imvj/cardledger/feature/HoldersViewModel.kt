@@ -45,7 +45,7 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
                     val debt = debtMap[h.id]
                     val total = debt?.totalSpend ?: 0.0
                     val outstanding = debt?.remainingToPay ?: 0.0
-                    val byCard = debt?.byCard?.entries?.mapNotNull { (cid, amt) ->
+                    val byCard = (debt?.rawByCard ?: debt?.byCard)?.entries?.mapNotNull { (cid, amt) ->
                         cardMap[cid]?.let { card -> card to amt }
                     } ?: emptyList()
                     FriendRow(h, total, outstanding, byCard)

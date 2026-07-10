@@ -75,15 +75,11 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val friendBreakdown = mutableListOf<FriendCollectable>()
             val friends = holders.filter { it.relationship == "friend" }
             if (summary != null) {
-                cardToCollect = summary.toCollectByCard[id] ?: 0.0
+                cardToCollect = summary.friendDebts.sumOf { debt -> debt.rawByCard[id] ?: debt.byCard[id] ?: 0.0 }
                 summary.friendDebts.forEach { debt ->
-                    val netAmt = debt.byCard[id] ?: 0.0
-                    val rawAmt = debt.rawByCard[id] ?: netAmt
-                    val inHand = if (debt.totalPaid > debt.totalSpend && netAmt <= 0.0) {
-                        kotlin.math.round((debt.totalPaid - debt.totalSpend) * 100.0) / 100.0
-                    } else {
-                        0.0
-                    }
+                    val rawAmt = debt.rawByCard[id] ?: debt.byCard[id] ?: 0.0
+                    val netAmt = rawAmt
+                    val inHand = maxOf(0.0, (debt.rawByCard[id] ?: 0.0) - (debt.byCard[id] ?: 0.0))
                     if (netAmt > 0.0 || inHand > 0.0) {
                         friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand, rawAmt))
                         cardCollectedInHand += inHand

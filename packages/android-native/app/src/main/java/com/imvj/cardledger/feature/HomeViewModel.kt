@@ -163,7 +163,11 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             unpaidAmount = summary.unpaidAmount,
             avgDailySpend = summary.avgDailySpend,
             spendByNetwork = summary.spendByNetwork,
-            toCollectByCard = summary.toCollectByCard,
+            toCollectByCard = cards.associate { card ->
+                val cid = card.id
+                val rawSum = summary.friendDebts.sumOf { debt -> debt.rawByCard[cid] ?: debt.byCard[cid] ?: 0.0 }
+                cid to rawSum
+            },
             projections = summary.projections.map { p ->
                 CardProjection(
                     cardId = p.cardId,
@@ -177,8 +181,9 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend = summary.friendTotalSpend,
             friendTotalPaid = summary.friendTotalPaid,
             friendRemainingToPay = summary.friendRemainingToPay,
-            friendAdvanceInHand = summary.friendDebts.sumOf { debt ->
-                maxOf(0.0, debt.totalPaid - debt.totalSpend)
+            friendAdvanceInHand = let {
+                val totalOpenFriendSpend = summary.friendDebts.sumOf { debt -> debt.rawByCard.values.sum() }
+                maxOf(0.0, totalOpenFriendSpend - summary.friendRemainingToPay)
             },
             friendDebts = summary.friendDebts,
         )
@@ -239,15 +244,11 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val baseTotal = if (totalRawUnpaid > 0.0) totalRawUnpaid else totalFriendCardSpend
 
             baseCards.forEach { (cid, amt) ->
-                if (amt <= 0.0 || remainingToPay <= 0.0) {
+                if (amt <= 0.0) {
                     byCard[cid] = 0.0
-                } else if (baseTotal <= remainingToPay || baseTotal <= 0.0) {
+                } else {
                     byCard[cid] = amt
                     toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
-                } else {
-                    val allocated = kotlin.math.round((amt / baseTotal) * remainingToPay * 100.0) / 100.0
-                    byCard[cid] = allocated
-                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + allocated) * 100.0) / 100.0
                 }
             }
             friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard, rawByCard))
@@ -381,8 +382,9 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend = friendTotalSpend,
             friendTotalPaid = friendTotalPaid,
             friendRemainingToPay = friendRemainingToPay,
-            friendAdvanceInHand = friendDebts.sumOf { debt ->
-                maxOf(0.0, debt.totalPaid - debt.totalSpend)
+            friendAdvanceInHand = let {
+                val totalOpenFriendSpend = friendDebts.sumOf { debt -> debt.rawByCard.values.sum() }
+                maxOf(0.0, totalOpenFriendSpend - friendRemainingToPay)
             },
             payments = payments,
             friendDebts = friendDebts,
