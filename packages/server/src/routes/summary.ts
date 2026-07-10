@@ -133,15 +133,11 @@ export async function summaryRoutes(app: FastifyInstance) {
       const baseTotal = totalRawUnpaid > 0 ? totalRawUnpaid : totalFriendCardSpend;
 
       Object.entries(baseCards).forEach(([cId, amt]) => {
-        if (amt <= 0 || remainingToPay <= 0) {
+        if (amt <= 0) {
           byCard[cId] = 0;
-        } else if (baseTotal <= remainingToPay || baseTotal <= 0) {
+        } else {
           byCard[cId] = amt;
           toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) + amt) * 100) / 100;
-        } else {
-          const allocated = Math.round((amt / baseTotal) * remainingToPay * 100) / 100;
-          byCard[cId] = allocated;
-          toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) + allocated) * 100) / 100;
         }
       });
 

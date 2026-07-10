@@ -79,9 +79,13 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 summary.friendDebts.forEach { debt ->
                     val netAmt = debt.byCard[id] ?: 0.0
                     val rawAmt = debt.rawByCard[id] ?: netAmt
-                    val inHand = kotlin.math.round(maxOf(0.0, rawAmt - netAmt) * 100.0) / 100.0
+                    val inHand = if (debt.totalPaid > debt.totalSpend && netAmt <= 0.0) {
+                        kotlin.math.round((debt.totalPaid - debt.totalSpend) * 100.0) / 100.0
+                    } else {
+                        0.0
+                    }
                     if (netAmt > 0.0 || inHand > 0.0) {
-                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand))
+                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand, rawAmt))
                         cardCollectedInHand += inHand
                     }
                 }
@@ -107,18 +111,20 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     val baseAmt = if (allRawUnpaid > 0.0) rawUnpaid else totalFriendSpendOnCard
                     val baseTotal = if (allRawUnpaid > 0.0) allRawUnpaid else totalFriendSpend
 
-                    val netAmt = if (baseAmt <= 0.0 || remainingToPay <= 0.0) {
+                    val netAmt = if (baseAmt <= 0.0) {
                         0.0
-                    } else if (baseTotal <= remainingToPay || baseTotal <= 0.0) {
-                        baseAmt
                     } else {
-                        kotlin.math.round((baseAmt / baseTotal) * remainingToPay * 100.0) / 100.0
+                        baseAmt
                     }
-                    val inHand = kotlin.math.round(maxOf(0.0, rawUnpaid - netAmt) * 100.0) / 100.0
+                    val inHand = if (totalPaid > totalFriendSpend && netAmt <= 0.0) {
+                        kotlin.math.round((totalPaid - totalFriendSpend) * 100.0) / 100.0
+                    } else {
+                        0.0
+                    }
                     if (netAmt > 0.0 || inHand > 0.0) {
                         cardToCollect += netAmt
                         cardCollectedInHand += inHand
-                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, netAmt, inHand))
+                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, netAmt, inHand, rawUnpaid))
                     }
                 }
             }

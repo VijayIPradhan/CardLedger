@@ -82,13 +82,8 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
 
                     val byCardList = baseCards.mapNotNull { (cid, amt) ->
                         val card = cardMap[cid]
-                        if (card != null && amt > 0.0 && outstanding > 0.0) {
-                            val allocated = if (baseTotal <= outstanding || baseTotal <= 0.0) {
-                                amt
-                            } else {
-                                kotlin.math.round((amt / baseTotal) * outstanding * 100.0) / 100.0
-                            }
-                            if (allocated > 0.0) card to allocated else null
+                        if (card != null && amt > 0.0) {
+                            card to amt
                         } else null
                     }
                     FriendRow(h, total, outstanding, byCardList)
