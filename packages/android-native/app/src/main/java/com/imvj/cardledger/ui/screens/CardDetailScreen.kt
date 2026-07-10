@@ -298,7 +298,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 }
 
                 // To Collect section
-                if (s.toCollect > 0) {
+                if (s.toCollect > 0 || s.collectedInHand > 0 || s.friendBreakdown.isNotEmpty() || s.isMarkedCollected) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -306,39 +306,77 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Column {
-                                    Text("To Collect", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("To Collect (from friends)", color = Muted, style = MaterialTheme.typography.labelSmall)
                                     Text(
                                         money(s.toCollect),
-                                        color = if (s.toCollect > 0) Gold else Muted,
+                                        color = if (s.toCollect > 0) Gold else Success,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
+                                    if (s.collectedInHand > 0) {
+                                        Surface(color = Success.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                                            Text(
+                                                "Advance in hand: +${money(s.collectedInHand)}",
+                                                color = Success,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
-                                if (s.toCollect <= 0) {
-                                    Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(6.dp)) {
-                                        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(14.dp))
-                                            Text("All Collected ✓", color = Success, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                if (s.isMarkedCollected) {
+                                    Surface(
+                                        color = Success.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.clickable { vm.markCollected(s.card!!.id) }
+                                    ) {
+                                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(16.dp))
+                                            Text("Collected ✓", color = Success, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                } else {
+                                    Surface(
+                                        color = Gold.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.clickable { vm.markCollected(s.card!!.id) }
+                                    ) {
+                                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("Mark Collected", color = Gold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
                             }
-                            // Per-friend breakdown
-                            s.friendBreakdown.forEach { fc ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Text(fc.holderName, color = Muted, fontSize = 12.sp)
-                                    Text(money(fc.amount), color = OnDark, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            if (s.friendBreakdown.isNotEmpty()) {
+                                HorizontalDivider(color = SurfaceTint, thickness = 1.dp)
+                                s.friendBreakdown.forEach { fc ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(fc.holderName, color = Muted, fontSize = 13.sp)
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(money(fc.amount), color = if (fc.amount > 0) Gold else OnDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            if (fc.collectedInHand > 0) {
+                                                Text(
+                                                    "(+${money(fc.collectedInHand)} in hand)",
+                                                    color = Success,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

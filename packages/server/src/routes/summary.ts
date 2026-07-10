@@ -84,11 +84,13 @@ export async function summaryRoutes(app: FastifyInstance) {
       totalPaid: number;
       remainingToPay: number;
       byCard: Record<string, number>;
+      rawByCard: Record<string, number>;
     }> = [];
 
     friends.forEach((friend) => {
       const friendTxns = userTxns.filter((t) => t.transactions.holder_id_at_time === friend.id);
-      const byCard: Record<string, number> = {};
+      const rawByCard: Record<string, number> = {};
+      const totalSpendByCard: Record<string, number> = {};
       let expenses = 0;
 
       friendTxns.forEach((t) => {
@@ -96,15 +98,15 @@ export async function summaryRoutes(app: FastifyInstance) {
         const cId = t.transactions.card_id;
         if (t.transactions.type === 'payment') {
           expenses -= amt;
+          totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) - amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {
-            byCard[cId] = Math.round(((byCard[cId] || 0) - amt) * 100) / 100;
-            toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) - amt) * 100) / 100;
+            rawByCard[cId] = Math.round(((rawByCard[cId] || 0) - amt) * 100) / 100;
           }
         } else {
           expenses += amt;
+          totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) + amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {
-            byCard[cId] = Math.round(((byCard[cId] || 0) + amt) * 100) / 100;
-            toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) + amt) * 100) / 100;
+            rawByCard[cId] = Math.round(((rawByCard[cId] || 0) + amt) * 100) / 100;
           }
         }
       });
@@ -117,6 +119,32 @@ export async function summaryRoutes(app: FastifyInstance) {
       friendTotalPaid += paid;
       const remainingToPay = Math.max(0, expenses - paid);
 
+      const totalRawUnpaid = Object.values(rawByCard).reduce(
+        (sum, val) => sum + Math.max(0, val),
+        0,
+      );
+      const totalFriendCardSpend = Object.values(totalSpendByCard).reduce(
+        (sum, val) => sum + Math.max(0, val),
+        0,
+      );
+      const byCard: Record<string, number> = {};
+
+      const baseCards = totalRawUnpaid > 0 ? rawByCard : totalSpendByCard;
+      const baseTotal = totalRawUnpaid > 0 ? totalRawUnpaid : totalFriendCardSpend;
+
+      Object.entries(baseCards).forEach(([cId, amt]) => {
+        if (amt <= 0 || remainingToPay <= 0) {
+          byCard[cId] = 0;
+        } else if (baseTotal <= remainingToPay || baseTotal <= 0) {
+          byCard[cId] = amt;
+          toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) + amt) * 100) / 100;
+        } else {
+          const allocated = Math.round((amt / baseTotal) * remainingToPay * 100) / 100;
+          byCard[cId] = allocated;
+          toCollectByCard[cId] = Math.round(((toCollectByCard[cId] || 0) + allocated) * 100) / 100;
+        }
+      });
+
       friendDebts.push({
         holderId: friend.id,
         holderName: friend.name,
@@ -125,6 +153,7 @@ export async function summaryRoutes(app: FastifyInstance) {
         totalPaid: paid,
         remainingToPay,
         byCard,
+        rawByCard,
       });
     });
 

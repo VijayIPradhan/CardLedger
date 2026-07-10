@@ -204,19 +204,22 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         friends.forEach { friend ->
             val friendTxns = txns.filter { it.holder_id_at_time == friend.id }
             var expenses = 0.0
-            val byCardMap = mutableMapOf<String, Double>()
+            val rawByCard = mutableMapOf<String, Double>()
+            val totalSpendByCard = mutableMapOf<String, Double>()
             friendTxns.forEach { txn ->
                 val amt = txn.amount.toDoubleOrNull() ?: 0.0
                 val cid = txn.card_id
                 if (txn.type == "payment") {
                     expenses -= amt
+                    totalSpendByCard[cid] = kotlin.math.round(((totalSpendByCard[cid] ?: 0.0) - amt) * 100.0) / 100.0
                     if (!txn.is_paid && amt > 0) {
-                        byCardMap[cid] = kotlin.math.round(((byCardMap[cid] ?: 0.0) - amt) * 100.0) / 100.0
+                        rawByCard[cid] = kotlin.math.round(((rawByCard[cid] ?: 0.0) - amt) * 100.0) / 100.0
                     }
                 } else {
                     expenses += amt
+                    totalSpendByCard[cid] = kotlin.math.round(((totalSpendByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
                     if (!txn.is_paid && amt > 0) {
-                        byCardMap[cid] = kotlin.math.round(((byCardMap[cid] ?: 0.0) + amt) * 100.0) / 100.0
+                        rawByCard[cid] = kotlin.math.round(((rawByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
                     }
                 }
             }
@@ -224,12 +227,26 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend += expenses
             friendTotalPaid += paid
             val remainingToPay = maxOf(0.0, expenses - paid)
+            val totalRawUnpaid = rawByCard.values.sumOf { maxOf(0.0, it) }
+            val totalFriendCardSpend = totalSpendByCard.values.sumOf { maxOf(0.0, it) }
             val byCard = mutableMapOf<String, Double>()
-            byCardMap.filter { it.value > 0.0 }.forEach { (cid, amt) ->
-                byCard[cid] = amt
-                toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
+
+            val baseCards = if (totalRawUnpaid > 0.0) rawByCard else totalSpendByCard
+            val baseTotal = if (totalRawUnpaid > 0.0) totalRawUnpaid else totalFriendCardSpend
+
+            baseCards.forEach { (cid, amt) ->
+                if (amt <= 0.0 || remainingToPay <= 0.0) {
+                    byCard[cid] = 0.0
+                } else if (baseTotal <= remainingToPay || baseTotal <= 0.0) {
+                    byCard[cid] = amt
+                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
+                } else {
+                    val allocated = kotlin.math.round((amt / baseTotal) * remainingToPay * 100.0) / 100.0
+                    byCard[cid] = allocated
+                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + allocated) * 100.0) / 100.0
+                }
             }
-            friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard))
+            friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard, rawByCard))
         }
         friendDebts.sortByDescending { it.remainingToPay }
         val totalToCollect = toCollectByCard.values.sum()

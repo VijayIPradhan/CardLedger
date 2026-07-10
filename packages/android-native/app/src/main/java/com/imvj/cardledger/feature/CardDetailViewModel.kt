@@ -15,7 +15,7 @@ import java.time.LocalDate
 
 data class CycleGroup(val label: String, val txns: List<TransactionDto>)
 
-data class FriendCollectable(val holderId: String, val holderName: String, val amount: Double)
+data class FriendCollectable(val holderId: String, val holderName: String, val amount: Double, val collectedInHand: Double = 0.0)
 
 data class CardDetailUiState(
     val loading: Boolean = true,
@@ -27,6 +27,7 @@ data class CardDetailUiState(
     val totalSpend: Double = 0.0,
     val currentHolder: HolderDto? = null,
     val toCollect: Double = 0.0,
+    val collectedInHand: Double = 0.0,
     val friendBreakdown: List<FriendCollectable> = emptyList(),
     val isMarkedCollected: Boolean = false,
     val error: String? = null,
@@ -67,41 +68,83 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
             } else 0.0
             
+            val isMarkedCollected = c.prefsStore.getCollectedCards().contains(id)
             var cardToCollect = 0.0
+            var cardCollectedInHand = 0.0
             val friendBreakdown = mutableListOf<FriendCollectable>()
             val friends = holders.filter { it.relationship == "friend" }
             if (summary != null) {
                 cardToCollect = summary.toCollectByCard[id] ?: 0.0
                 summary.friendDebts.forEach { debt ->
-                    val amt = debt.byCard[id] ?: 0.0
-                    if (amt > 0) {
-                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, amt))
+                    val netAmt = debt.byCard[id] ?: 0.0
+                    val rawAmt = debt.rawByCard[id] ?: netAmt
+                    val inHand = kotlin.math.round(maxOf(0.0, rawAmt - netAmt) * 100.0) / 100.0
+                    if (netAmt > 0.0 || inHand > 0.0) {
+                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand))
+                        cardCollectedInHand += inHand
                     }
                 }
             } else {
                 friends.forEach { friend ->
                     val friendCardTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
-                    var unpaidAmount = 0.0
+                    var rawUnpaid = 0.0
+                    var totalFriendSpendOnCard = 0.0
                     friendCardTxns.forEach { txn ->
                         val amt = txn.amount.toDoubleOrNull() ?: 0.0
                         if (txn.type == "payment") {
-                            if (!txn.is_paid && amt > 0) unpaidAmount -= amt
+                            totalFriendSpendOnCard -= amt
+                            if (!txn.is_paid && amt > 0) rawUnpaid -= amt
                         } else {
-                            if (!txn.is_paid && amt > 0) unpaidAmount += amt
+                            totalFriendSpendOnCard += amt
+                            if (!txn.is_paid && amt > 0) rawUnpaid += amt
                         }
                     }
-                    unpaidAmount = kotlin.math.round(maxOf(0.0, unpaidAmount) * 100.0) / 100.0
-                    if (unpaidAmount > 0.0) {
-                        cardToCollect += unpaidAmount
-                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, unpaidAmount))
+                    val totalPaid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    val totalFriendSpend = allTxns.filter { it.holder_id_at_time == friend.id && it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    val remainingToPay = maxOf(0.0, totalFriendSpend - totalPaid)
+                    val allRawUnpaid = allTxns.filter { it.holder_id_at_time == friend.id && !it.is_paid && it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    val baseAmt = if (allRawUnpaid > 0.0) rawUnpaid else totalFriendSpendOnCard
+                    val baseTotal = if (allRawUnpaid > 0.0) allRawUnpaid else totalFriendSpend
+
+                    val netAmt = if (baseAmt <= 0.0 || remainingToPay <= 0.0) {
+                        0.0
+                    } else if (baseTotal <= remainingToPay || baseTotal <= 0.0) {
+                        baseAmt
+                    } else {
+                        kotlin.math.round((baseAmt / baseTotal) * remainingToPay * 100.0) / 100.0
+                    }
+                    val inHand = kotlin.math.round(maxOf(0.0, rawUnpaid - netAmt) * 100.0) / 100.0
+                    if (netAmt > 0.0 || inHand > 0.0) {
+                        cardToCollect += netAmt
+                        cardCollectedInHand += inHand
+                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, netAmt, inHand))
                     }
                 }
+            }
+
+            if (isMarkedCollected) {
+                cardCollectedInHand = maxOf(cardCollectedInHand, cardToCollect)
+                cardToCollect = 0.0
             }
 
             val active = assignments.firstOrNull { it.returned_date == null }
             val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }
-            _state.value = CardDetailUiState(false, card, holders, assignments, txns, cycles, total, current, cardToCollect, friendBreakdown, false)
+            _state.value = CardDetailUiState(
+                loading = false,
+                card = card,
+                holders = holders,
+                assignments = assignments,
+                transactions = txns,
+                cycles = cycles,
+                totalSpend = total,
+                currentHolder = current,
+                toCollect = cardToCollect,
+                collectedInHand = cardCollectedInHand,
+                friendBreakdown = friendBreakdown,
+                isMarkedCollected = isMarkedCollected,
+                error = null
+            )
         }
     }
 

@@ -222,6 +222,7 @@ data class FriendDebtDto(
     val totalPaid: Double = 0.0,
     val remainingToPay: Double = 0.0,
     val byCard: Map<String, Double> = emptyMap(),
+    val rawByCard: Map<String, Double> = emptyMap(),
 )
 
 @Serializable

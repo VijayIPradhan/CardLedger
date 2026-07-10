@@ -55,25 +55,41 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
                     val mine = txns.filter { it.holder_id_at_time == h.id }
                     val myPayments = payments.filter { it.holder_id == h.id }
                     var total = 0.0
-                    val byCardMap = mutableMapOf<String, Double>()
+                    val rawByCardMap = mutableMapOf<String, Double>()
+                    val totalSpendByCardMap = mutableMapOf<String, Double>()
                     mine.forEach { t ->
                         val a = t.amount.toDoubleOrNull() ?: 0.0
                         if (t.type == "payment") {
                             total -= a
+                            totalSpendByCardMap[t.card_id] = kotlin.math.round(((totalSpendByCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
                             if (!t.is_paid && a > 0) {
-                                byCardMap[t.card_id] = kotlin.math.round(((byCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
+                                rawByCardMap[t.card_id] = kotlin.math.round(((rawByCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
                             }
                         } else {
                             total += a
+                            totalSpendByCardMap[t.card_id] = kotlin.math.round(((totalSpendByCardMap[t.card_id] ?: 0.0) + a) * 100.0) / 100.0
                             if (!t.is_paid && a > 0) {
-                                byCardMap[t.card_id] = kotlin.math.round(((byCardMap[t.card_id] ?: 0.0) + a) * 100.0) / 100.0
+                                rawByCardMap[t.card_id] = kotlin.math.round(((rawByCardMap[t.card_id] ?: 0.0) + a) * 100.0) / 100.0
                             }
                         }
                     }
                     val totalPaid = myPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                     val outstanding = maxOf(0.0, total - totalPaid)
-                    val byCardList = byCardMap.filter { it.value > 0.0 }.mapNotNull { (cid, amt) ->
-                        cardMap[cid]?.let { card -> card to amt }
+                    val totalRawUnpaid = rawByCardMap.values.sumOf { maxOf(0.0, it) }
+                    val totalFriendCardSpend = totalSpendByCardMap.values.sumOf { maxOf(0.0, it) }
+                    val baseCards = if (totalRawUnpaid > 0.0) rawByCardMap else totalSpendByCardMap
+                    val baseTotal = if (totalRawUnpaid > 0.0) totalRawUnpaid else totalFriendCardSpend
+
+                    val byCardList = baseCards.mapNotNull { (cid, amt) ->
+                        val card = cardMap[cid]
+                        if (card != null && amt > 0.0 && outstanding > 0.0) {
+                            val allocated = if (baseTotal <= outstanding || baseTotal <= 0.0) {
+                                amt
+                            } else {
+                                kotlin.math.round((amt / baseTotal) * outstanding * 100.0) / 100.0
+                            }
+                            if (allocated > 0.0) card to allocated else null
+                        } else null
                     }
                     FriendRow(h, total, outstanding, byCardList)
                 }
