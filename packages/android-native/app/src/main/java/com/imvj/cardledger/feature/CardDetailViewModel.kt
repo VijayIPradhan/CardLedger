@@ -15,7 +15,7 @@ import java.time.LocalDate
 
 data class CycleGroup(val label: String, val txns: List<TransactionDto>)
 
-data class FriendCollectable(val holderId: String, val holderName: String, val amount: Double, val collectedInHand: Double = 0.0)
+data class FriendCollectable(val holderId: String, val holderName: String, val amount: Double, val collectedInHand: Double = 0.0, val usage: Double = amount + collectedInHand)
 
 data class CardDetailUiState(
     val loading: Boolean = true,
@@ -30,6 +30,7 @@ data class CardDetailUiState(
     val collectedInHand: Double = 0.0,
     val friendBreakdown: List<FriendCollectable> = emptyList(),
     val isMarkedCollected: Boolean = false,
+    val payments: List<PaymentDto> = emptyList(),
     val error: String? = null,
 )
 
@@ -143,6 +144,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 collectedInHand = cardCollectedInHand,
                 friendBreakdown = friendBreakdown,
                 isMarkedCollected = isMarkedCollected,
+                payments = allPayments,
                 error = null
             )
         }
@@ -150,11 +152,25 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
 
     private fun buildCycles(cycleDay: Int, txns: List<TransactionDto>): List<CycleGroup> {
         val out = mutableListOf<CycleGroup>()
-        for (offset in -2..0) {
-            val ref = LocalDate.now().plusMonths(offset.toLong()).toString()
+        val oldestDate = txns.minOfOrNull { it.txn_date } ?: LocalDate.now().toString()
+        var offset = 0L
+        val maxOffsetBack = -36L
+        val assignedTxnIds = mutableSetOf<String>()
+
+        while (offset >= maxOffsetBack) {
+            val ref = LocalDate.now().plusMonths(offset).toString()
             val r = getCycleRange(cycleDay, ref)
             val inCycle = txns.filter { it.txn_date >= r.start && it.txn_date <= r.end }
-            if (inCycle.isNotEmpty()) out.add(CycleGroup("${r.start} – ${r.end}", inCycle))
+            if (inCycle.isNotEmpty()) {
+                out.add(CycleGroup("${r.start} – ${r.end}", inCycle.sortedByDescending { it.txn_date }))
+                inCycle.forEach { assignedTxnIds.add(it.id) }
+            }
+            if (r.start < oldestDate && assignedTxnIds.size == txns.size) break
+            offset--
+        }
+        val remaining = txns.filter { !assignedTxnIds.contains(it.id) }
+        if (remaining.isNotEmpty()) {
+            out.add(CycleGroup("Earlier Transactions", remaining.sortedByDescending { it.txn_date }))
         }
         return out
     }
@@ -189,6 +205,33 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             c.transactionRepo.update(txnId, UpdateTransactionDto(amount = amount, merchant = merchant, txn_date = date, holder_id_at_time = holderId))
                 .onSuccess { load(cardId); onDone() }
                 .onFailure { _state.value = _state.value.copy(error = "Could not update transaction.") }
+        }
+    }
+
+    fun toggleTransactionCollected(txn: TransactionDto, cardId: String, isCollected: Boolean, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            if (isCollected) {
+                c.paymentRepo.deleteByTransactionId(txn.id).onSuccess {
+                    load(cardId)
+                    onDone()
+                }
+            } else {
+                val amt = txn.amount.toDoubleOrNull() ?: 0.0
+                c.paymentRepo.create(
+                    CreatePaymentDto(
+                        holder_id = txn.holder_id_at_time,
+                        transaction_id = txn.id,
+                        amount = amt,
+                        payment_date = today()
+                    )
+                ).onSuccess {
+                    if (!txn.is_paid) {
+                        c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = true))
+                    }
+                    load(cardId)
+                    onDone()
+                }
+            }
         }
     }
 

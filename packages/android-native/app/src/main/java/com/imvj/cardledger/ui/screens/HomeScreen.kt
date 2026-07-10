@@ -162,30 +162,56 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                 color = Elevated,
                             ) {
                                 Column(
-                                    Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    Text(
-                                        "NET POSITION",
-                                        color = Muted,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        letterSpacing = 1.2.sp,
-                                    )
-                                    Text(
-                                        money(netPosition),
-                                        color = OnDark,
-                                        style = MaterialTheme.typography.headlineLarge,
-                                        fontWeight = FontWeight.Bold,
-                                    )
                                     Row(
-                                        Modifier.fillMaxWidth().padding(top = 12.dp),
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                "NET POSITION",
+                                                color = Muted,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                letterSpacing = 1.2.sp,
+                                            )
+                                            Text(
+                                                money(netPosition),
+                                                color = OnDark,
+                                                style = MaterialTheme.typography.headlineLarge,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                        }
+                                        if (s.friendAdvanceInHand > 0) {
+                                            Surface(
+                                                color = Success.copy(alpha = 0.15f),
+                                                shape = MaterialTheme.shapes.small,
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.4f))
+                                            ) {
+                                                Column(
+                                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    horizontalAlignment = Alignment.End
+                                                ) {
+                                                    Text("ADVANCE IN HAND", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                                    Text("+${money(s.friendAdvanceInHand)}", color = Success, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalDivider(color = MutedLow.copy(alpha = 0.3f))
+
+                                    // Row 1: Total Spend & Unpaid Bank Bills
+                                    Row(
+                                        Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
-                                        // Total Spend
                                         Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text("Total spend", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                SpendRing(s.total.spend, s.total.limit, 24, showText = false)
+                                                SpendRing(s.total.spend, s.total.limit, 22, showText = false)
                                                 Text(
                                                     money(s.total.spend),
                                                     color = OnDarkMid,
@@ -200,87 +226,56 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                 fontSize = 10.sp
                                             )
                                         }
-                                        // To Collect
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("To collect", color = Muted, style = MaterialTheme.typography.labelSmall)
-                                            Text(
-                                                money(s.friendRemainingToPay),
-                                                color = Gold,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                        }
-                                        // Unpaid
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Unpaid", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Unpaid bank bill", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Text(
                                                 money(s.unpaidAmount),
                                                 color = if (s.unpaidAmount > 0) Danger else OnDarkMid,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                             )
+                                            val myPersonalUsage = maxOf(0.0, s.total.spend - s.friendDebts.sumOf { debt -> debt.rawByCard.values.sum() })
+                                            if (myPersonalUsage > 0.5) {
+                                                Text(
+                                                    "My usage: ${money(myPersonalUsage)}",
+                                                    color = Muted,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = 10.sp
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                            }
-                        }
 
-                        // ── Friend Collections & Payments Summary (New Place) ─
-                        if (s.friendTotalSpend > 0 || s.friendTotalPaid > 0) {
-                            item {
-                                Surface(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp, vertical = 4.dp)
-                                        .clickable { nav.navigate(Routes.ANALYTICS) },
-                                    shape = MaterialTheme.shapes.large,
-                                    color = Surface1,
-                                    border = androidx.compose.foundation.BorderStroke(1.2.dp, if (s.friendRemainingToPay > 0) Gold else Success)
-                                ) {
-                                    Column(
-                                        Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    // Row 2: Collected & Remaining (Friends)
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                Text("🤝", fontSize = 18.sp)
-                                                Text("FRIEND COLLECTIONS & REMAINING", color = Muted, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+                                        Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Collected (Not settled)", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                money(s.friendAdvanceInHand),
+                                                color = Success,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                            if (s.friendTotalPaid > 0.5) {
+                                                Text(
+                                                    "All-time: ${money(s.friendTotalPaid)}",
+                                                    color = Muted,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = 10.sp
+                                                )
                                             }
-                                            Text("Details ➔", color = Gold, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                         }
-
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Column(Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text("Remaining to pay", color = Muted, style = MaterialTheme.typography.labelSmall)
-                                                Text(
-                                                    money(s.friendRemainingToPay),
-                                                    color = if (s.friendRemainingToPay > 0) Gold else Success,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text("Collected (Paid)", color = Muted, style = MaterialTheme.typography.labelSmall)
-                                                Text(
-                                                    money(s.friendTotalPaid),
-                                                    color = Success,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text("To collect / card", color = Muted, style = MaterialTheme.typography.labelSmall)
-                                                Text(
-                                                    money(s.totalToCollect),
-                                                    color = OnDarkMid,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Remaining to collect", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                money(s.friendRemainingToPay),
+                                                color = if (s.friendRemainingToPay > 0) Gold else Success,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                            )
                                         }
                                     }
                                 }
@@ -484,7 +479,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                     }
                                                 }
                                         ) {
-                                            CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0)
+                                            val friendUsage = s.friendDebts.sumOf { debt -> debt.rawByCard[card.id] ?: 0.0 }
+                                            CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0, friendUsage)
                                         }
                                     }
                                 }

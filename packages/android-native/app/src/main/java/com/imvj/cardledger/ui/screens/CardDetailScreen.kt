@@ -10,10 +10,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
@@ -66,6 +69,12 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
     var showWhoPaidSheet by remember { mutableStateOf<TransactionDto?>(null) }
     var showCyclePaidSheet by remember { mutableStateOf<String?>(null) }
+    var expandedCycles by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(s.cycles) {
+        if (expandedCycles.isEmpty() && s.cycles.isNotEmpty()) {
+            expandedCycles = setOf(s.cycles.first().label)
+        }
+    }
     val context = LocalContext.current
 
     Scaffold(
@@ -298,7 +307,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 }
 
                 // To Collect section
-                if (s.toCollect > 0 || s.collectedInHand > 0 || s.friendBreakdown.isNotEmpty() || s.isMarkedCollected) {
+                if (s.toCollect > 0 || s.friendBreakdown.isNotEmpty()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -321,38 +330,13 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
-                                    if (s.collectedInHand > 0) {
-                                        Surface(color = Success.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
-                                            Text(
-                                                "Advance in hand: +${money(s.collectedInHand)}",
-                                                color = Success,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                if (s.isMarkedCollected) {
-                                    Surface(
-                                        color = Success.copy(alpha = 0.2f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.clickable { vm.markCollected(s.card!!.id) }
-                                    ) {
-                                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(16.dp))
-                                            Text("Collected ✓", color = Success, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                } else {
-                                    Surface(
-                                        color = Gold.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.clickable { vm.markCollected(s.card!!.id) }
-                                    ) {
-                                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text("Mark Collected", color = Gold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        }
+                                    if (s.collectedInHand > 0.5) {
+                                        Text(
+                                            "Total Friend Usage: ${money(s.toCollect + s.collectedInHand)} · Collected: +${money(s.collectedInHand)}",
+                                            color = Success,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 11.sp
+                                        )
                                     }
                                 }
                             }
@@ -365,17 +349,12 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(fc.holderName, color = Muted, fontSize = 13.sp)
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(money(fc.amount), color = if (fc.amount > 0) Gold else OnDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                            if (fc.collectedInHand > 0) {
-                                                Text(
-                                                    "(+${money(fc.collectedInHand)} in hand)",
-                                                    color = Success,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            }
+                                        val amtText = if (fc.usage > fc.amount + 0.5) {
+                                            "${money(fc.amount)}  (Usage: ${money(fc.usage)})"
+                                        } else {
+                                            money(fc.amount)
                                         }
+                                        Text(amtText, color = if (fc.amount > 0) Gold else OnDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                     }
                                 }
                             }
@@ -394,159 +373,248 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 } else {
                     val holderMap = s.holders.associateBy { it.id }
                     s.cycles.forEach { cycle ->
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                cycle.label,
-                                color = Muted,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                            val unpaidInCycle = cycle.txns.count { !it.is_paid }
-                            if (unpaidInCycle > 0) {
-                                TextButton(onClick = {
-                                    val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
-                                    val friendsOwe = cycle.txns.any { !it.is_paid && it.holder_id_at_time != meId }
-                                    if (friendsOwe) {
-                                        showCyclePaidSheet = cycle.label
+                        val isExpanded = expandedCycles.contains(cycle.label)
+                        val cycleTotal = cycle.txns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                        val unpaidInCycle = cycle.txns.count { !it.is_paid }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .clickable {
+                                    expandedCycles = if (isExpanded) {
+                                        expandedCycles - cycle.label
                                     } else {
-                                        vm.markCyclePaid(cycle.label, cardId)
+                                        expandedCycles + cycle.label
                                     }
-                                }) {
-                                    Text("Mark $unpaidInCycle paid", color = Gold, fontSize = 11.sp)
+                                },
+                            color = Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                        tint = Gold,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        cycle.label,
+                                        color = OnDark,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        "(${cycle.txns.size} · ${money(cycleTotal)})",
+                                        color = Muted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                if (unpaidInCycle > 0) {
+                                    Surface(
+                                        color = Gold.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.clickable {
+                                            val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                            val friendsOwe = cycle.txns.any { !it.is_paid && it.holder_id_at_time != meId }
+                                            if (friendsOwe) {
+                                                showCyclePaidSheet = cycle.label
+                                            } else {
+                                                vm.markCyclePaid(cycle.label, cardId)
+                                            }
+                                        }
+                                    ) {
+                                        Text(
+                                            "Mark $unpaidInCycle paid",
+                                            color = Gold,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
-                        cycle.txns.sortedByDescending { it.txn_date }.forEach { txn ->
-                            val holderName = holderMap[txn.holder_id_at_time]?.name ?: txn.holder_id_at_time
-                            var swipeOffset by remember { mutableFloatStateOf(0f) }
-                            val animatedOffsetX by animateFloatAsState(targetValue = swipeOffset, label = "swipeOffsetX")
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                                    .background(Elevated, RoundedCornerShape(8.dp))
-                                    .pointerInput(Unit) {
-                                        detectHorizontalDragGestures(
-                                            onDragEnd = {
-                                                swipeOffset = if (swipeOffset < SWIPE_SNAP_THRESHOLD) SWIPE_REVEAL_OFFSET else SWIPE_CLOSED_OFFSET
-                                            }
-                                        ) { change, dragAmount ->
-                                            change.consume()
-                                            swipeOffset = (swipeOffset + dragAmount).coerceIn(SWIPE_REVEAL_OFFSET, SWIPE_CLOSED_OFFSET)
-                                        }
-                                    }
-                            ) {
-                                // Background buttons
-                                Row(
-                                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
-                                            if (!txn.is_paid && txn.holder_id_at_time != meId) {
-                                                showWhoPaidSheet = txn
-                                            } else {
-                                                vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
-                                            }
-                                            swipeOffset = 0f
-                                        },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(if (txn.is_paid) Elevated else Success, shape = androidx.compose.foundation.shape.CircleShape)
-                                    ) {
-                                        Icon(if (txn.is_paid) Icons.Default.Close else Icons.Default.Check, contentDescription = "Toggle Paid", tint = Color.White)
-                                    }
-                                    IconButton(
-                                        onClick = { swipeOffset = 0f },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(Danger, shape = androidx.compose.foundation.shape.CircleShape)
-                                    ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
-                                    }
-                                }
+                        AnimatedVisibility(visible = isExpanded) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                cycle.txns.sortedByDescending { it.txn_date }.forEach { txn ->
+                                    val holderName = holderMap[txn.holder_id_at_time]?.name ?: txn.holder_id_at_time
+                                    var swipeOffset by remember { mutableFloatStateOf(0f) }
+                                    val animatedOffsetX by animateFloatAsState(targetValue = swipeOffset, label = "swipeOffsetX")
 
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                                        .clickable {
-                                            if (swipeOffset < 0f) {
-                                                swipeOffset = 0f
-                                            } else {
-                                                selectedTxn = txn
-                                                showTxnSheet = true
-                                            }
-                                        },
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Elevated,
-                                ) {
-                                    Row(
-                                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        IconButton(
-                                            onClick = {
-                                                val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
-                                                if (!txn.is_paid && txn.holder_id_at_time != meId) {
-                                                    showWhoPaidSheet = txn
-                                                } else {
-                                                    vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .background(Elevated, RoundedCornerShape(8.dp))
+                                            .pointerInput(Unit) {
+                                                detectHorizontalDragGestures(
+                                                    onDragEnd = {
+                                                        swipeOffset = if (swipeOffset < SWIPE_SNAP_THRESHOLD) SWIPE_REVEAL_OFFSET else SWIPE_CLOSED_OFFSET
+                                                    }
+                                                ) { change, dragAmount ->
+                                                    change.consume()
+                                                    swipeOffset = (swipeOffset + dragAmount).coerceIn(SWIPE_REVEAL_OFFSET, SWIPE_CLOSED_OFFSET)
                                                 }
-                                            },
-                                            modifier = Modifier.size(36.dp)
+                                            }
+                                    ) {
+                                        // Background buttons
+                                        Row(
+                                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(16.dp)
                                         ) {
-                                            if (txn.is_paid) {
-                                                Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Success, modifier = Modifier.size(22.dp)) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Icon(Icons.Default.Check, contentDescription = "Paid", tint = Color.White, modifier = Modifier.size(14.dp))
+                                            IconButton(
+                                                onClick = {
+                                                    val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                                    if (!txn.is_paid && txn.holder_id_at_time != meId) {
+                                                        showWhoPaidSheet = txn
+                                                    } else {
+                                                        vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
                                                     }
-                                                }
-                                            } else {
-                                                Surface(
-                                                    shape = androidx.compose.foundation.shape.CircleShape,
-                                                    color = Color.Transparent,
-                                                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MutedLow),
-                                                    modifier = Modifier.size(22.dp)
-                                                ) {}
+                                                    swipeOffset = 0f
+                                                },
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(if (txn.is_paid) Elevated else Success, shape = androidx.compose.foundation.shape.CircleShape)
+                                            ) {
+                                                Icon(if (txn.is_paid) Icons.Default.Close else Icons.Default.Check, contentDescription = "Toggle Paid", tint = Color.White)
+                                            }
+                                            IconButton(
+                                                onClick = { swipeOffset = 0f },
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(Danger, shape = androidx.compose.foundation.shape.CircleShape)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
                                             }
                                         }
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                Text(
-                                                    txn.merchant,
-                                                    color = if (txn.is_paid) Muted else OnDark,
-                                                    fontWeight = FontWeight.Medium,
-                                                    fontSize = 14.sp,
-                                                    textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
-                                                )
-                                                if (txn.is_paid) {
-                                                    Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                                                        Text("PAID", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                                                .clickable {
+                                                    if (swipeOffset < 0f) {
+                                                        swipeOffset = 0f
+                                                    } else {
+                                                        selectedTxn = txn
+                                                        showTxnSheet = true
+                                                    }
+                                                },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Elevated,
+                                        ) {
+                                            Row(
+                                                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                                        if (!txn.is_paid && txn.holder_id_at_time != meId) {
+                                                            showWhoPaidSheet = txn
+                                                        } else {
+                                                            vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
+                                                        }
+                                                    },
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    if (txn.is_paid) {
+                                                        Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Success, modifier = Modifier.size(22.dp)) {
+                                                            Box(contentAlignment = Alignment.Center) {
+                                                                Icon(Icons.Default.Check, contentDescription = "Paid", tint = Color.White, modifier = Modifier.size(14.dp))
+                                                            }
+                                                        }
+                                                    } else {
+                                                        Surface(
+                                                            shape = androidx.compose.foundation.shape.CircleShape,
+                                                            color = Color.Transparent,
+                                                            border = androidx.compose.foundation.BorderStroke(1.5.dp, MutedLow),
+                                                            modifier = Modifier.size(22.dp)
+                                                        ) {}
+                                                    }
+                                                }
+                                                Spacer(Modifier.width(8.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        Text(
+                                                            txn.merchant,
+                                                            color = if (txn.is_paid) Muted else OnDark,
+                                                            fontWeight = FontWeight.Medium,
+                                                            fontSize = 14.sp,
+                                                            textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
+                                                        )
+                                                        if (txn.is_paid) {
+                                                            Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
+                                                                Text("PAID", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                            }
+                                                        }
+                                                    }
+                                                    Text(
+                                                        "$holderName · ${txn.txn_date.drop(5)}",
+                                                        color = Muted,
+                                                        fontSize = 12.sp,
+                                                    )
+                                                }
+                                                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(
+                                                        "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                                        color = if (txn.is_paid) Muted else Danger,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 14.sp,
+                                                        textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
+                                                    )
+                                                    val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                                    if (txn.holder_id_at_time != meId && txn.type == "spend") {
+                                                        val isCollected = s.payments.any { it.transaction_id == txn.id }
+                                                        if (!isCollected) {
+                                                            Surface(
+                                                                color = Gold.copy(alpha = 0.15f),
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.5f)),
+                                                                modifier = Modifier.clickable {
+                                                                    vm.toggleTransactionCollected(txn, cardId, false) {
+                                                                        android.widget.Toast.makeText(context, "Marked collected from $holderName", android.widget.Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                }
+                                                            ) {
+                                                                Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                                    Text("🤝", fontSize = 10.sp)
+                                                                    Text("Collect", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                                }
+                                                            }
+                                                        } else {
+                                                            Surface(
+                                                                color = Success.copy(alpha = 0.18f),
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.5f)),
+                                                                modifier = Modifier.clickable {
+                                                                    vm.toggleTransactionCollected(txn, cardId, true) {
+                                                                        android.widget.Toast.makeText(context, "Removed collection from $holderName", android.widget.Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                }
+                                                            ) {
+                                                                Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                                    Icon(Icons.Default.Check, contentDescription = "Collected", tint = Success, modifier = Modifier.size(11.dp))
+                                                                    Text("Collected", color = Success, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
-                                            Text(
-                                                "$holderName · ${txn.txn_date.drop(5)}",
-                                                color = Muted,
-                                                fontSize = 12.sp,
-                                            )
                                         }
-                                        Text(
-                                            "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                            color = if (txn.is_paid) Muted else Danger,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.sp,
-                                            textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
-                                        )
                                     }
                                 }
                             }
