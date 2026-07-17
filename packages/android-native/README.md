@@ -36,3 +36,20 @@ Log in with your server credentials (default `admin` / `changeme123`).
 - **Play Protect**: because the app reads SMS and is sideloaded (not from the Play Store), Play Protect will flag it. Install via `adb` with Play Protect scanning disabled, or tap "Install anyway". This is Android policy for off-Store SMS apps and is not a code issue.
 - The build uses the Gradle **8.7** wrapper (AGP 8.5.2, Kotlin 1.9.24). Do not use a globally-installed newer Gradle.
 - Architecture: single-activity Compose, MVVM (ViewModel + StateFlow), thin repositories over a Retrofit `ApiService`, manual DI via `AppContainer` on the `Application`. Domain logic (holder resolution, billing cycles, utilization, BIN detection, SMS parsing) is ported to Kotlin under `domain/`.
+
+## GitHub Actions Release Automation
+A fully automated GitHub Actions workflow is available at [android-release.yml](file:///home/ubuntu/OpenWebUI/CardLedger/.github/workflows/android-release.yml) (`Build Android APK & Release`).
+
+### How It Works
+- **Automatic Releases**: Pushing a tag starting with `v` (e.g. `git tag v1.0.0 && git push origin v1.0.0`) or creating a GitHub Release via the GitHub UI automatically triggers the build and uploads `CardLedger-debug.apk` and `CardLedger-release.apk` (or `CardLedger-release-unsigned.apk`) to the Release assets.
+- **Manual Trigger**: Go to **Actions** -> **Build Android APK & Release** -> **Run workflow** (`workflow_dispatch`). You can select whether to build `both`, `debug`, or `release`, and optionally specify a `tag_name` to attach the APKs directly to an existing release.
+- **Artifact Storage**: Every run (manual or automated) saves the APKs under Workflow Summary Artifacts (`CardLedger-APKs-<sha>`) with 30 days retention.
+
+### Optional Repository Secrets
+To automatically inject client IDs and sign release builds cleanly inside GitHub Actions, add these secrets under **Settings -> Secrets and variables -> Actions**:
+- `GOOGLE_CLIENT_ID`: Populated into `local.properties` during the build.
+- `KEYSTORE_BASE64`: Base64-encoded release keystore (`base64 -w 0 my-release-key.jks`).
+- `KEYSTORE_PASSWORD`: Keystore password.
+- `KEY_ALIAS`: Keystore key alias.
+- `KEY_PASSWORD`: Key alias password.
+
