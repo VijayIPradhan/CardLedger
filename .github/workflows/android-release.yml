@@ -84,7 +84,7 @@ jobs:
       - name: Sign Release APK (Optional)
         if: (inputs.build_type == 'release' || inputs.build_type == 'both' || github.event_name != 'workflow_dispatch') && steps.check_keystore.outputs.has_keystore == 'true'
         id: sign_apk
-        uses: r0adkll/sign-android-release@v3
+        uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: packages/android-native/app/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
