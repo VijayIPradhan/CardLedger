@@ -94,6 +94,7 @@ data class CreateTransactionDto(
     val type: String = "spend",
     val is_paid: Boolean = false,
     val holder_id_at_time: String? = null,
+    val funded_by_holder_id: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
 )

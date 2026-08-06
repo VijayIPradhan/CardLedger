@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { transactions, assignments, holders, cards } from '../db/schema.js';
+import { transactions, assignments, holders, cards, payments } from '../db/schema.js';
 import { eq, and, getTableColumns, desc } from 'drizzle-orm';
 import {
   CreateTransactionSchema,
@@ -82,11 +82,40 @@ export async function transactionRoutes(app: FastifyInstance) {
       return reply.status(422).send({ error: 'No holder assignment found for txn_date' });
     }
 
-    const { amount, holder_id_at_time: _holderOverride, ...rest } = parsed.data;
+    const {
+      amount,
+      holder_id_at_time: _holderOverride,
+      funded_by_holder_id,
+      ...rest
+    } = parsed.data;
+
+    let finalHolderId = holderId;
+    if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
+      const [me] = await db
+        .select()
+        .from(holders)
+        .where(and(eq(holders.relationship, 'me'), eq(holders.user_id, userId)))
+        .limit(1);
+      if (me && funded_by_holder_id !== me.id) {
+        finalHolderId = me.id; // Force payment transaction to be assigned to 'me' so it doesn't incorrectly reduce friend's spend
+      }
+    }
+
     const [txn] = await db
       .insert(transactions)
-      .values({ ...rest, amount: String(amount), holder_id_at_time: holderId })
+      .values({ ...rest, amount: String(amount), holder_id_at_time: finalHolderId })
       .returning();
+
+    // Atomically create a payment record if funded by someone else
+    if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
+      await db.insert(payments).values({
+        holder_id: funded_by_holder_id,
+        transaction_id: txn.id,
+        amount: String(amount),
+        payment_date: rest.txn_date,
+      });
+    }
+
     return reply.status(201).send(txn);
   });
 
@@ -124,6 +153,8 @@ export async function transactionRoutes(app: FastifyInstance) {
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
     if (!existing) return reply.status(404).send({ error: 'Not found' });
 
+    // Delete associated payments first
+    await db.delete(payments).where(eq(payments.transaction_id, req.params.id));
     await db.delete(transactions).where(eq(transactions.id, req.params.id));
     return reply.status(204).send();
   });

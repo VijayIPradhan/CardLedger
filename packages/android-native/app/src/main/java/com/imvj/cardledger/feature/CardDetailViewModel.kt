@@ -301,7 +301,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, holderId: String?, onDone: () -> Unit) {
+    fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, funderId: String?, onDone: () -> Unit) {
         viewModelScope.launch {
             c.transactionRepo.create(
                 CreateTransactionDto(
@@ -311,7 +311,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     txn_date = date,
                     source = "manual",
                     type = "bill_payment",
-                    holder_id_at_time = holderId
+                    funded_by_holder_id = funderId
                 )
             ).onSuccess {
                 load(cardId)

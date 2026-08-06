@@ -839,7 +839,10 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
         var pmtAmount by remember { mutableStateOf(s.totalSpend.takeIf { it > 0 }?.let { money(it).replace("₹", "").replace(",", "") } ?: "") }
         var pmtDate by remember { mutableStateOf(com.imvj.cardledger.domain.today()) }
         var pmtNotes by remember { mutableStateOf("") }
+        var pmtFunderId by remember { mutableStateOf(s.holders.firstOrNull { it.relationship == "me" }?.id ?: "") }
+        var funderExpanded by remember { mutableStateOf(false) }
         var loading by remember { mutableStateOf(false) }
+        val selectedFunder = s.holders.firstOrNull { it.id == pmtFunderId }
 
         ModalBottomSheet(onDismissRequest = { showCardPaymentSheet = false }, containerColor = Surface1) {
             Column(
@@ -875,12 +878,43 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+                ExposedDropdownMenuBox(
+                    expanded = funderExpanded,
+                    onExpandedChange = { funderExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = selectedFunder?.let { h ->
+                            h.name + if (h.relationship == "me") " (me)" else ""
+                        } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Funded By") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = funderExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = funderExpanded,
+                        onDismissRequest = { funderExpanded = false },
+                    ) {
+                        s.holders.forEach { holder ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(holder.name + if (holder.relationship == "me") " (me)" else "")
+                                },
+                                onClick = {
+                                    pmtFunderId = holder.id
+                                    funderExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
                 Button(
                     onClick = {
                         val amt = pmtAmount.toDoubleOrNull() ?: return@Button
-                        val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
                         loading = true
-                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, meId) {
+                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, pmtFunderId) {
                             loading = false
                             showCardPaymentSheet = false
                             android.widget.Toast.makeText(context, "Card payment recorded", android.widget.Toast.LENGTH_SHORT).show()
