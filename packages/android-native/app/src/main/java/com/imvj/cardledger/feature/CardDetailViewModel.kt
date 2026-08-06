@@ -102,7 +102,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     var totalFriendSpendOnCard = 0.0
                     friendCardTxns.forEach { txn ->
                         val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                        if (txn.type == "payment") {
+                        if (txn.type != "spend") {
                             totalFriendSpendOnCard -= amt
                             if (!txn.is_paid && amt > 0) rawUnpaid -= amt
                         } else {

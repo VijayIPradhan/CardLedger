@@ -42,7 +42,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
-    const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '24h' });
+    const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' });
     return reply.send({ token });
   });
 
@@ -76,7 +76,7 @@ export async function authRoutes(app: FastifyInstance) {
           .returning();
         const token = app.jwt.sign(
           { sub: updated.id, username: updated.username },
-          { expiresIn: '24h' },
+          { expiresIn: '30d' },
         );
         return reply.send({ token });
       }
@@ -98,7 +98,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = app.jwt.sign(
       { sub: newUser.id, username: newUser.username },
-      { expiresIn: '24h' },
+      { expiresIn: '30d' },
     );
     return reply.send({ token });
   });
@@ -132,7 +132,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = app.jwt.sign(
       { sub: updated.id, username: updated.username },
-      { expiresIn: '24h' },
+      { expiresIn: '30d' },
     );
     return reply.send({ token });
   });
@@ -182,7 +182,7 @@ export async function authRoutes(app: FastifyInstance) {
         await db.update(users).set({ google_id: googleId }).where(eq(users.id, user.id));
       }
 
-      const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '24h' });
+      const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' });
       return reply.send({ token });
     } catch (e) {
       app.log.error(e);

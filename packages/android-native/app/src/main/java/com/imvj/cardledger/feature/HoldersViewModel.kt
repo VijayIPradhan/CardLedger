@@ -59,7 +59,7 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
                     val totalSpendByCardMap = mutableMapOf<String, Double>()
                     mine.forEach { t ->
                         val a = t.amount.toDoubleOrNull() ?: 0.0
-                        if (t.type == "payment") {
+                        if (t.type != "spend") {
                             total -= a
                             totalSpendByCardMap[t.card_id] = kotlin.math.round(((totalSpendByCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
                             if (!t.is_paid && a > 0) {

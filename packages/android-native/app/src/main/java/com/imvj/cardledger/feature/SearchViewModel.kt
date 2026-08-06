@@ -58,7 +58,7 @@ class SearchViewModel(private val c: AppContainer) : ViewModel() {
                 cardMap[txn.card_id]?.nickname?.lowercase()?.contains(q) == true ||
                 cardMap[txn.card_id]?.bank?.lowercase()?.contains(q) == true ||
                 holderMap[txn.holder_id_at_time]?.name?.lowercase()?.contains(q) == true ||
-                (q == "payment" && txn.type == "payment") ||
+                (q == "payment" && txn.type != "spend") ||
                 (q == "spend" && txn.type == "spend")
             }
         }.map { txn ->
@@ -70,7 +70,7 @@ class SearchViewModel(private val c: AppContainer) : ViewModel() {
                 subtitle = "${holder?.name ?: txn.holder_id_at_time}${if (card != null) " · ${card.nickname}" else ""} · ${txn.txn_date.drop(5)}",
                 amount = txn.amount.toDoubleOrNull() ?: 0.0,
                 date = txn.txn_date,
-                isPayment = txn.type == "payment",
+                isPayment = txn.type != "spend",
                 isPaid = txn.is_paid,
                 holderId = txn.holder_id_at_time,
                 cardId = txn.card_id,

@@ -135,7 +135,7 @@ private fun ReviewItemCard(
                     color = Muted,
                     modifier = Modifier.weight(1f)
                 )
-                if (item.parse.type == "payment") {
+                if (item.parse.type != "spend") {
                     Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
                         Text("Payment", fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }

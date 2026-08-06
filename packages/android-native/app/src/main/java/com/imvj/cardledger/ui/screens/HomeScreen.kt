@@ -550,7 +550,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                 subtitle = "${txnHolder?.name ?: txn.holder_id_at_time}${if (txnCard != null) " · ${txnCard.nickname}" else ""} · ${txn.txn_date.drop(5)}",
                                 amount = txn.amount.toDoubleOrNull() ?: 0.0,
                                 date = txn.txn_date,
-                                isPayment = txn.type == "payment",
+                                isPayment = txn.type != "spend",
                                 isPaid = txn.is_paid,
                                 holderId = txn.holder_id_at_time,
                                 cardId = txn.card_id,

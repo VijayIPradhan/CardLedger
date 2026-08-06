@@ -13,7 +13,7 @@ export async function summaryRoutes(app: FastifyInstance) {
     const userCards = await db
       .select({
         ...getTableColumns(cards),
-        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'bill_payment'), 0))::text`,
+        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('payment', 'bill_payment')), 0))::text`,
       })
       .from(cards)
       .where(eq(cards.user_id, userId));
@@ -96,7 +96,7 @@ export async function summaryRoutes(app: FastifyInstance) {
       friendTxns.forEach((t) => {
         const amt = parseFloat(t.transactions.amount) || 0;
         const cId = t.transactions.card_id;
-        if (t.transactions.type === 'payment') {
+        if (t.transactions.type !== 'spend') {
           expenses -= amt;
           totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) - amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {

@@ -224,7 +224,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTxns.forEach { txn ->
                 val amt = txn.amount.toDoubleOrNull() ?: 0.0
                 val cid = txn.card_id
-                if (txn.type == "payment") {
+                if (txn.type != "spend") {
                     expenses -= amt
                     totalSpendByCard[cid] = kotlin.math.round(((totalSpendByCard[cid] ?: 0.0) - amt) * 100.0) / 100.0
                     if (!txn.is_paid && amt > 0) {

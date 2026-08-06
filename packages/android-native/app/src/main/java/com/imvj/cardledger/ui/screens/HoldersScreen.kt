@@ -280,7 +280,7 @@ fun HoldersScreen(nav: NavHostController) {
                 subtitle = "${if (card != null) "${card.nickname} · " else ""}${txn.txn_date.drop(5)}",
                 amount = txn.amount.toDoubleOrNull() ?: 0.0,
                 date = txn.txn_date,
-                isPayment = txn.type == "payment",
+                isPayment = txn.type != "spend",
                 isPaid = txn.is_paid,
                 holderId = txn.holder_id_at_time,
                 cardId = txn.card_id,
