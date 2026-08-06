@@ -300,4 +300,25 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             onDone()
         }
     }
+
+    fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, holderId: String?, onDone: () -> Unit) {
+        viewModelScope.launch {
+            c.transactionRepo.create(
+                CreateTransactionDto(
+                    card_id = cardId,
+                    amount = amount,
+                    merchant = "Payment to Bank",
+                    txn_date = date,
+                    source = "manual",
+                    type = "bill_payment",
+                    holder_id_at_time = holderId
+                )
+            ).onSuccess {
+                load(cardId)
+                onDone()
+            }.onFailure {
+                _state.value = _state.value.copy(error = "Could not record payment.")
+            }
+        }
+    }
 }

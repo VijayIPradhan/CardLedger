@@ -69,6 +69,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
     var showWhoPaidSheet by remember { mutableStateOf<TransactionDto?>(null) }
     var showCyclePaidSheet by remember { mutableStateOf<String?>(null) }
+    var showCardPaymentSheet by remember { mutableStateOf(false) }
     var expandedCycles by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(s.cycles) {
         if (expandedCycles.isEmpty() && s.cycles.isNotEmpty()) {
@@ -181,6 +182,15 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                 "⚠️ Statement Generated! Pay your due balance of ₹${s.totalSpend.toLong()} before Day $dueDay (in $daysToDue days) to avoid late fees and interest!",
                                 color = Warning, fontSize = 12.sp, lineHeight = 16.sp
                             )
+                        }
+                        
+                        Button(
+                            onClick = { showCardPaymentSheet = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Pay Credit Card Bill", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -548,32 +558,40 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                 Spacer(Modifier.width(8.dp))
                                                 Column(Modifier.weight(1f)) {
                                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        if (txn.type == "bill_payment") {
+                                                            Text("🏦", fontSize = 16.sp)
+                                                        }
                                                         Text(
                                                             txn.merchant,
-                                                            color = if (txn.is_paid) Muted else OnDark,
+                                                            color = if (txn.is_paid) Muted else if (txn.type == "bill_payment") Success else OnDark,
                                                             fontWeight = FontWeight.Medium,
                                                             fontSize = 14.sp,
-                                                            textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
+                                                            textDecoration = if (txn.is_paid && txn.type != "bill_payment") TextDecoration.LineThrough else null
                                                         )
-                                                        if (txn.is_paid) {
+                                                        if (txn.is_paid && txn.type != "bill_payment") {
                                                             Surface(color = Success.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
                                                                 Text("PAID", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                                                             }
                                                         }
+                                                        if (txn.type == "bill_payment") {
+                                                            Surface(color = Success.copy(alpha = 0.15f), border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.3f)), shape = RoundedCornerShape(4.dp)) {
+                                                                Text("PAYMENT RECEIVED", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                            }
+                                                        }
                                                     }
                                                     Text(
-                                                        "$holderName · ${txn.txn_date.drop(5)}",
+                                                        if (txn.type == "bill_payment") "Processed on ${txn.txn_date}" else "$holderName · ${txn.txn_date.drop(5)}",
                                                         color = Muted,
                                                         fontSize = 12.sp,
                                                     )
                                                 }
                                                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                     Text(
-                                                        "−${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                                        color = if (txn.is_paid) Muted else Danger,
+                                                        "${if (txn.type == "bill_payment") "+" else "−"}${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                                        color = if (txn.is_paid && txn.type != "bill_payment") Muted else if (txn.type == "bill_payment") Success else Danger,
                                                         fontWeight = FontWeight.SemiBold,
                                                         fontSize = 14.sp,
-                                                        textDecoration = if (txn.is_paid) TextDecoration.LineThrough else null
+                                                        textDecoration = if (txn.is_paid && txn.type != "bill_payment") TextDecoration.LineThrough else null
                                                     )
                                                     val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
                                                     if (txn.holder_id_at_time != meId && txn.type == "spend") {
@@ -813,6 +831,67 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Everyone paid their share") }
+            }
+        }
+    }
+
+    if (showCardPaymentSheet) {
+        var pmtAmount by remember { mutableStateOf(s.totalSpend.takeIf { it > 0 }?.let { money(it).replace("₹", "").replace(",", "") } ?: "") }
+        var pmtDate by remember { mutableStateOf(com.imvj.cardledger.domain.today()) }
+        var pmtNotes by remember { mutableStateOf("") }
+        var loading by remember { mutableStateOf(false) }
+
+        ModalBottomSheet(onDismissRequest = { showCardPaymentSheet = false }, containerColor = Surface1) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text("Record Card Payment", style = MaterialTheme.typography.titleMedium, color = OnDark)
+                
+                OutlinedTextField(
+                    value = pmtAmount,
+                    onValueChange = { pmtAmount = it },
+                    label = { Text("Amount Paid to Bank") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                OutlinedTextField(
+                    value = pmtDate,
+                    onValueChange = { pmtDate = it },
+                    label = { Text("Date (yyyy-MM-dd)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                OutlinedTextField(
+                    value = pmtNotes,
+                    onValueChange = { pmtNotes = it },
+                    label = { Text("Notes (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Button(
+                    onClick = {
+                        val amt = pmtAmount.toDoubleOrNull() ?: return@Button
+                        val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                        loading = true
+                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, meId) {
+                            loading = false
+                            showCardPaymentSheet = false
+                            android.widget.Toast.makeText(context, "Card payment recorded", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !loading,
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base)
+                ) {
+                    Text(if (loading) "Saving..." else "Save Payment", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

@@ -43,7 +43,7 @@ export interface Transaction {
   merchant: string;
   txn_date: string;
   source: TransactionSource;
-  type: 'spend' | 'payment';
+  type: 'spend' | 'payment' | 'bill_payment';
   is_paid: boolean;
   holder_id_at_time: string;
   raw_sms_encrypted: string | null;
@@ -54,15 +54,6 @@ export interface Transaction {
 export interface Payment {
   id: string;
   holder_id: string;
-  amount: number;
-  payment_date: string;
-  notes: string | null;
-  created_at: string;
-}
-
-export interface CardPayment {
-  id: string;
-  card_id: string;
   amount: number;
   payment_date: string;
   notes: string | null;

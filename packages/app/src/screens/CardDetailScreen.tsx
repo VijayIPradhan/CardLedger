@@ -17,7 +17,7 @@ import {
   useDeleteTransaction,
   useUpdateTransaction,
 } from '../data/hooks/useTransactions.js';
-import { useCardPayments, useCreateCardPayment } from '../data/hooks/useCardPayments.js';
+import { useCreateTransaction } from '../data/hooks/useTransactions.js';
 import { useUiStore } from '../store/uiStore.js';
 import { getCycleRange } from '@cardledger/shared';
 import type { Transaction, Holder, Assignment } from '@cardledger/shared';
@@ -42,8 +42,7 @@ export default function CardDetailScreen() {
   const [editDate, setEditDate] = useState('');
   const [editHolder, setEditHolder] = useState('');
 
-  const { data: cardPayments = [] } = useCardPayments(id!);
-  const createCardPayment = useCreateCardPayment();
+  const createTxn = useCreateTransaction();
   const [cardPaymentAmount, setCardPaymentAmount] = useState('');
   const [cardPaymentDate, setCardPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -164,10 +163,14 @@ export default function CardDetailScreen() {
     }
     setError('');
     try {
-      await createCardPayment.mutateAsync({
+      await createTxn.mutateAsync({
         card_id: id!,
         amount,
-        payment_date: cardPaymentDate,
+        txn_date: cardPaymentDate,
+        merchant: 'Payment to Bank',
+        type: 'bill_payment',
+        source: 'manual',
+        holder_id_at_time: currentHolder?.id,
       });
       closeBottomSheet();
     } catch {
@@ -221,7 +224,7 @@ export default function CardDetailScreen() {
                   onClick={openCardPayment}
                   className="bg-gold text-surface text-xs font-bold px-3 py-1.5 rounded-input w-full"
                 >
-                  Record Card Payment
+                  Pay Credit Card Bill
                 </button>
               </div>
             </div>
@@ -430,10 +433,10 @@ export default function CardDetailScreen() {
           {error && <p className="text-danger text-xs">{error}</p>}
           <button
             type="submit"
-            disabled={createCardPayment.isPending}
+            disabled={createTxn.isPending}
             className="bg-gold text-base font-semibold py-3 rounded-input mt-2 hover:bg-gold-hi transition-colors disabled:opacity-50 text-surface"
           >
-            {createCardPayment.isPending ? 'Saving...' : 'Save Payment'}
+            {createTxn.isPending ? 'Saving...' : 'Save Payment'}
           </button>
         </form>
       </BottomSheet>
@@ -535,7 +538,7 @@ function SwipeableTransaction({
       </div>
 
       <motion.div
-        drag="x"
+        drag={t.type === 'bill_payment' ? false : 'x'}
         dragConstraints={{ left: isOpen ? -SWIPE_REVEAL_WIDTH : 0, right: 0 }}
         dragElastic={{ left: 0.2, right: 0.1 }}
         animate={controls}
@@ -558,23 +561,37 @@ function SwipeableTransaction({
             else openTxnActions(t);
           }
         }}
-        className="relative w-full flex justify-between items-center py-3 px-1 bg-dark text-left"
+        className={`relative w-full flex justify-between items-center py-3 px-2 ${t.type === 'bill_payment' ? 'bg-success/5 border border-success/20 rounded-lg my-1' : 'bg-dark'} text-left`}
       >
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <p className={`text-sm ${t.is_paid ? 'line-through text-muted' : ''}`}>{t.merchant}</p>
-            {t.is_paid && (
+            {t.type === 'bill_payment' ? <span className="text-success text-lg">🏦</span> : null}
+            <p
+              className={`text-sm ${t.is_paid ? 'line-through text-muted' : t.type === 'bill_payment' ? 'text-success font-semibold' : ''}`}
+            >
+              {t.merchant}
+            </p>
+            {t.is_paid && t.type !== 'bill_payment' && (
               <span className="text-[9px] font-bold text-success bg-success/20 px-1.5 py-0.5 rounded">
                 PAID
               </span>
             )}
+            {t.type === 'bill_payment' && (
+              <span className="text-[9px] font-bold text-success bg-success/20 px-1.5 py-0.5 rounded border border-success/30">
+                PAYMENT RECEIVED
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted">
-            {holderMap[t.holder_id_at_time]?.name ?? '—'} · {t.txn_date.slice(5)}
+            {t.type === 'bill_payment'
+              ? `Processed on ${t.txn_date}`
+              : `${holderMap[t.holder_id_at_time]?.name ?? '—'} · ${t.txn_date.slice(5)}`}
           </p>
         </div>
-        <span className={`text-sm ${t.is_paid ? 'line-through text-muted' : 'text-danger'}`}>
-          −₹{Number(t.amount).toLocaleString('en-IN')}
+        <span
+          className={`text-sm font-bold ${t.is_paid && t.type !== 'bill_payment' ? 'line-through text-muted' : t.type === 'bill_payment' ? 'text-success' : 'text-danger'}`}
+        >
+          {t.type === 'bill_payment' ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
         </span>
       </motion.div>
     </div>

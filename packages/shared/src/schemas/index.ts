@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const NetworkSchema = z.enum(['Visa', 'Mastercard', 'RuPay', 'Amex']);
 export const RelationshipSchema = z.enum(['me', 'friend']);
 export const TransactionSourceSchema = z.enum(['sms', 'manual']);
-export const TransactionTypeSchema = z.enum(['spend', 'payment']);
+export const TransactionTypeSchema = z.enum(['spend', 'payment', 'bill_payment']);
 
 export const CreateCardSchema = z.object({
   last4: z.string().regex(/^\d{4}$/, 'Must be exactly 4 digits'),
@@ -82,15 +82,6 @@ export const CreatePaymentSchema = z.object({
 });
 
 export const UpdatePaymentSchema = CreatePaymentSchema.partial();
-
-export const CreateCardPaymentSchema = z.object({
-  card_id: z.string().uuid(),
-  amount: z.number().positive(),
-  payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  notes: z.string().max(200).optional().nullable(),
-});
-
-export const UpdateCardPaymentSchema = CreateCardPaymentSchema.partial();
 
 export const BankVariantMetadataSchema = z.object({
   banks: z.array(
