@@ -110,19 +110,58 @@ export async function transactionRoutes(app: FastifyInstance) {
 
       // Atomically create a payment record if funded by someone else
       if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
+        let finalLinkedTxnId = linked_transaction_id ?? newTxn.id;
+
+        if (linked_transaction_id) {
+          const [linkedTxn] = await tx
+            .select()
+            .from(transactions)
+            .where(eq(transactions.id, linked_transaction_id));
+
+          if (linkedTxn) {
+            const linkedAmt = parseFloat(linkedTxn.amount);
+            if (amount < linkedAmt) {
+              // Partial payment: Split the transaction
+              const remaining = linkedAmt - amount;
+
+              // 1. Reduce original transaction to the remaining amount (unpaid)
+              await tx
+                .update(transactions)
+                .set({ amount: String(remaining) })
+                .where(eq(transactions.id, linked_transaction_id));
+
+              // 2. Clone it for the paid portion
+              const [cloned] = await tx
+                .insert(transactions)
+                .values({
+                  card_id: linkedTxn.card_id,
+                  type: linkedTxn.type,
+                  amount: String(amount),
+                  merchant: linkedTxn.merchant,
+                  txn_date: linkedTxn.txn_date,
+                  holder_id_at_time: linkedTxn.holder_id_at_time,
+                  source: linkedTxn.source,
+                  is_paid: true,
+                })
+                .returning();
+
+              finalLinkedTxnId = cloned.id;
+            } else {
+              // Full payment
+              await tx
+                .update(transactions)
+                .set({ is_paid: true })
+                .where(eq(transactions.id, linked_transaction_id));
+            }
+          }
+        }
+
         await tx.insert(payments).values({
           holder_id: funded_by_holder_id,
-          transaction_id: linked_transaction_id ?? newTxn.id,
+          transaction_id: finalLinkedTxnId,
           amount: String(amount),
           payment_date: rest.txn_date,
         });
-
-        if (linked_transaction_id) {
-          await tx
-            .update(transactions)
-            .set({ is_paid: true })
-            .where(eq(transactions.id, linked_transaction_id));
-        }
       }
       return newTxn;
     });
