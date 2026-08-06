@@ -12,7 +12,6 @@ interface ApiService {
     @POST("cards") suspend fun createCard(@Body body: CreateCardDto): CardDto
     @PATCH("cards/{id}") suspend fun updateCard(@Path("id") id: String, @Body body: CreateCardDto): CardDto
     @DELETE("cards/{id}") suspend fun deleteCard(@Path("id") id: String): Response<Unit>
-    @POST("cards/detect-palette") suspend fun detectPalette(@Body body: DetectPaletteRequest): PaletteResponse
 
     @GET("holders") suspend fun getHolders(): List<HolderDto>
     @POST("holders") suspend fun createHolder(@Body body: CreateHolderDto): HolderDto
@@ -24,7 +23,7 @@ interface ApiService {
         @Query("active") active: String? = null,
     ): List<AssignmentDto>
     @POST("assignments") suspend fun createAssignment(@Body body: CreateAssignmentDto): AssignmentDto
-    @POST("assignments/{id}/return") suspend fun returnAssignment(@Path("id") id: String): AssignmentDto
+    @PATCH("assignments/{id}") suspend fun updateAssignment(@Path("id") id: String, @Body body: UpdateAssignmentDto): AssignmentDto
     @DELETE("assignments/{id}") suspend fun deleteAssignment(@Path("id") id: String): Response<Unit>
 
     @GET("transactions") suspend fun getTransactions(
@@ -36,10 +35,11 @@ interface ApiService {
     @DELETE("transactions/{id}") suspend fun deleteTransaction(@Path("id") id: String): Response<Unit>
 
     @GET("metadata/banks") suspend fun getBankMetadata(): BankVariantMetadataDto
+    @POST("metadata/detect-palette") suspend fun detectPalette(@Body body: DetectPaletteRequest): PaletteResponse
 
     @GET("payments") suspend fun getPayments(@Query("holder_id") holderId: String? = null): List<PaymentDto>
     @POST("payments") suspend fun createPayment(@Body body: CreatePaymentDto): PaymentDto
-    @DELETE("payments/transaction/{txnId}") suspend fun deletePaymentByTransaction(@Path("txnId") txnId: String): Response<Unit>
+    @DELETE("payments") suspend fun deletePaymentByTransaction(@Query("transaction_id") txnId: String): Response<Unit>
 
     @POST("sms/parse/ai") suspend fun parseSmsAi(@Body body: com.imvj.cardledger.domain.SmsInput): com.imvj.cardledger.domain.ParseResult
 

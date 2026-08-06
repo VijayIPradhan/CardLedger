@@ -35,7 +35,10 @@ class AssignmentRepository(private val api: ApiService) {
     suspend fun list(cardId: String? = null, active: Boolean? = null) =
         call { api.getAssignments(cardId, if (active == true) "true" else null) }
     suspend fun create(b: CreateAssignmentDto) = call { api.createAssignment(b) }
-    suspend fun returnCard(id: String) = call { api.returnAssignment(id) }
+    suspend fun returnCard(id: String) = call {
+        val today = java.time.LocalDate.now().toString()
+        api.updateAssignment(id, UpdateAssignmentDto(returned_date = today))
+    }
     suspend fun delete(id: String) = call { api.deleteAssignment(id); Unit }
 }
 

@@ -37,7 +37,11 @@ export function useReturnCard() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (assignmentId: string) =>
-      api.post(`/assignments/${assignmentId}/return`).then((r) => r.data),
+      api
+        .patch(`/assignments/${assignmentId}`, {
+          returned_date: new Date().toISOString().split('T')[0],
+        })
+        .then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assignments'] }),
   });
 }

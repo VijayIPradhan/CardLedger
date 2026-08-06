@@ -66,6 +66,9 @@ data class AssignmentDto(
 data class CreateAssignmentDto(val card_id: String, val holder_id: String, val handed_over_date: String)
 
 @Serializable
+data class UpdateAssignmentDto(val returned_date: String? = null)
+
+@Serializable
 data class TransactionDto(
     val id: String,
     val card_id: String,

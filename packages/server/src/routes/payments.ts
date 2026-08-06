@@ -90,19 +90,26 @@ export async function paymentRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-  app.delete<{ Params: { txnId: string } }>('/transaction/:txnId', auth, async (req, reply) => {
+  app.delete('/', auth, async (req, reply) => {
     const userId = req.user.sub;
+    // Extract transaction_id from query params.
+    // E.g. DELETE /payments?transaction_id=xyz
+    const { transaction_id } = req.query as { transaction_id?: string };
+
+    if (!transaction_id) {
+      return reply.status(400).send({ error: 'Missing transaction_id query parameter' });
+    }
 
     // Verify the payment belongs to a holder owned by this user
     const existing = await db
       .select({ id: payments.id })
       .from(payments)
       .innerJoin(holders, eq(payments.holder_id, holders.id))
-      .where(and(eq(payments.transaction_id, req.params.txnId), eq(holders.user_id, userId)));
+      .where(and(eq(payments.transaction_id, transaction_id), eq(holders.user_id, userId)));
 
     if (existing.length === 0) return reply.status(404).send({ error: 'Not found' });
 
-    await db.delete(payments).where(eq(payments.transaction_id, req.params.txnId));
+    await db.delete(payments).where(eq(payments.transaction_id, transaction_id));
     return reply.status(204).send();
   });
 }

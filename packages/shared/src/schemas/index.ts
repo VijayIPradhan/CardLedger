@@ -39,6 +39,13 @@ export const CreateAssignmentSchema = z.object({
   handed_over_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
+export const UpdateAssignmentSchema = CreateAssignmentSchema.extend({
+  returned_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+}).partial();
+
 export const CreateTransactionSchema = z.object({
   card_id: z.string().uuid(),
   amount: z.number().positive(),
