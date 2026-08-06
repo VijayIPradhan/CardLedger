@@ -68,6 +68,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var showTxnSheet by remember { mutableStateOf(false) }
     var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
     var showWhoPaidSheet by remember { mutableStateOf<TransactionDto?>(null) }
+    var preselectedPmtTxn by remember { mutableStateOf<TransactionDto?>(null) }
     var showCyclePaidSheet by remember { mutableStateOf<String?>(null) }
     var showCardPaymentSheet by remember { mutableStateOf(false) }
     var expandedCycles by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -185,7 +186,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                         }
                         
                         Button(
-                            onClick = { showCardPaymentSheet = true },
+                            onClick = { preselectedPmtTxn = null; showCardPaymentSheet = true },
                             colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             shape = RoundedCornerShape(8.dp)
@@ -738,6 +739,20 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     }
                 }
 
+                if (txn.type == "spend" && !txn.is_paid) {
+                    Button(
+                        onClick = {
+                            preselectedPmtTxn = txn
+                            showTxnSheet = false
+                            showCardPaymentSheet = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Success, contentColor = Color.White)
+                    ) {
+                        Text("Pay via Card Payment")
+                    }
+                }
+
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -843,12 +858,12 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     }
 
     if (showCardPaymentSheet) {
-        var pmtAmount by remember { mutableStateOf(s.totalSpend.takeIf { it > 0 }?.let { money(it).replace("₹", "").replace(",", "") } ?: "") }
+        var pmtAmount by remember(preselectedPmtTxn) { mutableStateOf(preselectedPmtTxn?.amount ?: s.totalSpend.takeIf { it > 0 }?.let { money(it).replace("₹", "").replace(",", "") } ?: "") }
         var pmtDate by remember { mutableStateOf(com.imvj.cardledger.domain.today()) }
         var pmtNotes by remember { mutableStateOf("") }
-        var pmtFunderId by remember { mutableStateOf(s.holders.firstOrNull { it.relationship == "me" }?.id ?: "") }
+        var pmtFunderId by remember(preselectedPmtTxn) { mutableStateOf(preselectedPmtTxn?.holder_id_at_time ?: s.holders.firstOrNull { it.relationship == "me" }?.id ?: "") }
         var funderExpanded by remember { mutableStateOf(false) }
-        var linkedTxnId by remember { mutableStateOf<String?>(null) }
+        var linkedTxnId by remember(preselectedPmtTxn) { mutableStateOf<String?>(preselectedPmtTxn?.id) }
         var linkedTxnExpanded by remember { mutableStateOf(false) }
         var loading by remember { mutableStateOf(false) }
         val selectedFunder = s.holders.firstOrNull { it.id == pmtFunderId }
