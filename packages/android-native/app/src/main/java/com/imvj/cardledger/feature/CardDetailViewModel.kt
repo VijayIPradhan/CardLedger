@@ -76,18 +76,10 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val friends = holders.filter { it.relationship == "friend" }
             if (summary != null) {
                 cardToCollect = summary.friendDebts.sumOf { debt ->
-                    if (debt.rawByCard.isNotEmpty() || summary.friendDebts.any { it.rawByCard.isNotEmpty() }) {
-                        debt.rawByCard[id] ?: 0.0
-                    } else {
-                        debt.byCard[id] ?: 0.0
-                    }
+                    debt.byCard[id] ?: 0.0
                 }
                 summary.friendDebts.forEach { debt ->
-                    val rawAmt = if (debt.rawByCard.isNotEmpty() || summary.friendDebts.any { it.rawByCard.isNotEmpty() }) {
-                        debt.rawByCard[id] ?: 0.0
-                    } else {
-                        debt.byCard[id] ?: 0.0
-                    }
+                    val rawAmt = debt.byCard[id] ?: 0.0
                     val netAmt = rawAmt
                     val inHand = maxOf(0.0, (debt.rawByCard[id] ?: 0.0) - (debt.byCard[id] ?: 0.0))
                     if (netAmt > 0.0 || inHand > 0.0) {
