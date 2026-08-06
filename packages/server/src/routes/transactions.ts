@@ -155,13 +155,6 @@ export async function transactionRoutes(app: FastifyInstance) {
             }
           }
         }
-
-        await tx.insert(payments).values({
-          holder_id: funded_by_holder_id,
-          transaction_id: finalLinkedTxnId,
-          amount: String(amount),
-          payment_date: rest.txn_date,
-        });
       }
       return newTxn;
     });
