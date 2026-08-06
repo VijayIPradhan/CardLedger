@@ -132,13 +132,24 @@ export async function transactionRoutes(app: FastifyInstance) {
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
     if (!existing) return reply.status(404).send({ error: 'Not found' });
 
-    const { amount, ...rest } = parsed.data;
-    const update = amount !== undefined ? { ...rest, amount: String(amount) } : rest;
+    const { amount, txn_date, ...rest } = parsed.data;
+    const update: any = { ...rest };
+    if (amount !== undefined) update.amount = String(amount);
+    if (txn_date !== undefined) update.txn_date = txn_date;
+
     const [txn] = await db
       .update(transactions)
       .set(update)
       .where(eq(transactions.id, req.params.id))
       .returning();
+
+    if (amount !== undefined || txn_date !== undefined) {
+      const paymentUpdate: any = {};
+      if (amount !== undefined) paymentUpdate.amount = String(amount);
+      if (txn_date !== undefined) paymentUpdate.payment_date = txn_date;
+      await db.update(payments).set(paymentUpdate).where(eq(payments.transaction_id, txn.id));
+    }
+
     return txn;
   });
 

@@ -478,26 +478,27 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                 }
                                             }
                                     ) {
-                                        // Background buttons
                                         Row(
                                             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
                                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                                         ) {
-                                            IconButton(
-                                                onClick = {
-                                                    val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
-                                                    if (!txn.is_paid && txn.holder_id_at_time != meId) {
-                                                        showWhoPaidSheet = txn
-                                                    } else {
-                                                        vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
-                                                    }
-                                                    swipeOffset = 0f
-                                                },
-                                                modifier = Modifier
-                                                    .size(40.dp)
-                                                    .background(if (txn.is_paid) Elevated else Success, shape = androidx.compose.foundation.shape.CircleShape)
-                                            ) {
-                                                Icon(if (txn.is_paid) Icons.Default.Close else Icons.Default.Check, contentDescription = "Toggle Paid", tint = Color.White)
+                                            if (txn.type == "spend") {
+                                                IconButton(
+                                                    onClick = {
+                                                        val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                                        if (!txn.is_paid && txn.holder_id_at_time != meId) {
+                                                            showWhoPaidSheet = txn
+                                                        } else {
+                                                            vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
+                                                        }
+                                                        swipeOffset = 0f
+                                                    },
+                                                    modifier = Modifier
+                                                        .size(40.dp)
+                                                        .background(if (txn.is_paid) Elevated else Success, shape = androidx.compose.foundation.shape.CircleShape)
+                                                ) {
+                                                    Icon(if (txn.is_paid) Icons.Default.Close else Icons.Default.Check, contentDescription = "Toggle Paid", tint = Color.White)
+                                                }
                                             }
                                             IconButton(
                                                 onClick = { swipeOffset = 0f },
@@ -529,31 +530,35 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
-                                                IconButton(
-                                                    onClick = {
-                                                        val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
-                                                        if (!txn.is_paid && txn.holder_id_at_time != meId) {
-                                                            showWhoPaidSheet = txn
-                                                        } else {
-                                                            vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
-                                                        }
-                                                    },
-                                                    modifier = Modifier.size(36.dp)
-                                                ) {
-                                                    if (txn.is_paid) {
-                                                        Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Success, modifier = Modifier.size(22.dp)) {
-                                                            Box(contentAlignment = Alignment.Center) {
-                                                                Icon(Icons.Default.Check, contentDescription = "Paid", tint = Color.White, modifier = Modifier.size(14.dp))
+                                                if (txn.type == "spend") {
+                                                    IconButton(
+                                                        onClick = {
+                                                            val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                                                            if (!txn.is_paid && txn.holder_id_at_time != meId) {
+                                                                showWhoPaidSheet = txn
+                                                            } else {
+                                                                vm.toggleTransactionPaid(txn, cardId, txn.is_paid)
                                                             }
+                                                        },
+                                                        modifier = Modifier.size(36.dp)
+                                                    ) {
+                                                        if (txn.is_paid) {
+                                                            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Success, modifier = Modifier.size(22.dp)) {
+                                                                Box(contentAlignment = Alignment.Center) {
+                                                                    Icon(Icons.Default.Check, contentDescription = "Paid", tint = Color.White, modifier = Modifier.size(14.dp))
+                                                                }
+                                                            }
+                                                        } else {
+                                                            Surface(
+                                                                shape = androidx.compose.foundation.shape.CircleShape,
+                                                                color = Color.Transparent,
+                                                                border = androidx.compose.foundation.BorderStroke(1.5.dp, MutedLow),
+                                                                modifier = Modifier.size(22.dp)
+                                                            ) {}
                                                         }
-                                                    } else {
-                                                        Surface(
-                                                            shape = androidx.compose.foundation.shape.CircleShape,
-                                                            color = Color.Transparent,
-                                                            border = androidx.compose.foundation.BorderStroke(1.5.dp, MutedLow),
-                                                            modifier = Modifier.size(22.dp)
-                                                        ) {}
                                                     }
+                                                } else {
+                                                    Spacer(modifier = Modifier.width(36.dp))
                                                 }
                                                 Spacer(Modifier.width(8.dp))
                                                 Column(Modifier.weight(1f)) {
@@ -699,34 +704,36 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     singleLine = true,
                 )
 
-                ExposedDropdownMenuBox(
-                    expanded = holderExpanded,
-                    onExpandedChange = { holderExpanded = it },
-                ) {
-                    OutlinedTextField(
-                        value = selectedHolder?.let { h ->
-                            h.name + if (h.relationship == "me") " (me)" else ""
-                        } ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Who used") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = holderExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                    )
-                    ExposedDropdownMenu(
+                if (txn.type == "spend") {
+                    ExposedDropdownMenuBox(
                         expanded = holderExpanded,
-                        onDismissRequest = { holderExpanded = false },
+                        onExpandedChange = { holderExpanded = it },
                     ) {
-                        s.holders.forEach { holder ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(holder.name + if (holder.relationship == "me") " (me)" else "")
-                                },
-                                onClick = {
-                                    editHolderId = holder.id
-                                    holderExpanded = false
-                                },
-                            )
+                        OutlinedTextField(
+                            value = selectedHolder?.let { h ->
+                                h.name + if (h.relationship == "me") " (me)" else ""
+                            } ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Who used") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = holderExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = holderExpanded,
+                            onDismissRequest = { holderExpanded = false },
+                        ) {
+                            s.holders.forEach { holder ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(holder.name + if (holder.relationship == "me") " (me)" else "")
+                                    },
+                                    onClick = {
+                                        editHolderId = holder.id
+                                        holderExpanded = false
+                                    },
+                                )
+                            }
                         }
                     }
                 }
