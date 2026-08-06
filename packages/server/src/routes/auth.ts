@@ -10,114 +10,117 @@ import { z } from 'zod';
 const RegisterSchema = z.object({
   username: z.string().min(1).max(100),
   email: z.string().email().optional(),
-  password: z.string().min(6),
+  password: z.string().min(8),
 });
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post('/auth/login', async (request, reply) => {
-    const parsed = LoginSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
-    }
-
-    const { username, password } = parsed.data;
-    // Match user by exact username OR by email address
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(or(eq(users.username, username), eq(users.email, username)));
-
-    if (!user) {
-      return reply.status(401).send({ error: 'Invalid credentials' });
-    }
-
-    if (!user.password_hash) {
-      return reply.status(401).send({ error: 'Please login with Google' });
-    }
-
-    const valid = await argon2.verify(user.password_hash, password);
-    if (!valid) {
-      return reply.status(401).send({ error: 'Invalid credentials' });
-    }
-
-    const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' });
-    return reply.send({ token });
-  });
-
-  app.post('/auth/register', async (request, reply) => {
-    const parsed = RegisterSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
-    }
-
-    const { username, email, password } = parsed.data;
-    const hash = await argon2.hash(password);
-
-    // Check if user already exists by username or email
-    const [existing] = await db
-      .select()
-      .from(users)
-      .where(
-        or(
-          eq(users.username, username),
-          email ? eq(users.email, email) : eq(users.username, username),
-        ),
-      );
-
-    if (existing) {
-      // If existing user has no password_hash (logged in via Google previously), allow linking password now!
-      if (!existing.password_hash) {
-        const [updated] = await db
-          .update(users)
-          .set({ password_hash: hash, email: existing.email || email })
-          .where(eq(users.id, existing.id))
-          .returning();
-        const token = app.jwt.sign(
-          { sub: updated.id, username: updated.username },
-          { expiresIn: '30d' },
-        );
-        return reply.send({ token });
+  app.post(
+    '/auth/login',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const parsed = LoginSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
       }
-      return reply.status(409).send({ error: 'Username or email already exists' });
-    }
 
-    const [newUser] = await db
-      .insert(users)
-      .values({ username, email, password_hash: hash })
-      .returning();
+      const { username, password } = parsed.data;
+      // Match user by exact username OR by email address
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(or(eq(users.username, username), eq(users.email, username)));
 
-    // Seed default "me" holder
-    await db.insert(holders).values({
-      user_id: newUser.id,
-      name: 'Me',
-      phone: '0000000000',
-      relationship: 'me',
-    });
+      if (!user) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
 
-    const token = app.jwt.sign(
-      { sub: newUser.id, username: newUser.username },
-      { expiresIn: '30d' },
-    );
-    return reply.send({ token });
-  });
+      if (!user.password_hash) {
+        return reply.status(401).send({ error: 'Please login with Google' });
+      }
 
-  app.post('/auth/link-password', async (request, reply) => {
+      const valid = await argon2.verify(user.password_hash, password);
+      if (!valid) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      const token = app.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' });
+      return reply.send({ token });
+    },
+  );
+
+  app.post(
+    '/auth/register',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const parsed = RegisterSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
+
+      const { username, email, password } = parsed.data;
+      const hash = await argon2.hash(password);
+
+      // Check if user already exists by username or email
+      const [existing] = await db
+        .select()
+        .from(users)
+        .where(
+          or(
+            eq(users.username, username),
+            email ? eq(users.email, email) : eq(users.username, username),
+          ),
+        );
+
+      if (existing) {
+        // If existing user has no password_hash (logged in via Google previously), allow linking password now!
+        if (!existing.password_hash) {
+          const [updated] = await db
+            .update(users)
+            .set({ password_hash: hash, email: existing.email || email })
+            .where(eq(users.id, existing.id))
+            .returning();
+          const token = app.jwt.sign(
+            { sub: updated.id, username: updated.username },
+            { expiresIn: '30d' },
+          );
+          return reply.send({ token });
+        }
+        return reply.status(409).send({ error: 'Username or email already exists' });
+      }
+
+      const [newUser] = await db
+        .insert(users)
+        .values({ username, email, password_hash: hash })
+        .returning();
+
+      // Seed default "me" holder
+      await db.insert(holders).values({
+        user_id: newUser.id,
+        name: 'Me',
+        phone: '0000000000',
+        relationship: 'me',
+      });
+
+      const token = app.jwt.sign(
+        { sub: newUser.id, username: newUser.username },
+        { expiresIn: '30d' },
+      );
+      return reply.send({ token });
+    },
+  );
+
+  // Requires authentication — only the logged-in user can link/reset their own password
+  app.post('/auth/link-password', { onRequest: [app.authenticate] }, async (request, reply) => {
     const parsed = RegisterSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { username, email, password } = parsed.data;
-    const [existing] = await db
-      .select()
-      .from(users)
-      .where(
-        or(
-          eq(users.username, username),
-          email ? eq(users.email, email) : eq(users.username, username),
-        ),
-      );
+    const { password } = parsed.data;
+    const userId = request.user.sub;
+
+    const [existing] = await db.select().from(users).where(eq(users.id, userId));
 
     if (!existing) {
       return reply.status(404).send({ error: 'User not found' });
@@ -126,8 +129,8 @@ export async function authRoutes(app: FastifyInstance) {
     const hash = await argon2.hash(password);
     const [updated] = await db
       .update(users)
-      .set({ password_hash: hash, email: existing.email || email })
-      .where(eq(users.id, existing.id))
+      .set({ password_hash: hash })
+      .where(eq(users.id, userId))
       .returning();
 
     const token = app.jwt.sign(
@@ -178,6 +181,14 @@ export async function authRoutes(app: FastifyInstance) {
           .values({ username: uniqueUsername, email, google_id: googleId })
           .returning();
         user = newUser;
+
+        // Seed default "me" holder for new Google OAuth users
+        await db.insert(holders).values({
+          user_id: newUser.id,
+          name: 'Me',
+          phone: '0000000000',
+          relationship: 'me',
+        });
       } else if (!user.google_id) {
         await db.update(users).set({ google_id: googleId }).where(eq(users.id, user.id));
       }

@@ -207,9 +207,11 @@ export async function transactionRoutes(app: FastifyInstance) {
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
     if (!existing) return reply.status(404).send({ error: 'Not found' });
 
-    // Delete associated payments first
-    await db.delete(payments).where(eq(payments.transaction_id, req.params.id));
-    await db.delete(transactions).where(eq(transactions.id, req.params.id));
+    // Delete associated payments and transaction atomically
+    await db.transaction(async (tx) => {
+      await tx.delete(payments).where(eq(payments.transaction_id, req.params.id));
+      await tx.delete(transactions).where(eq(transactions.id, req.params.id));
+    });
     return reply.status(204).send();
   });
 }

@@ -42,10 +42,12 @@ export async function buildApp() {
     });
   });
 
-  const corsOrigin = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true;
+  const corsOrigin = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : ['http://localhost:5173'];
   await app.register(fastifyCors, { origin: corsOrigin });
   await app.register(fastifyRateLimit, {
-    max: 5000,
+    max: 100, // Lowered global max to a reasonable default
     timeWindow: '1 minute',
   });
   await app.register(authPlugin);

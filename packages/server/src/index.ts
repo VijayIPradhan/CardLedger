@@ -38,9 +38,11 @@ const port = Number(process.env.PORT ?? 3001);
 await app.listen({ port, host: '0.0.0.0' });
 // Fastify pino logs the address automatically — no extra console.log needed
 
-process.on('SIGTERM', async () => {
-  app.log.info('SIGTERM received — shutting down');
-  await app.close();
-  await pool.end();
-  process.exit(0);
+['SIGINT', 'SIGTERM'].forEach((signal) => {
+  process.on(signal, async () => {
+    app.log.info(`${signal} received — shutting down`);
+    await app.close();
+    await pool.end();
+    process.exit(0);
+  });
 });

@@ -18,7 +18,7 @@
     "@google/genai": "^2.8.0",
     "argon2": "^0.31.0",
     "dotenv": "^16.4.0",
-    "drizzle-orm": "^0.30.0",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^4.26.0",
     "fastify-plugin": "^4.5.0",
     "google-auth-library": "^10.7.0",

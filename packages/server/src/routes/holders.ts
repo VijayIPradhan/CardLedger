@@ -49,28 +49,41 @@ export async function holderRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
     const userId = req.user.sub;
 
-    // Verify ownership before checking dependants
-    const [h] = await db
-      .select({ id: holders.id })
-      .from(holders)
-      .where(and(eq(holders.id, req.params.id), eq(holders.user_id, userId)));
-    if (!h) return reply.status(404).send({ error: 'Not found' });
+    try {
+      const deleted = await db.transaction(async (tx) => {
+        // Verify ownership inside the transaction
+        const [h] = await tx
+          .select({ id: holders.id })
+          .from(holders)
+          .where(and(eq(holders.id, req.params.id), eq(holders.user_id, userId)));
+        if (!h) return null;
 
-    const [txn] = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(eq(transactions.holder_id_at_time, req.params.id))
-      .limit(1);
-    const [asg] = await db
-      .select({ id: assignments.id })
-      .from(assignments)
-      .where(eq(assignments.holder_id, req.params.id))
-      .limit(1);
-    if (txn || asg) {
-      return reply.status(409).send({ error: 'Holder has transactions or assignments' });
+        // Check for dependent transactions/assignments atomically
+        const [txn] = await tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(eq(transactions.holder_id_at_time, req.params.id))
+          .limit(1);
+        const [asg] = await tx
+          .select({ id: assignments.id })
+          .from(assignments)
+          .where(eq(assignments.holder_id, req.params.id))
+          .limit(1);
+        if (txn || asg) {
+          throw new Error('CONFLICT');
+        }
+
+        await tx.delete(holders).where(eq(holders.id, req.params.id));
+        return h;
+      });
+
+      if (!deleted) return reply.status(404).send({ error: 'Not found' });
+      return reply.status(204).send();
+    } catch (e) {
+      if (e instanceof Error && e.message === 'CONFLICT') {
+        return reply.status(409).send({ error: 'Holder has transactions or assignments' });
+      }
+      throw e;
     }
-
-    await db.delete(holders).where(eq(holders.id, req.params.id));
-    return reply.status(204).send();
   });
 }

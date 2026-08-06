@@ -25,10 +25,10 @@ android {
     buildTypes {
         debug {
             buildConfigField 'String', 'API_BASE_URL', '"https://cards.imvj.host/api/"'
-            buildConfigField 'String', 'GOOGLE_CLIENT_ID', "\"${localProps.getProperty('GOOGLE_CLIENT_ID', '')}\""
+            buildConfigField 'String', 'GOOGLE_CLIENT_ID', "\"${localProps.getProperty('GOOGLE_CLIENT_ID', '930171661547-sbbprura1lgdhbrs8m3eipqvqrt9r5sa.apps.googleusercontent.com')}\""
         }
         release {
-            minifyEnabled false
+            minifyEnabled true
             buildConfigField 'String', 'API_BASE_URL', '"https://cards.imvj.host/api/"'
             buildConfigField 'String', 'GOOGLE_CLIENT_ID', "\"${localProps.getProperty('GOOGLE_CLIENT_ID', '')}\""
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

@@ -26,7 +26,7 @@ RUN cd packages/server && pnpm build
 # ── Production stage ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS production
 
-RUN apk add --no-cache python3 make g++ && npm install -g pnpm@11.5.1
+RUN npm install -g pnpm@11.5.1
 
 WORKDIR /app
 

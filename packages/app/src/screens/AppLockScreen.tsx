@@ -12,14 +12,14 @@ export default function AppLockScreen() {
   const nav = useNavigate();
   const pinSet = isPinSet();
 
-  function handlePin(pin: string) {
+  async function handlePin(pin: string) {
     if (!pinSet) {
-      setupPin(pin);
+      await setupPin(pin);
       unlock();
       nav('/', { replace: true });
       return;
     }
-    if (verifyPin(pin)) {
+    if (await verifyPin(pin)) {
       unlock();
       nav('/', { replace: true });
     } else {

@@ -44,8 +44,8 @@ export default function SettingsScreen() {
           <div className="bg-surface rounded-card">
             <PinPad
               label="Enter new PIN"
-              onComplete={(pin) => {
-                setupPin(pin);
+              onComplete={async (pin) => {
+                await setupPin(pin);
                 setChangingPin(false);
               }}
             />
