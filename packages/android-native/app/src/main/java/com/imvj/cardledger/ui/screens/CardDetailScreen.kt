@@ -935,20 +935,27 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 }
 
                 val eligibleSpends = s.transactions.filter { it.holder_id_at_time == pmtFunderId && !it.is_paid && it.type == "spend" }
-                if (eligibleSpends.isNotEmpty()) {
-                    ExposedDropdownMenuBox(
-                        expanded = linkedTxnExpanded,
-                        onExpandedChange = { linkedTxnExpanded = it },
-                    ) {
-                        val selectedSpend = eligibleSpends.firstOrNull { it.id == linkedTxnId }
-                        OutlinedTextField(
-                            value = selectedSpend?.let { "${it.merchant} (${money(it.amount.toDoubleOrNull() ?: 0.0)})" } ?: "None (General Payment)",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Pays For (Optional)") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = linkedTxnExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        )
+                
+                ExposedDropdownMenuBox(
+                    expanded = eligibleSpends.isNotEmpty() && linkedTxnExpanded,
+                    onExpandedChange = { if (eligibleSpends.isNotEmpty()) linkedTxnExpanded = it },
+                ) {
+                    val selectedSpend = eligibleSpends.firstOrNull { it.id == linkedTxnId }
+                    val displayValue = if (eligibleSpends.isEmpty()) {
+                        "No unpaid spends found"
+                    } else {
+                        selectedSpend?.let { "${it.merchant} (${money(it.amount.toDoubleOrNull() ?: 0.0)})" } ?: "None (General Payment)"
+                    }
+                    OutlinedTextField(
+                        value = displayValue,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Pays For (Optional)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = linkedTxnExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        enabled = eligibleSpends.isNotEmpty()
+                    )
+                    if (eligibleSpends.isNotEmpty()) {
                         ExposedDropdownMenu(
                             expanded = linkedTxnExpanded,
                             onDismissRequest = { linkedTxnExpanded = false },
@@ -970,9 +977,9 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                 )
                             }
                         }
+                    } else {
+                        linkedTxnId = null
                     }
-                } else {
-                    linkedTxnId = null
                 }
 
                 Button(

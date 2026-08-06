@@ -102,27 +102,30 @@ export async function transactionRoutes(app: FastifyInstance) {
       }
     }
 
-    const [txn] = await db
-      .insert(transactions)
-      .values({ ...rest, amount: String(amount), holder_id_at_time: finalHolderId })
-      .returning();
+    const txn = await db.transaction(async (tx) => {
+      const [newTxn] = await tx
+        .insert(transactions)
+        .values({ ...rest, amount: String(amount), holder_id_at_time: finalHolderId })
+        .returning();
 
-    // Atomically create a payment record if funded by someone else
-    if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
-      await db.insert(payments).values({
-        holder_id: funded_by_holder_id,
-        transaction_id: linked_transaction_id ?? txn.id,
-        amount: String(amount),
-        payment_date: rest.txn_date,
-      });
+      // Atomically create a payment record if funded by someone else
+      if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
+        await tx.insert(payments).values({
+          holder_id: funded_by_holder_id,
+          transaction_id: linked_transaction_id ?? newTxn.id,
+          amount: String(amount),
+          payment_date: rest.txn_date,
+        });
 
-      if (linked_transaction_id) {
-        await db
-          .update(transactions)
-          .set({ is_paid: true })
-          .where(eq(transactions.id, linked_transaction_id));
+        if (linked_transaction_id) {
+          await tx
+            .update(transactions)
+            .set({ is_paid: true })
+            .where(eq(transactions.id, linked_transaction_id));
+        }
       }
-    }
+      return newTxn;
+    });
 
     return reply.status(201).send(txn);
   });

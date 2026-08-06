@@ -42,7 +42,8 @@ export async function buildApp() {
     });
   });
 
-  await app.register(fastifyCors, { origin: true });
+  const corsOrigin = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true;
+  await app.register(fastifyCors, { origin: corsOrigin });
   await app.register(fastifyRateLimit, {
     max: 5000,
     timeWindow: '1 minute',

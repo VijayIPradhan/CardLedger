@@ -199,18 +199,24 @@ export async function summaryRoutes(app: FastifyInstance) {
     }>;
 
     // ── 5. Top Merchants ──
-    const merchantMap = new Map<string, { amount: number; count: number }>();
-    spendTxns.forEach((t) => {
-      const m = t.transactions.merchant;
-      const amt = parseFloat(t.transactions.amount) || 0;
-      const prev = merchantMap.get(m) || { amount: 0, count: 0 };
-      merchantMap.set(m, { amount: prev.amount + amt, count: prev.count + 1 });
-    });
+    const topMerchantsData = await db
+      .select({
+        merchant: transactions.merchant,
+        amount: sql<string>`SUM(${transactions.amount})`,
+        count: sql<number>`COUNT(${transactions.id})::int`,
+      })
+      .from(transactions)
+      .innerJoin(cards, eq(transactions.card_id, cards.id))
+      .where(and(eq(cards.user_id, userId), eq(transactions.type, 'spend')))
+      .groupBy(transactions.merchant)
+      .orderBy(desc(sql`SUM(${transactions.amount})`))
+      .limit(5);
 
-    const topMerchants = Array.from(merchantMap.entries())
-      .map(([merchant, { amount, count }]) => ({ merchant, amount, count }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
+    const topMerchants = topMerchantsData.map((m) => ({
+      merchant: m.merchant,
+      amount: parseFloat(m.amount) || 0,
+      count: m.count,
+    }));
 
     // ── 6. Time-based & Daily Spend ──
     const now = new Date();
@@ -261,11 +267,20 @@ export async function summaryRoutes(app: FastifyInstance) {
       0,
     );
 
+    const spendByNetworkData = await db
+      .select({
+        network: cards.network,
+        amount: sql<string>`SUM(${transactions.amount})`,
+      })
+      .from(transactions)
+      .innerJoin(cards, eq(transactions.card_id, cards.id))
+      .where(and(eq(cards.user_id, userId), eq(transactions.type, 'spend')))
+      .groupBy(cards.network);
+
     const spendByNetwork: Record<string, number> = {};
-    spendTxns.forEach((t) => {
-      const net = t.cards.network || 'Other';
-      const amt = parseFloat(t.transactions.amount) || 0;
-      spendByNetwork[net] = (spendByNetwork[net] || 0) + amt;
+    spendByNetworkData.forEach((row) => {
+      const net = row.network || 'Other';
+      spendByNetwork[net] = parseFloat(row.amount) || 0;
     });
 
     // ── 8. Upcoming Dues ──
