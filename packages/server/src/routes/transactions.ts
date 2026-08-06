@@ -86,6 +86,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       amount,
       holder_id_at_time: _holderOverride,
       funded_by_holder_id,
+      linked_transaction_id,
       ...rest
     } = parsed.data;
 
@@ -110,10 +111,17 @@ export async function transactionRoutes(app: FastifyInstance) {
     if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
       await db.insert(payments).values({
         holder_id: funded_by_holder_id,
-        transaction_id: txn.id,
+        transaction_id: linked_transaction_id ?? txn.id,
         amount: String(amount),
         payment_date: rest.txn_date,
       });
+
+      if (linked_transaction_id) {
+        await db
+          .update(transactions)
+          .set({ is_paid: true })
+          .where(eq(transactions.id, linked_transaction_id));
+      }
     }
 
     return reply.status(201).send(txn);

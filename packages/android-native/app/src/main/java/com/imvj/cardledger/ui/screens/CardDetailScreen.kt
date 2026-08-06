@@ -848,6 +848,8 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
         var pmtNotes by remember { mutableStateOf("") }
         var pmtFunderId by remember { mutableStateOf(s.holders.firstOrNull { it.relationship == "me" }?.id ?: "") }
         var funderExpanded by remember { mutableStateOf(false) }
+        var linkedTxnId by remember { mutableStateOf<String?>(null) }
+        var linkedTxnExpanded by remember { mutableStateOf(false) }
         var loading by remember { mutableStateOf(false) }
         val selectedFunder = s.holders.firstOrNull { it.id == pmtFunderId }
 
@@ -917,11 +919,52 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     }
                 }
 
+                val eligibleSpends = s.transactions.filter { it.holder_id_at_time == pmtFunderId && !it.is_paid && it.type == "spend" }
+                if (eligibleSpends.isNotEmpty()) {
+                    ExposedDropdownMenuBox(
+                        expanded = linkedTxnExpanded,
+                        onExpandedChange = { linkedTxnExpanded = it },
+                    ) {
+                        val selectedSpend = eligibleSpends.firstOrNull { it.id == linkedTxnId }
+                        OutlinedTextField(
+                            value = selectedSpend?.let { "${it.merchant} (${money(it.amount.toDoubleOrNull() ?: 0.0)})" } ?: "None (General Payment)",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Pays For (Optional)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = linkedTxnExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = linkedTxnExpanded,
+                            onDismissRequest = { linkedTxnExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("None (General Payment)") },
+                                onClick = {
+                                    linkedTxnId = null
+                                    linkedTxnExpanded = false
+                                }
+                            )
+                            eligibleSpends.forEach { spend ->
+                                DropdownMenuItem(
+                                    text = { Text("${spend.merchant} (${money(spend.amount.toDoubleOrNull() ?: 0.0)})") },
+                                    onClick = {
+                                        linkedTxnId = spend.id
+                                        linkedTxnExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    linkedTxnId = null
+                }
+
                 Button(
                     onClick = {
                         val amt = pmtAmount.toDoubleOrNull() ?: return@Button
                         loading = true
-                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, pmtFunderId) {
+                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, pmtFunderId, linkedTxnId) {
                             loading = false
                             showCardPaymentSheet = false
                             android.widget.Toast.makeText(context, "Card payment recorded", android.widget.Toast.LENGTH_SHORT).show()
