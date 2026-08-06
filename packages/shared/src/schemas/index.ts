@@ -83,6 +83,15 @@ export const CreatePaymentSchema = z.object({
 
 export const UpdatePaymentSchema = CreatePaymentSchema.partial();
 
+export const CreateCardPaymentSchema = z.object({
+  card_id: z.string().uuid(),
+  amount: z.number().positive(),
+  payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  notes: z.string().max(200).optional().nullable(),
+});
+
+export const UpdateCardPaymentSchema = CreateCardPaymentSchema.partial();
+
 export const BankVariantMetadataSchema = z.object({
   banks: z.array(
     z.object({

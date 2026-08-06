@@ -93,3 +93,14 @@ export const payments = pgTable('payments', {
   notes: varchar('notes', { length: 200 }),
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const card_payments = pgTable('card_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  card_id: uuid('card_id')
+    .references(() => cards.id)
+    .notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  payment_date: date('payment_date').notNull(),
+  notes: varchar('notes', { length: 200 }),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+});

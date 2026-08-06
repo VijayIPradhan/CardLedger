@@ -17,6 +17,7 @@ import {
   useDeleteTransaction,
   useUpdateTransaction,
 } from '../data/hooks/useTransactions.js';
+import { useCardPayments, useCreateCardPayment } from '../data/hooks/useCardPayments.js';
 import { useUiStore } from '../store/uiStore.js';
 import { getCycleRange } from '@cardledger/shared';
 import type { Transaction, Holder, Assignment } from '@cardledger/shared';
@@ -40,6 +41,12 @@ export default function CardDetailScreen() {
   const [editMerchant, setEditMerchant] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editHolder, setEditHolder] = useState('');
+
+  const { data: cardPayments = [] } = useCardPayments(id!);
+  const createCardPayment = useCreateCardPayment();
+  const [cardPaymentAmount, setCardPaymentAmount] = useState('');
+  const [cardPaymentDate, setCardPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+
   const [error, setError] = useState('');
 
   if (!card) {
@@ -141,6 +148,33 @@ export default function CardDetailScreen() {
     openBottomSheet('txn-actions');
   }
 
+  function openCardPayment() {
+    setCardPaymentAmount('');
+    setCardPaymentDate(new Date().toISOString().split('T')[0]);
+    setError('');
+    openBottomSheet('card-payment-form');
+  }
+
+  async function handleCardPaymentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = Number(cardPaymentAmount);
+    if (!amount || amount <= 0) {
+      setError('Enter a valid amount');
+      return;
+    }
+    setError('');
+    try {
+      await createCardPayment.mutateAsync({
+        card_id: id!,
+        amount,
+        payment_date: cardPaymentDate,
+      });
+      closeBottomSheet();
+    } catch {
+      setError('Could not save card payment.');
+    }
+  }
+
   return (
     <Screen className="pb-24">
       <TopBar title={card.nickname} back />
@@ -182,6 +216,14 @@ export default function CardDetailScreen() {
                   </>
                 )}
               </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={openCardPayment}
+                  className="bg-gold text-surface text-xs font-bold px-3 py-1.5 rounded-input w-full"
+                >
+                  Record Card Payment
+                </button>
+              </div>
             </div>
           );
         })()}
@@ -361,6 +403,39 @@ export default function CardDetailScreen() {
             Cancel
           </button>
         </div>
+      </BottomSheet>
+
+      <BottomSheet id="card-payment-form" title="Record Card Payment">
+        <form onSubmit={handleCardPaymentSubmit} className="flex flex-col gap-4">
+          <p className="text-sm text-muted">Record payment made to the bank for this card.</p>
+          <div>
+            <label className="text-xs text-muted mb-1 block">Amount (₹)</label>
+            <input
+              type="number"
+              value={cardPaymentAmount}
+              onChange={(e) => setCardPaymentAmount(e.target.value)}
+              placeholder="e.g. 5000"
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">Date</label>
+            <input
+              type="date"
+              value={cardPaymentDate}
+              onChange={(e) => setCardPaymentDate(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          {error && <p className="text-danger text-xs">{error}</p>}
+          <button
+            type="submit"
+            disabled={createCardPayment.isPending}
+            className="bg-gold text-base font-semibold py-3 rounded-input mt-2 hover:bg-gold-hi transition-colors disabled:opacity-50 text-surface"
+          >
+            {createCardPayment.isPending ? 'Saving...' : 'Save Payment'}
+          </button>
+        </form>
       </BottomSheet>
 
       <Fab cardId={card.id} />

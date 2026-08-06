@@ -59,3 +59,12 @@ export interface Payment {
   notes: string | null;
   created_at: string;
 }
+
+export interface CardPayment {
+  id: string;
+  card_id: string;
+  amount: number;
+  payment_date: string;
+  notes: string | null;
+  created_at: string;
+}

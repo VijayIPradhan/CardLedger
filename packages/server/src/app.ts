@@ -12,6 +12,7 @@ import { paymentRoutes } from './routes/payments.js';
 import { metadataRoutes } from './routes/metadata.js';
 import { smsRoutes } from './routes/sms.js';
 import { summaryRoutes } from './routes/summary.js';
+import { cardPaymentRoutes } from './routes/card-payments.js';
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -58,6 +59,7 @@ export async function buildApp() {
   await app.register(metadataRoutes, { prefix: '/metadata' });
   await app.register(smsRoutes, { prefix: '/sms' });
   await app.register(summaryRoutes, { prefix: '/dashboard' });
+  await app.register(cardPaymentRoutes, { prefix: '/card-payments' });
 
   return app;
 }
