@@ -439,7 +439,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     val holderMap = s.holders.associateBy { it.id }
                     s.cycles.forEach { cycle ->
                         val isExpanded = expandedCycles.contains(cycle.label)
-                        val cycleTotal = cycle.txns.filter { it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                        val cycleTotal = cycle.txns.filter { it.type == "spend" && !it.is_paid }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                         val unpaidInCycle = cycle.txns.count { !it.is_paid }
 
                         Surface(
