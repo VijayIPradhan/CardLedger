@@ -5,6 +5,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.imvj.cardledger.data.net.*
@@ -30,6 +31,11 @@ fun AddTransactionSheet(
     var merchant by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(today()) }
     var holderId by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("") }
+    var isForeign by remember { mutableStateOf(false) }
+    var originalCurrency by remember { mutableStateOf("") }
+    var originalAmount by remember { mutableStateOf("") }
+    var forexFee by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun defaultHolder(cId: String): String {
@@ -125,6 +131,48 @@ fun AddTransactionSheet(
                 singleLine = true,
             )
 
+            // Category
+            OutlinedTextField(
+                value = category,
+                onValueChange = { category = it },
+                label = { Text("Category (Optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isForeign, onCheckedChange = { isForeign = it })
+                Text("Foreign Currency Transaction")
+            }
+
+            if (isForeign) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = originalCurrency,
+                        onValueChange = { originalCurrency = it },
+                        label = { Text("Currency (e.g. USD)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = originalAmount,
+                        onValueChange = { originalAmount = it },
+                        label = { Text("Orig Amount") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                }
+                OutlinedTextField(
+                    value = forexFee,
+                    onValueChange = { forexFee = it },
+                    label = { Text("Forex Markup Fee (Optional)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
+
             // Holder (who used) dropdown
             ExposedDropdownMenuBox(
                 expanded = holderExpanded,
@@ -181,6 +229,10 @@ fun AddTransactionSheet(
                                         txn_date = date,
                                         source = "manual",
                                         holder_id_at_time = holderId,
+                                        category = category.trim().takeIf { it.isNotEmpty() },
+                                        original_currency = originalCurrency.trim().takeIf { isForeign && it.isNotEmpty() },
+                                        original_amount = if (isForeign) originalAmount.toDoubleOrNull() else null,
+                                        forex_markup_fee = if (isForeign) forexFee.toDoubleOrNull() else null,
                                     )
                                 )
                                 result.onSuccess {

@@ -63,6 +63,9 @@ data class HomeUiState(
     val friendAdvanceInHand: Double = 0.0,
     val payments: List<PaymentDto> = emptyList(),
     val friendDebts: List<FriendDebtDto> = emptyList(),
+    val totalRewards: Double = 0.0,
+    val totalForex: Double = 0.0,
+    val budgetProgress: List<com.imvj.cardledger.data.net.BudgetProgressDto> = emptyList(),
 )
 
 class HomeViewModel(private val c: AppContainer) : ViewModel() {
@@ -192,6 +195,9 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 maxOf(0.0, totalOpenFriendSpend - summary.friendRemainingToPay)
             },
             friendDebts = summary.friendDebts,
+            totalRewards = summary.totalRewards,
+            totalForex = summary.totalForex,
+            budgetProgress = summary.budgetProgress,
         )
 
         com.imvj.cardledger.notif.ReminderScheduler.reschedule(

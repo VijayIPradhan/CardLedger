@@ -38,6 +38,7 @@ data class CreateCardDto(
     val variant: String? = null,
     val shared_limit_with: String? = null,
     val palette: PaletteDto? = null,
+    val rewards_schema: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable
@@ -81,6 +82,13 @@ data class TransactionDto(
     val holder_id_at_time: String,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
+    val category: String? = null,
+    val tags: List<String>? = null,
+    val original_currency: String? = null,
+    val original_amount: String? = null,
+    val forex_markup_fee: String? = null,
+    val reward_earned: String? = null,
+    val reward_currency: String? = null,
     val created_at: String? = null,
 )
 
@@ -98,6 +106,11 @@ data class CreateTransactionDto(
     val linked_transaction_id: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
+    val category: String? = null,
+    val tags: List<String>? = null,
+    val original_currency: String? = null,
+    val original_amount: Double? = null,
+    val forex_markup_fee: Double? = null,
 )
 
 @Serializable
@@ -107,6 +120,8 @@ data class UpdateTransactionDto(
     val txn_date: String? = null,
     val is_paid: Boolean? = null,
     val holder_id_at_time: String? = null,
+    val category: String? = null,
+    val tags: List<String>? = null,
 )
 
 @Serializable
@@ -231,6 +246,43 @@ data class FriendDebtDto(
 )
 
 @Serializable
+data class BudgetProgressDto(
+    val id: String,
+    val category: String,
+    val limit: Double = 0.0,
+    val spent: Double = 0.0,
+    val progressPercent: Double = 0.0,
+)
+
+@Serializable
+data class BudgetDto(
+    val id: String,
+    val user_id: String,
+    val category: String,
+    val limit_amount: String,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class CreateBudgetDto(
+    val category: String,
+    val limit_amount: Double,
+)
+
+@Serializable
+data class CardRecommendationDto(
+    val card_id: String,
+    val nickname: String,
+    val bank: String,
+    val network: String,
+    val last4: String,
+    val palette: PaletteDto? = null,
+    val rewardEarned: Double = 0.0,
+    val rewardCurrency: String = "points",
+    val rateApplied: Double = 0.0,
+)
+
+@Serializable
 data class DashboardSummaryDto(
     val totalSpend: Double = 0.0,
     val totalLimit: Double = 0.0,
@@ -254,4 +306,7 @@ data class DashboardSummaryDto(
     val dailySpend: List<DailySpendDto> = emptyList(),
     val projections: List<ProjectionDto> = emptyList(),
     val friendDebts: List<FriendDebtDto> = emptyList(),
+    val totalRewards: Double = 0.0,
+    val totalForex: Double = 0.0,
+    val budgetProgress: List<BudgetProgressDto> = emptyList(),
 )

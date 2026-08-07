@@ -56,10 +56,27 @@ export const cards = pgTable(
     bin: varchar('bin', { length: 6 }),
     variant: varchar('variant', { length: 100 }),
     shared_limit_with: uuid('shared_limit_with'),
+    rewards_schema: jsonb('rewards_schema'),
     created_at: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
     userIdIdx: index('cards_user_id_idx').on(table.user_id),
+  }),
+);
+
+export const budgets = pgTable(
+  'budgets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    user_id: uuid('user_id')
+      .references(() => users.id)
+      .notNull(),
+    category: varchar('category', { length: 100 }).notNull(),
+    limit_amount: numeric('limit_amount', { precision: 12, scale: 2 }).notNull(),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index('budgets_user_id_idx').on(table.user_id),
   }),
 );
 
@@ -95,6 +112,13 @@ export const transactions = pgTable(
     txn_date: date('txn_date').notNull(),
     source: varchar('source', { length: 10 }).notNull(),
     type: varchar('type', { length: 20 }).default('spend').notNull(),
+    category: varchar('category', { length: 100 }),
+    tags: jsonb('tags'),
+    original_currency: varchar('original_currency', { length: 3 }),
+    original_amount: numeric('original_amount', { precision: 12, scale: 2 }),
+    forex_markup_fee: numeric('forex_markup_fee', { precision: 12, scale: 2 }),
+    reward_earned: numeric('reward_earned', { precision: 12, scale: 2 }),
+    reward_currency: varchar('reward_currency', { length: 20 }),
     is_paid: boolean('is_paid').default(false).notNull(),
     holder_id_at_time: uuid('holder_id_at_time')
       .references(() => holders.id)

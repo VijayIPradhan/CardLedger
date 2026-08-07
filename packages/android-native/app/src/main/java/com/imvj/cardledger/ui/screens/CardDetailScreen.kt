@@ -19,6 +19,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
+import java.io.FileOutputStream
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.animation.core.animateFloatAsState
@@ -69,6 +73,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var selectedTxn by remember { mutableStateOf<TransactionDto?>(null) }
     var showWhoPaidSheet by remember { mutableStateOf<TransactionDto?>(null) }
     var preselectedPmtTxn by remember { mutableStateOf<TransactionDto?>(null) }
+    var showCollectSheet by remember { mutableStateOf<TransactionDto?>(null) }
     var showCyclePaidSheet by remember { mutableStateOf<String?>(null) }
     var showCardPaymentSheet by remember { mutableStateOf(false) }
     var expandedCycles by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -78,6 +83,26 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
         }
     }
     val context = LocalContext.current
+
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val contentResolver = context.contentResolver
+            val inputStream = contentResolver.openInputStream(uri)
+            if (inputStream != null) {
+                // Copy to a temp file
+                val tempFile = File(context.cacheDir, "statement_${System.currentTimeMillis()}.pdf")
+                val out = FileOutputStream(tempFile)
+                inputStream.copyTo(out)
+                out.close()
+                inputStream.close()
+                vm.uploadStatement(cardId, tempFile) {
+                    tempFile.delete() // clean up
+                }
+            }
+        }
+    }
 
     Scaffold(
         containerColor = Base,
@@ -294,6 +319,35 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     }
                 }
 
+                // Statement Upload
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Surface1,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Elevated),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("📄", fontSize = 16.sp)
+                                Text("Smart Statement Upload", color = OnDark, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Text(
+                            "Upload your monthly PDF statement to automatically extract hidden fees, forex charges, and verify reward rates.",
+                            color = Muted, fontSize = 11.sp, lineHeight = 15.sp
+                        )
+                        Button(
+                            onClick = { filePicker.launch("application/pdf") },
+                            colors = ButtonDefaults.buttonColors(containerColor = Elevated, contentColor = OnDark),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Select PDF Statement", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
                 // Edit / Delete buttons
                 Row(
                     Modifier.fillMaxWidth(),
@@ -385,7 +439,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     val holderMap = s.holders.associateBy { it.id }
                     s.cycles.forEach { cycle ->
                         val isExpanded = expandedCycles.contains(cycle.label)
-                        val cycleTotal = cycle.txns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                        val cycleTotal = cycle.txns.filter { it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                         val unpaidInCycle = cycle.txns.count { !it.is_paid }
 
                         Surface(
@@ -608,9 +662,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                 shape = RoundedCornerShape(6.dp),
                                                                 border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.5f)),
                                                                 modifier = Modifier.clickable {
-                                                                    vm.toggleTransactionCollected(txn, cardId, false) {
-                                                                        android.widget.Toast.makeText(context, "Marked collected from $holderName", android.widget.Toast.LENGTH_SHORT).show()
-                                                                    }
+                                                                    showCollectSheet = txn
                                                                 }
                                                             ) {
                                                                 Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -619,19 +671,37 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                 }
                                                             }
                                                         } else {
-                                                            Surface(
-                                                                color = Success.copy(alpha = 0.18f),
-                                                                shape = RoundedCornerShape(6.dp),
-                                                                border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.5f)),
-                                                                modifier = Modifier.clickable {
-                                                                    vm.toggleTransactionCollected(txn, cardId, true) {
-                                                                        android.widget.Toast.makeText(context, "Removed collection from $holderName", android.widget.Toast.LENGTH_SHORT).show()
+                                                            val totalCollected = s.payments.filter { it.transaction_id == txn.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                                            val remaining = (txn.amount.toDoubleOrNull() ?: 0.0) - totalCollected
+                                                            if (remaining > 0) {
+                                                                Surface(
+                                                                    color = Gold.copy(alpha = 0.15f),
+                                                                    shape = RoundedCornerShape(6.dp),
+                                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.5f)),
+                                                                    modifier = Modifier.clickable {
+                                                                        showCollectSheet = txn
+                                                                    }
+                                                                ) {
+                                                                    Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                                        Text("🤝", fontSize = 10.sp)
+                                                                        Text("Collect Remainder", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                                                     }
                                                                 }
-                                                            ) {
-                                                                Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                                    Icon(Icons.Default.Check, contentDescription = "Collected", tint = Success, modifier = Modifier.size(11.dp))
-                                                                    Text("Collected", color = Success, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                            } else {
+                                                                Surface(
+                                                                    color = Success.copy(alpha = 0.18f),
+                                                                    shape = RoundedCornerShape(6.dp),
+                                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.5f)),
+                                                                    modifier = Modifier.clickable {
+                                                                        vm.removeCollection(txn, cardId) {
+                                                                            android.widget.Toast.makeText(context, "Removed collection from $holderName", android.widget.Toast.LENGTH_SHORT).show()
+                                                                        }
+                                                                    }
+                                                                ) {
+                                                                    Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                                        Icon(Icons.Default.Check, contentDescription = "Collected", tint = Success, modifier = Modifier.size(11.dp))
+                                                                        Text("Collected", color = Success, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -999,6 +1069,49 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     Text(if (loading) "Saving..." else "Save Payment", fontWeight = FontWeight.Bold)
                 }
             }
+            }
         }
+
+        showCollectSheet?.let { txn ->
+            var amountStr by remember { mutableStateOf("") }
+            val totalCollected = s.payments.filter { it.transaction_id == txn.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            val remaining = maxOf(0.0, (txn.amount.toDoubleOrNull() ?: 0.0) - totalCollected)
+            LaunchedEffect(txn) { amountStr = if (remaining > 0) remaining.toString() else "" }
+
+            ModalBottomSheet(onDismissRequest = { showCollectSheet = null }, containerColor = Surface1) {
+                Column(Modifier.padding(24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Collect Friend Settlement", color = OnDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Record a partial or full payment from a friend. This decreases their debt but does not record a credit card bill payment.", color = Muted, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = amountStr,
+                        onValueChange = { amountStr = it },
+                        label = { Text("Amount Collected", color = Muted) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = OnDark,
+                            unfocusedTextColor = OnDark,
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = Elevated,
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = {
+                            val amt = amountStr.toDoubleOrNull() ?: 0.0
+                            if (amt > 0.0) {
+                                vm.collectTransaction(txn, cardId, amt) {
+                                    showCollectSheet = null
+                                    android.widget.Toast.makeText(context, "Recorded collection", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Base),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Record Collection", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
     }
 }

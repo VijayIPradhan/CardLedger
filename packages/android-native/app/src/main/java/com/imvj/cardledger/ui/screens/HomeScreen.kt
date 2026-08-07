@@ -259,22 +259,39 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
                                             )
-                                            if (s.friendTotalPaid > 0.5) {
-                                                Text(
-                                                    "All-time: ${money(s.friendTotalPaid)}",
-                                                    color = Muted,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontSize = 10.sp
-                                                )
-                                            }
                                         }
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Remaining to collect", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text("To collect (Friends)", color = Muted, style = MaterialTheme.typography.labelSmall)
                                             Text(
                                                 money(s.friendRemainingToPay),
-                                                color = if (s.friendRemainingToPay > 0) Gold else Success,
+                                                color = if (s.friendRemainingToPay > 0) Warning else OnDarkMid,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                        }
+                                    }
+
+                                    // Row 3: Rewards & Forex
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Total Rewards", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                money(s.totalRewards),
+                                                color = Gold,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
+                                            )
+                                        }
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Total Forex Fees", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                money(s.totalForex),
+                                                color = Danger,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
                                             )
                                         }
                                     }

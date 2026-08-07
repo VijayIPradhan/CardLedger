@@ -21,6 +21,7 @@ export const CreateCardSchema = z.object({
     .optional(),
   variant: z.string().max(100).nullable().optional(),
   shared_limit_with: z.string().uuid().nullable().optional(),
+  rewards_schema: z.any().nullable().optional(),
 });
 
 export const UpdateCardSchema = CreateCardSchema.partial();
@@ -59,6 +60,11 @@ export const CreateTransactionSchema = z.object({
   linked_transaction_id: z.string().uuid().optional(), // specific spend transaction paid by this
   raw_sms_encrypted: z.string().nullable().optional(),
   dedupe_hash: z.string().nullable().optional(),
+  category: z.string().max(100).optional(),
+  tags: z.array(z.string()).optional(),
+  original_currency: z.string().max(3).optional(),
+  original_amount: z.number().positive().optional(),
+  forex_markup_fee: z.number().nonnegative().optional(),
 });
 
 export const UpdateTransactionSchema = z.object({
@@ -71,6 +77,8 @@ export const UpdateTransactionSchema = z.object({
   type: TransactionTypeSchema.optional(),
   is_paid: z.boolean().optional(),
   holder_id_at_time: z.string().uuid().optional(),
+  category: z.string().max(100).optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 export const LoginSchema = z.object({
@@ -91,6 +99,13 @@ export const CreatePaymentSchema = z.object({
 });
 
 export const UpdatePaymentSchema = CreatePaymentSchema.partial();
+
+export const CreateBudgetSchema = z.object({
+  category: z.string().min(1).max(100),
+  limit_amount: z.number().positive(),
+});
+
+export const UpdateBudgetSchema = CreateBudgetSchema.partial();
 
 export const BankVariantMetadataSchema = z.object({
   banks: z.array(

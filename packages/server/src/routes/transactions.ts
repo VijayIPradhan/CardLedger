@@ -46,7 +46,7 @@ export async function transactionRoutes(app: FastifyInstance) {
 
     // Verify the target card belongs to this user
     const [card] = await db
-      .select({ id: cards.id })
+      .select({ id: cards.id, rewards_schema: cards.rewards_schema })
       .from(cards)
       .where(and(eq(cards.id, parsed.data.card_id), eq(cards.user_id, userId)));
     if (!card) return reply.status(404).send({ error: 'Card not found' });
@@ -103,10 +103,36 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     const txn = await db.transaction(async (tx) => {
-      const [newTxn] = await tx
-        .insert(transactions)
-        .values({ ...rest, amount: String(amount), holder_id_at_time: finalHolderId })
-        .returning();
+      let rewardEarned: string | undefined;
+      let rewardCurrency: string | undefined;
+
+      if (rest.type === 'spend' && card.rewards_schema) {
+        try {
+          const schema = card.rewards_schema as any;
+          const lowerCategory = rest.category?.toLowerCase() || 'other';
+          const rate = schema.categories?.[lowerCategory] ?? schema.base_rate ?? 0;
+          if (rate > 0) {
+            rewardEarned = String(amount * (rate / 100));
+            rewardCurrency = schema.currency || 'points';
+          }
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+
+      const insertValues = {
+        ...rest,
+        amount: String(amount),
+        holder_id_at_time: finalHolderId,
+        original_amount:
+          rest.original_amount !== undefined ? String(rest.original_amount) : undefined,
+        forex_markup_fee:
+          rest.forex_markup_fee !== undefined ? String(rest.forex_markup_fee) : undefined,
+        reward_earned: rewardEarned,
+        reward_currency: rewardCurrency,
+      };
+
+      const [newTxn] = await tx.insert(transactions).values(insertValues).returning();
 
       // Atomically create a payment record if funded by someone else
       if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
@@ -155,6 +181,13 @@ export async function transactionRoutes(app: FastifyInstance) {
             }
           }
         }
+
+        await tx.insert(payments).values({
+          holder_id: funded_by_holder_id,
+          transaction_id: finalLinkedTxnId,
+          amount: String(amount),
+          payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
+        });
       }
       return newTxn;
     });

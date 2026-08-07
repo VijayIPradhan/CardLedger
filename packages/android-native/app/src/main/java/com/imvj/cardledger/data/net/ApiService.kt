@@ -44,4 +44,20 @@ interface ApiService {
     @POST("sms/parse/ai") suspend fun parseSmsAi(@Body body: com.imvj.cardledger.domain.SmsInput): com.imvj.cardledger.domain.ParseResult
 
     @GET("dashboard/summary") suspend fun getDashboardSummary(): DashboardSummaryDto
+
+    @GET("budgets") suspend fun getBudgets(): List<BudgetDto>
+    @POST("budgets") suspend fun createBudget(@Body body: CreateBudgetDto): BudgetDto
+    @PATCH("budgets/{id}") suspend fun updateBudget(@Path("id") id: String, @Body body: CreateBudgetDto): BudgetDto
+    @DELETE("budgets/{id}") suspend fun deleteBudget(@Path("id") id: String): Response<Unit>
+
+    @GET("cards/recommend") suspend fun getCardRecommendations(
+        @Query("amount") amount: String,
+        @Query("category") category: String? = null
+    ): List<CardRecommendationDto>
+
+    @Multipart
+    @POST("statements/upload") suspend fun uploadStatement(
+        @Query("card_id") cardId: String,
+        @Part file: okhttp3.MultipartBody.Part
+    ): okhttp3.ResponseBody
 }

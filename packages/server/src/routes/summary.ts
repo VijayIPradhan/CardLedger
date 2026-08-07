@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { cards, holders, assignments, transactions, payments } from '../db/schema.js';
+import { cards, holders, assignments, transactions, payments, budgets } from '../db/schema.js';
 import { eq, and, desc, sql, getTableColumns } from 'drizzle-orm';
 
 export async function summaryRoutes(app: FastifyInstance) {
@@ -42,6 +42,9 @@ export async function summaryRoutes(app: FastifyInstance) {
         topMerchants: [],
         dailySpend: [],
         projections: [],
+        totalRewards: 0,
+        totalForex: 0,
+        budgetProgress: [],
       };
     }
 
@@ -57,6 +60,8 @@ export async function summaryRoutes(app: FastifyInstance) {
       .innerJoin(cards, eq(transactions.card_id, cards.id))
       .where(eq(cards.user_id, userId))
       .orderBy(desc(transactions.txn_date));
+
+    const userBudgets = await db.select().from(budgets).where(eq(budgets.user_id, userId));
 
     const userPayments = await db
       .select()
@@ -235,11 +240,25 @@ export async function summaryRoutes(app: FastifyInstance) {
     cutoff60Date.setDate(now.getDate() - 60);
     const cutoff60Str = cutoff60Date.toISOString().split('T')[0];
 
+    // Month/Daily spend calculation & New fields
     let monthlySpend = 0;
     let prevMonthSpend = 0;
+    let totalRewards = 0;
+    let totalForex = 0;
+    const spendByCategory: Record<string, number> = {};
+
     spendTxns.forEach((t) => {
-      const d = t.transactions.txn_date;
       const amt = parseFloat(t.transactions.amount) || 0;
+      const d = t.transactions.txn_date;
+
+      const r = parseFloat(t.transactions.reward_earned as any) || 0;
+      const f = parseFloat(t.transactions.forex_markup_fee as any) || 0;
+      totalRewards += r;
+      totalForex += f;
+
+      const cat = t.transactions.category || 'Other';
+      spendByCategory[cat] = (spendByCategory[cat] || 0) + amt;
+
       if (d >= cutoff30Str) {
         monthlySpend += amt;
       } else if (d >= cutoff60Str && d < cutoff30Str) {
@@ -405,6 +424,19 @@ export async function summaryRoutes(app: FastifyInstance) {
       };
     });
 
+    // Budget Progress
+    const budgetProgress = userBudgets.map((b) => {
+      const spent = spendByCategory[b.category] || 0;
+      const limit = parseFloat(b.limit_amount);
+      return {
+        id: b.id,
+        category: b.category,
+        limit,
+        spent,
+        progressPercent: limit > 0 ? (spent / limit) * 100 : 0,
+      };
+    });
+
     return {
       totalSpend,
       totalLimit,
@@ -428,6 +460,9 @@ export async function summaryRoutes(app: FastifyInstance) {
       dailySpend,
       projections,
       friendDebts,
+      totalRewards,
+      totalForex,
+      budgetProgress,
     };
   });
 }

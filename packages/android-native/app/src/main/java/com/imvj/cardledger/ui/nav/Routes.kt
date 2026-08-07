@@ -13,4 +13,6 @@ object Routes {
     const val SEARCH = "search"
     const val ANALYTICS = "analytics"
     const val CARDS = "cards"
+    const val BUDGETS = "budgets"
+    const val RECOMMENDER = "recommender"
 }

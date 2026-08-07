@@ -8,6 +8,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.imvj.cardledger.feature.HomeViewModel
+import com.imvj.cardledger.feature.BudgetsViewModel
+import com.imvj.cardledger.feature.RecommenderViewModel
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.lock.AppLock
 import com.imvj.cardledger.ui.screens.*
@@ -32,6 +34,14 @@ fun AppNav() {
         initializer { HomeViewModel(container) }
     })
 
+    val budgetsVm: BudgetsViewModel = viewModel(factory = viewModelFactory {
+        initializer { BudgetsViewModel(container) }
+    })
+
+    val recommenderVm: RecommenderViewModel = viewModel(factory = viewModelFactory {
+        initializer { RecommenderViewModel(container) }
+    })
+
     NavHost(navController = nav, startDestination = start) {
         composable(Routes.LOGIN) {
             LoginScreen(onSuccess = {
@@ -51,6 +61,14 @@ fun AppNav() {
         composable(Routes.SEARCH) { SearchScreen(nav) }
         composable(Routes.CARDS) { CardsScreen(nav, homeVm) }
         composable(Routes.ANALYTICS) { AnalyticsScreen(nav, homeVm) }
+        composable(Routes.BUDGETS) {
+            LaunchedEffect(Unit) { budgetsVm.load() }
+            BudgetsScreen(nav, homeVm, budgetsVm)
+        }
+        composable(Routes.RECOMMENDER) {
+            val reviewQueue by container.reviewStore.queue.collectAsState(initial = emptyList())
+            RecommenderScreen(nav, recommenderVm, reviewQueue.size)
+        }
     }
 
     if (locked && token) {

@@ -12,6 +12,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 
 data class CycleGroup(val label: String, val txns: List<TransactionDto>)
 
@@ -212,29 +216,35 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun toggleTransactionCollected(txn: TransactionDto, cardId: String, isCollected: Boolean, onDone: () -> Unit = {}) {
+    fun collectTransaction(txn: TransactionDto, cardId: String, amount: Double, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            if (isCollected) {
-                c.paymentRepo.deleteByTransactionId(txn.id).onSuccess {
-                    load(cardId)
-                    onDone()
+            c.paymentRepo.create(
+                CreatePaymentDto(
+                    holder_id = txn.holder_id_at_time,
+                    transaction_id = txn.id,
+                    amount = amount,
+                    payment_date = today()
+                )
+            ).onSuccess {
+                // Determine if fully paid now
+                val totalCollectedSoFar = _state.value.payments
+                    .filter { it.transaction_id == txn.id }
+                    .sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                val txnAmount = txn.amount.toDoubleOrNull() ?: 0.0
+                if (totalCollectedSoFar + amount >= txnAmount && !txn.is_paid) {
+                    c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = true))
                 }
-            } else {
-                val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                c.paymentRepo.create(
-                    CreatePaymentDto(
-                        holder_id = txn.holder_id_at_time,
-                        transaction_id = txn.id,
-                        amount = amt,
-                        payment_date = today()
-                    )
-                ).onSuccess {
-                    if (!txn.is_paid) {
-                        c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = true))
-                    }
-                    load(cardId)
-                    onDone()
-                }
+                load(cardId)
+                onDone()
+            }
+        }
+    }
+
+    fun removeCollection(txn: TransactionDto, cardId: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            c.paymentRepo.deleteByTransactionId(txn.id).onSuccess {
+                load(cardId)
+                onDone()
             }
         }
     }
@@ -311,6 +321,21 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 onDone()
             }.onFailure {
                 _state.value = _state.value.copy(error = "Could not record payment.")
+            }
+        }
+    }
+
+    fun uploadStatement(cardId: String, file: File, onDone: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                _state.value = _state.value.copy(loading = true)
+                val requestFile = file.asRequestBody("application/pdf".toMediaTypeOrNull())
+                val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
+                c.api.uploadStatement(cardId, body)
+                load(cardId)
+                onDone()
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(loading = false, error = e.message ?: "Failed to upload statement")
             }
         }
     }

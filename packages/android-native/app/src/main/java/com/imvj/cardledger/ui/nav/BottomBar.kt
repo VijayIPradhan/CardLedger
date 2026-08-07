@@ -10,10 +10,14 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.List
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +43,8 @@ private val navItems = listOf(
     NavItem(Routes.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
     NavItem(Routes.ANALYTICS, "Analytics", Icons.Filled.BarChart, Icons.Outlined.BarChart),
     NavItem(Routes.CARDS, "Cards", Icons.Filled.CreditCard, Icons.Outlined.CreditCard),
+    NavItem(Routes.BUDGETS, "Budgets", Icons.Filled.List, Icons.Outlined.List),
+    NavItem(Routes.RECOMMENDER, "Recs", Icons.Filled.Star, Icons.Outlined.Star),
     NavItem(Routes.SMS, "Review", Icons.Filled.Email, Icons.Outlined.Email),
 )
 

@@ -1,10 +1,8 @@
 {
-  "id": "57f976ab-02a8-48e6-890d-53d3a9959de9",
-  "prevId": "eeb5ce23-699c-4bc1-bad2-88867a0206e3",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "assignments": {
+    "public.assignments": {
       "name": "assignments",
       "schema": "",
       "columns": {
@@ -52,34 +50,37 @@
         "assignments_card_id_cards_id_fk": {
           "name": "assignments_card_id_cards_id_fk",
           "tableFrom": "assignments",
-          "tableTo": "cards",
           "columnsFrom": [
             "card_id"
           ],
+          "tableTo": "cards",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "assignments_holder_id_holders_id_fk": {
           "name": "assignments_holder_id_holders_id_fk",
           "tableFrom": "assignments",
-          "tableTo": "holders",
           "columnsFrom": [
             "holder_id"
           ],
+          "tableTo": "holders",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "card_payments": {
+    "public.card_payments": {
       "name": "card_payments",
       "schema": "",
       "columns": {
@@ -127,21 +128,24 @@
         "card_payments_card_id_cards_id_fk": {
           "name": "card_payments_card_id_cards_id_fk",
           "tableFrom": "card_payments",
-          "tableTo": "cards",
           "columnsFrom": [
             "card_id"
           ],
+          "tableTo": "cards",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "cards": {
+    "public.cards": {
       "name": "cards",
       "schema": "",
       "columns": {
@@ -237,21 +241,24 @@
         "cards_user_id_users_id_fk": {
           "name": "cards_user_id_users_id_fk",
           "tableFrom": "cards",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "holders": {
+    "public.holders": {
       "name": "holders",
       "schema": "",
       "columns": {
@@ -299,21 +306,24 @@
         "holders_user_id_users_id_fk": {
           "name": "holders_user_id_users_id_fk",
           "tableFrom": "holders",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "payments": {
+    "public.payments": {
       "name": "payments",
       "schema": "",
       "columns": {
@@ -367,34 +377,37 @@
         "payments_holder_id_holders_id_fk": {
           "name": "payments_holder_id_holders_id_fk",
           "tableFrom": "payments",
-          "tableTo": "holders",
           "columnsFrom": [
             "holder_id"
           ],
+          "tableTo": "holders",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "payments_transaction_id_transactions_id_fk": {
           "name": "payments_transaction_id_transactions_id_fk",
           "tableFrom": "payments",
-          "tableTo": "transactions",
           "columnsFrom": [
             "transaction_id"
           ],
+          "tableTo": "transactions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "transactions": {
+    "public.transactions": {
       "name": "transactions",
       "schema": "",
       "columns": {
@@ -480,34 +493,37 @@
         "transactions_card_id_cards_id_fk": {
           "name": "transactions_card_id_cards_id_fk",
           "tableFrom": "transactions",
-          "tableTo": "cards",
           "columnsFrom": [
             "card_id"
           ],
+          "tableTo": "cards",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "transactions_holder_id_at_time_holders_id_fk": {
           "name": "transactions_holder_id_at_time_holders_id_fk",
           "tableFrom": "transactions",
-          "tableTo": "holders",
           "columnsFrom": [
             "holder_id_at_time"
           ],
+          "tableTo": "holders",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users": {
+    "public.users": {
       "name": "users",
       "schema": "",
       "columns": {
@@ -556,33 +572,42 @@
       "uniqueConstraints": {
         "users_username_unique": {
           "name": "users_username_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "username"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "users_google_id_unique": {
           "name": "users_google_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "google_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {},
   "schemas": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "57f976ab-02a8-48e6-890d-53d3a9959de9",
+  "prevId": "eeb5ce23-699c-4bc1-bad2-88867a0206e3",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }

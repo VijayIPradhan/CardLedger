@@ -7,13 +7,14 @@
     "build": "tsc",
     "start": "dotenv -e ../../.env -- node dist/index.js",
     "test": "dotenv -e ../../.env -- vitest run --reporter=verbose",
-    "db:generate": "dotenv -e ../../.env -- drizzle-kit generate:pg",
+    "db:generate": "dotenv -e ../../.env -- drizzle-kit generate",
     "db:migrate": "dotenv -e ../../.env -- tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@cardledger/shared": "workspace:*",
     "@fastify/cors": "^9.0.0",
     "@fastify/jwt": "^8.0.0",
+    "@fastify/multipart": "^10.1.0",
     "@fastify/rate-limit": "^9.0.0",
     "@google/genai": "^2.8.0",
     "argon2": "^0.31.0",
@@ -28,7 +29,7 @@
   "devDependencies": {
     "@types/pg": "^8.11.0",
     "dotenv-cli": "^7.4.0",
-    "drizzle-kit": "^0.20.0",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
