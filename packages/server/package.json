@@ -14,7 +14,7 @@
     "@cardledger/shared": "workspace:*",
     "@fastify/cors": "^9.0.0",
     "@fastify/jwt": "^8.0.0",
-    "@fastify/multipart": "^10.1.0",
+    "@fastify/multipart": "^7.0.0",
     "@fastify/rate-limit": "^9.0.0",
     "@google/genai": "^2.8.0",
     "argon2": "^0.31.0",

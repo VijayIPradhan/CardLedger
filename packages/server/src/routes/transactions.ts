@@ -102,6 +102,21 @@ export async function transactionRoutes(app: FastifyInstance) {
       }
     }
 
+    if (rest.type === 'payment' && funded_by_holder_id && linked_transaction_id) {
+      // Fast path for friend collections: DO NOT create a transaction or split the original.
+      // Just record the payment against the friend so their debt decreases, without touching card usage!
+      const [newPayment] = await db
+        .insert(payments)
+        .values({
+          holder_id: funded_by_holder_id,
+          transaction_id: linked_transaction_id,
+          amount: String(amount),
+          payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
+        })
+        .returning();
+      return { ...rest, id: newPayment.id, amount: String(amount) };
+    }
+
     const txn = await db.transaction(async (tx) => {
       let rewardEarned: string | undefined;
       let rewardCurrency: string | undefined;
