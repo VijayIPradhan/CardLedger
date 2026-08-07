@@ -66,7 +66,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val summary = summaryRes.getOrNull()
 
             val total = if (summary != null && card != null && summary.spendByCard.containsKey(card.id)) {
-                summary.spendByCard[card.id] ?: 0.0
+                summary.projections.find { it.cardId == card.id }?.currentUnbilled ?: (summary.spendByCard[card.id] ?: 0.0)
             } else if (card != null) {
                 val groupId = card.shared_limit_with ?: card.id
                 allCards.filter { (it.shared_limit_with ?: it.id) == groupId }
