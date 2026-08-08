@@ -638,6 +638,11 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                 Text("PAYMENT RECEIVED", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                                                             }
                                                         }
+                                                        if (txn.type == "refund") {
+                                                            Surface(color = Success.copy(alpha = 0.15f), border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.3f)), shape = RoundedCornerShape(4.dp)) {
+                                                                Text("REFUND", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                            }
+                                                        }
                                                     }
                                                     Text(
                                                         if (txn.type == "bill_payment") "Processed on ${txn.txn_date}" else "$holderName · ${txn.txn_date.drop(5)}",
@@ -647,11 +652,11 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                 }
                                                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                     Text(
-                                                        "${if (txn.type == "bill_payment") "+" else "−"}${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                                        color = if (txn.is_paid && txn.type != "bill_payment") Muted else if (txn.type == "bill_payment") Success else Danger,
+                                                        "${if (txn.type == "bill_payment" || txn.type == "refund") "+" else "−"}${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                                        color = if (txn.is_paid && txn.type != "bill_payment" && txn.type != "refund") Muted else if (txn.type == "bill_payment" || txn.type == "refund") Success else Danger,
                                                         fontWeight = FontWeight.SemiBold,
                                                         fontSize = 14.sp,
-                                                        textDecoration = if (txn.is_paid && txn.type != "bill_payment") TextDecoration.LineThrough else null
+                                                        textDecoration = if (txn.is_paid && txn.type != "bill_payment" && txn.type != "refund") TextDecoration.LineThrough else null
                                                     )
                                                     val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
                                                     if (txn.holder_id_at_time != meId && txn.type == "spend") {

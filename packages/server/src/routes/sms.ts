@@ -17,7 +17,7 @@ Rules:
 - "amount": The transaction amount as a number
 - "merchant": The merchant name. For bill payments, use CRED, HDFC Bank, etc.
 - "date": The transaction date in YYYY-MM-DD format
-- "type": "spend" if the user spent money, "payment" if a credit card bill payment or refund
+- "type": "spend" if the user spent money, "bill_payment" if a credit card bill payment, "refund" if a refund or reversal
 - "is_paid": true only if the SMS explicitly indicates the amount was immediately settled
 
 Return ONLY valid JSON with these fields. All fields except is_paid are required.`;
@@ -80,8 +80,9 @@ async function parseWithGemini(
       date: { type: Type.STRING, description: 'The date of the transaction in YYYY-MM-DD format' },
       type: {
         type: Type.STRING,
-        description: 'spend if the user spent money; payment if a bill payment or refund',
-        enum: ['spend', 'payment'],
+        description:
+          'spend if the user spent money; bill_payment if a bill payment; refund if a refund or reversal',
+        enum: ['spend', 'payment', 'bill_payment', 'refund'],
       },
       is_paid: {
         type: Type.BOOLEAN,

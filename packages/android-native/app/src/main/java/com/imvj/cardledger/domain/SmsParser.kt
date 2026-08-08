@@ -108,7 +108,7 @@ fun parseSms(input: SmsInput, knownLast4s: List<String>? = null): ParseResult? {
             val bodyLower = input.body.lowercase()
             val type = if (bodyLower.contains("credited") || bodyLower.contains("received") || 
                            bodyLower.contains("refund") || bodyLower.contains("reversal")) {
-                "payment"
+                "refund"
             } else {
                 "spend"
             }

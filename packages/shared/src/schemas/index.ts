@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const NetworkSchema = z.enum(['Visa', 'Mastercard', 'RuPay', 'Amex']);
 export const RelationshipSchema = z.enum(['me', 'friend']);
 export const TransactionSourceSchema = z.enum(['sms', 'manual']);
-export const TransactionTypeSchema = z.enum(['spend', 'payment', 'bill_payment']);
+export const TransactionTypeSchema = z.enum(['spend', 'payment', 'bill_payment', 'refund']);
 
 export const CreateCardSchema = z.object({
   last4: z.string().regex(/^\d{4}$/, 'Must be exactly 4 digits'),

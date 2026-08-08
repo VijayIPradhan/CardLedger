@@ -5,7 +5,7 @@ import { eq, sql, getTableColumns, and } from 'drizzle-orm';
 import { CreateCardSchema, UpdateCardSchema } from '@cardledger/shared';
 
 // Reused in both GET / and GET /:id to keep the spend definition in one place
-const currentSpendSql = sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'spend' THEN ${transactions.amount} WHEN ${transactions.type} = 'bill_payment' THEN -${transactions.amount} ELSE 0 END), 0)::text`;
+const currentSpendSql = sql<string>`COALESCE(SUM(CASE WHEN ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend' THEN ${transactions.amount} WHEN ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('bill_payment', 'refund') THEN -${transactions.amount} ELSE 0 END), 0)::text`;
 
 class ConflictError extends Error {}
 

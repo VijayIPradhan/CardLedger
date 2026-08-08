@@ -13,7 +13,7 @@ export async function summaryRoutes(app: FastifyInstance) {
     const userCards = await db
       .select({
         ...getTableColumns(cards),
-        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.type} = 'bill_payment'), 0))::text`,
+        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('bill_payment', 'refund')), 0))::text`,
       })
       .from(cards)
       .where(eq(cards.user_id, userId));
