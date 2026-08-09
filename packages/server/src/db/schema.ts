@@ -151,3 +151,24 @@ export const payments = pgTable(
     holderIdIdx: index('payments_holder_id_idx').on(table.holder_id),
   }),
 );
+
+export const card_payments = pgTable(
+  'card_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    card_id: uuid('card_id')
+      .references(() => cards.id)
+      .notNull(),
+    holder_id: uuid('holder_id')
+      .references(() => holders.id)
+      .notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    payment_date: date('payment_date').notNull(),
+    notes: varchar('notes', { length: 200 }),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    cardIdIdx: index('card_payments_card_id_idx').on(table.card_id),
+    holderIdIdx: index('card_payments_holder_id_idx').on(table.holder_id),
+  }),
+);

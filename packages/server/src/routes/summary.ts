@@ -1,6 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { cards, holders, assignments, transactions, payments, budgets } from '../db/schema.js';
+import {
+  cards,
+  holders,
+  assignments,
+  transactions,
+  payments,
+  budgets,
+  card_payments,
+} from '../db/schema.js';
 import { eq, and, desc, sql, getTableColumns } from 'drizzle-orm';
 
 export async function summaryRoutes(app: FastifyInstance) {
@@ -13,7 +21,7 @@ export async function summaryRoutes(app: FastifyInstance) {
     const userCards = await db
       .select({
         ...getTableColumns(cards),
-        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('bill_payment', 'refund')), 0))::text`,
+        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('bill_payment', 'refund')), 0) - COALESCE((SELECT SUM(amount) FROM ${card_payments} WHERE ${card_payments.card_id} = ${cards.id}), 0))::text`,
       })
       .from(cards)
       .where(eq(cards.user_id, userId));
@@ -70,6 +78,13 @@ export async function summaryRoutes(app: FastifyInstance) {
       .where(eq(holders.user_id, userId))
       .orderBy(desc(payments.payment_date));
 
+    const userCardPayments = await db
+      .select()
+      .from(card_payments)
+      .innerJoin(holders, eq(card_payments.holder_id, holders.id))
+      .where(eq(holders.user_id, userId))
+      .orderBy(desc(card_payments.payment_date));
+
     // ── 1. Spend by Card ──
     const spendByCard: Record<string, number> = {};
     userCards.forEach((card) => {
@@ -116,9 +131,15 @@ export async function summaryRoutes(app: FastifyInstance) {
         }
       });
 
-      const paid = userPayments
+      const paidFromPayments = userPayments
         .filter((p) => p.payments.holder_id === friend.id)
         .reduce((sum, p) => sum + (parseFloat(p.payments.amount) || 0), 0);
+
+      const paidFromCardPayments = userCardPayments
+        .filter((p) => p.card_payments.holder_id === friend.id)
+        .reduce((sum, p) => sum + (parseFloat(p.card_payments.amount) || 0), 0);
+
+      const paid = paidFromPayments + paidFromCardPayments;
 
       friendTotalSpend += expenses;
       friendTotalPaid += paid;

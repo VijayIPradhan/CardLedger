@@ -1,6 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { transactions, assignments, holders, cards, payments } from '../db/schema.js';
+import {
+  transactions,
+  assignments,
+  holders,
+  cards,
+  payments,
+  card_payments,
+} from '../db/schema.js';
 import { eq, and, getTableColumns, desc } from 'drizzle-orm';
 import {
   CreateTransactionSchema,
@@ -20,12 +27,60 @@ export async function transactionRoutes(app: FastifyInstance) {
     if (card_id) conditions.push(eq(transactions.card_id, card_id));
     if (holder_id) conditions.push(eq(transactions.holder_id_at_time, holder_id));
 
-    return db
+    const txns = await db
       .select({ ...getTableColumns(transactions) })
       .from(transactions)
       .innerJoin(cards, eq(transactions.card_id, cards.id))
       .where(and(...conditions))
       .orderBy(desc(transactions.txn_date));
+
+    // Fetch card_payments to merge as 'bill_payment' transactions
+    const cPayments = await db
+      .select({ ...getTableColumns(card_payments) })
+      .from(card_payments)
+      .innerJoin(cards, eq(card_payments.card_id, cards.id))
+      .where(
+        and(
+          ...conditions.filter((c) => {
+            // filter out holder_id condition if any, because card_payments uses holder_id, not holder_id_at_time
+            return (c as any)?.config?.left?.name !== 'holder_id_at_time';
+          }),
+        ),
+      );
+
+    const formattedPayments = cPayments.map((p) => ({
+      id: p.id,
+      card_id: p.card_id,
+      amount: p.amount,
+      merchant: p.notes || 'Payment to Bank',
+      txn_date: String(p.payment_date),
+      source: 'manual',
+      type: 'bill_payment',
+      category: null,
+      tags: null,
+      original_currency: null,
+      original_amount: null,
+      forex_markup_fee: null,
+      reward_earned: null,
+      reward_currency: null,
+      is_paid: true, // bill payments don't have is_paid
+      holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
+      raw_sms_encrypted: null,
+      dedupe_hash: null,
+      created_at: p.created_at,
+    }));
+
+    // Filter formattedPayments if holder_id was provided
+    const filteredPayments = holder_id
+      ? formattedPayments.filter((p) => p.holder_id_at_time === holder_id)
+      : formattedPayments;
+
+    return [...txns, ...filteredPayments].sort((a, b) => {
+      const dateA = new Date(a.txn_date).getTime();
+      const dateB = new Date(b.txn_date).getTime();
+      if (dateA !== dateB) return dateB - dateA;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   });
 
   app.get<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
@@ -115,6 +170,21 @@ export async function transactionRoutes(app: FastifyInstance) {
         })
         .returning();
       return { ...rest, id: newPayment.id, amount: String(amount) };
+    }
+
+    if (rest.type === 'bill_payment') {
+      // Fast path for bill payments: create a card_payment instead of a transaction
+      const [newCardPayment] = await db
+        .insert(card_payments)
+        .values({
+          card_id: parsed.data.card_id,
+          holder_id: funded_by_holder_id || finalHolderId,
+          amount: String(amount),
+          payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
+          notes: rest.merchant || 'Bill Payment',
+        })
+        .returning();
+      return { ...rest, id: newCardPayment.id, amount: String(amount) };
     }
 
     const txn = await db.transaction(async (tx) => {
@@ -215,13 +285,38 @@ export async function transactionRoutes(app: FastifyInstance) {
     const parsed = UpdateTransactionSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
 
-    // Verify ownership via card join
+    // Try transactions first
     const [existing] = await db
       .select({ id: transactions.id })
       .from(transactions)
       .innerJoin(cards, eq(transactions.card_id, cards.id))
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
-    if (!existing) return reply.status(404).send({ error: 'Not found' });
+
+    if (!existing) {
+      // Fallback to card_payments
+      const [existingCp] = await db
+        .select({ id: card_payments.id })
+        .from(card_payments)
+        .innerJoin(cards, eq(card_payments.card_id, cards.id))
+        .where(and(eq(card_payments.id, req.params.id), eq(cards.user_id, userId)));
+
+      if (!existingCp) return reply.status(404).send({ error: 'Not found' });
+
+      const { amount, txn_date, merchant, holder_id_at_time } = parsed.data;
+      const updateCp: any = {};
+      if (amount !== undefined) updateCp.amount = String(amount);
+      if (txn_date !== undefined) updateCp.payment_date = txn_date;
+      if (merchant !== undefined) updateCp.notes = merchant;
+      if (holder_id_at_time !== undefined) updateCp.holder_id = holder_id_at_time;
+
+      const [updatedCp] = await db
+        .update(card_payments)
+        .set(updateCp)
+        .where(eq(card_payments.id, req.params.id))
+        .returning();
+
+      return updatedCp;
+    }
 
     const { amount, txn_date, ...rest } = parsed.data;
     const update: any = { ...rest };
@@ -247,13 +342,24 @@ export async function transactionRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/:id', auth, async (req, reply) => {
     const userId = req.user.sub;
 
-    // Verify ownership and existence in one query; returns 404 for non-existent or foreign rows
     const [existing] = await db
       .select({ id: transactions.id })
       .from(transactions)
       .innerJoin(cards, eq(transactions.card_id, cards.id))
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
-    if (!existing) return reply.status(404).send({ error: 'Not found' });
+
+    if (!existing) {
+      const [existingCp] = await db
+        .select({ id: card_payments.id })
+        .from(card_payments)
+        .innerJoin(cards, eq(card_payments.card_id, cards.id))
+        .where(and(eq(card_payments.id, req.params.id), eq(cards.user_id, userId)));
+
+      if (!existingCp) return reply.status(404).send({ error: 'Not found' });
+
+      await db.delete(card_payments).where(eq(card_payments.id, req.params.id));
+      return reply.send({ success: true });
+    }
 
     // Delete associated payments and transaction atomically
     await db.transaction(async (tx) => {
