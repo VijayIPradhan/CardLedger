@@ -331,20 +331,24 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Card Stack — Vertical sticky layout */}
+      {/* Cards Grid */}
       {cardList.length > 0 && (
-        <div className="flex flex-col px-4 mb-5 relative pb-8">
-          <p className="text-xs text-muted mb-3">Cards</p>
-          {sortedCards.map((card, i) => (
-            <div
-              key={card.id}
-              className="sticky transition-transform duration-300"
-              style={{ top: `${i * 48 + 16}px`, zIndex: i }}
+        <div className="px-4 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted">Cards</p>
+            <button
+              onClick={() => nav('/cards')}
+              className="text-[10px] font-bold text-gold bg-gold/10 px-2 py-0.5 rounded-full"
             >
+              See all ➔
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+            {sortedCards.map((card, i) => (
               <div
+                key={card.id}
                 onClick={() => nav(`/cards/${card.id}`)}
-                className="shadow-[0_-8px_24px_rgba(0,0,0,0.6)] rounded-card"
-                style={{ transform: `scale(${1 - i * 0.02})`, transformOrigin: 'top center' }}
+                className="shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-card cursor-pointer transition-transform hover:scale-[1.02]"
               >
                 <CardTile
                   card={card}
@@ -353,8 +357,8 @@ export default function HomeScreen() {
                   limitRank={limitRankMap.get(card.id) ?? 0}
                 />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
