@@ -48,7 +48,7 @@ export default function CardsScreen() {
           </button>
         </div>
       ) : (
-        <div className="px-6 pb-24 space-y-4">
+        <div className="px-6 pb-24 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedCards.map((card, i) => {
             const activeAssignment = (assignments as Assignment[]).find(
               (a) => a.card_id === card.id && !a.returned_date,

@@ -50,7 +50,7 @@ export function CardTile({ card, holder, cycleSpend, limitRank, onClick }: CardT
   return (
     <motion.div
       onClick={onClick}
-      className={`relative w-full aspect-[1.586/1] rounded-card bg-gradient-to-br ${gradient} p-6 cursor-pointer select-none`}
+      className={`relative w-full max-w-sm mx-auto aspect-[1.586/1] rounded-card bg-gradient-to-br ${gradient} p-6 cursor-pointer select-none`}
       whileTap={{ scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
     >

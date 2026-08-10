@@ -13,7 +13,7 @@ export function BottomNav() {
   const { pathname } = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-elevated flex">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-7xl bg-surface border-t border-elevated flex z-50">
       {TABS.map((tab) => {
         const active = pathname === tab.path || pathname.startsWith(tab.path + '/');
         return (
