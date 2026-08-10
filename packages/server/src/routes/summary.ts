@@ -93,6 +93,7 @@ export async function summaryRoutes(app: FastifyInstance) {
     const friends = userHolders.filter((h) => h.relationship === 'friend');
     let friendTotalSpend = 0;
     let friendTotalPaid = 0;
+    let friendTotalCardPayments = 0;
     const toCollectByCard: Record<string, number> = {};
     const friendDebts: Array<{
       holderId: string;
@@ -143,6 +144,7 @@ export async function summaryRoutes(app: FastifyInstance) {
           const amt = parseFloat(p.card_payments.amount) || 0;
           cardPaymentsByCard[cId] = (cardPaymentsByCard[cId] || 0) + amt;
           expenses -= amt;
+          friendTotalCardPayments += amt;
         });
 
       friendTotalSpend += expenses;
@@ -180,6 +182,7 @@ export async function summaryRoutes(app: FastifyInstance) {
 
     const totalToCollect = Object.values(toCollectByCard).reduce((a, b) => a + b, 0);
     const friendRemainingToPay = Math.max(0, friendTotalSpend - friendTotalPaid);
+    const friendAdvanceInHand = Math.max(0, friendTotalPaid - friendTotalCardPayments);
 
     // ── 3. Total Utilization & Net Position ──
     const totalLimit = userCards
@@ -455,6 +458,7 @@ export async function summaryRoutes(app: FastifyInstance) {
       friendTotalSpend,
       friendTotalPaid,
       friendRemainingToPay,
+      friendAdvanceInHand,
       totalToCollect,
       netPosition,
       unpaidCount,

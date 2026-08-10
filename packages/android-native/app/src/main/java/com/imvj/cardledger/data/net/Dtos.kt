@@ -293,6 +293,7 @@ data class DashboardSummaryDto(
     val friendTotalSpend: Double = 0.0,
     val friendTotalPaid: Double = 0.0,
     val friendRemainingToPay: Double = 0.0,
+    val friendAdvanceInHand: Double = 0.0,
     val totalToCollect: Double = 0.0,
     val netPosition: Double = 0.0,
     val unpaidCount: Int = 0,

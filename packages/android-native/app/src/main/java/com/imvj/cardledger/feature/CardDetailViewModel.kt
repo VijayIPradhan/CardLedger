@@ -77,11 +77,22 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     debt.byCard[id] ?: 0.0
                 }
                 summary.friendDebts.forEach { debt ->
-                    val rawAmt = debt.byCard[id] ?: 0.0
-                    val netAmt = rawAmt
-                    val inHand = maxOf(0.0, (debt.rawByCard[id] ?: 0.0) - (debt.byCard[id] ?: 0.0))
+                    val netAmt = debt.byCard[id] ?: 0.0
+                    
+                    val inHand = allPayments.filter { p -> 
+                        p.holder_id == debt.holderId && 
+                        txns.any { t -> t.id == p.transaction_id }
+                    }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    
+                    var trueUsage = 0.0
+                    txns.filter { it.holder_id_at_time == debt.holderId }.forEach { t ->
+                        val amt = t.amount.toDoubleOrNull() ?: 0.0
+                        if (t.type == "spend") trueUsage += amt
+                        else if (t.type == "refund") trueUsage -= amt
+                    }
+
                     if (netAmt > 0.0 || inHand > 0.0) {
-                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand, rawAmt))
+                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand, trueUsage))
                         cardCollectedInHand += inHand
                     }
                 }

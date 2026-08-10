@@ -190,10 +190,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend = summary.friendTotalSpend,
             friendTotalPaid = summary.friendTotalPaid,
             friendRemainingToPay = summary.friendRemainingToPay,
-            friendAdvanceInHand = let {
-                val totalOpenFriendSpend = summary.friendDebts.sumOf { debt -> debt.rawByCard.values.sum() }
-                maxOf(0.0, totalOpenFriendSpend - summary.friendRemainingToPay)
-            },
+            friendAdvanceInHand = summary.friendAdvanceInHand,
             friendDebts = summary.friendDebts,
             totalRewards = summary.totalRewards,
             totalForex = summary.totalForex,
@@ -393,10 +390,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend = friendTotalSpend,
             friendTotalPaid = friendTotalPaid,
             friendRemainingToPay = friendRemainingToPay,
-            friendAdvanceInHand = let {
-                val totalOpenFriendSpend = friendDebts.sumOf { debt -> debt.rawByCard.values.sum() }
-                maxOf(0.0, totalOpenFriendSpend - friendRemainingToPay)
-            },
+            friendAdvanceInHand = friendTotalPaid,
             payments = payments,
             friendDebts = friendDebts,
         )
