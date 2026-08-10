@@ -5,8 +5,9 @@ const TABS = [
   { path: '/', label: 'Home', icon: '⬡' },
   { path: '/analytics', label: 'Analytics', icon: '📊' },
   { path: '/cards', label: 'Cards', icon: '💳' },
+  { path: '/budgets', label: 'Budgets', icon: '📝' },
   { path: '/recommender', label: 'Recs', icon: '⭐' },
-  { path: '/holders', label: 'Holders', icon: '◎' },
+  { path: '/sms', label: 'Review', icon: '✉️' },
 ];
 
 export function BottomNav() {
