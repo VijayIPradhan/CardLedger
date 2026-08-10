@@ -26,7 +26,11 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: (data: CreateTransactionInput) =>
       api.post('/transactions', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['cards'] });
+      qc.invalidateQueries({ queryKey: ['summary'] });
+    },
   });
 }
 
@@ -35,7 +39,11 @@ export function useUpdateTransaction() {
   return useMutation({
     mutationFn: ({ id, ...data }: Partial<Transaction> & { id: string }) =>
       api.patch(`/transactions/${id}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['cards'] });
+      qc.invalidateQueries({ queryKey: ['summary'] });
+    },
   });
 }
 
@@ -43,6 +51,10 @@ export function useDeleteTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/transactions/${id}`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['cards'] });
+      qc.invalidateQueries({ queryKey: ['summary'] });
+    },
   });
 }

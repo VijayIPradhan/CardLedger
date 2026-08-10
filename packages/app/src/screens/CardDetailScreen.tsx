@@ -62,10 +62,14 @@ export default function CardDetailScreen() {
         const friendTxns = transactions.filter(
           (t: any) => t.type === 'spend' && t.holder_id_at_time === fh.id,
         );
-        const usage = friendTxns.reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+        const usage = friendTxns.reduce((acc: number, t: any) => {
+          return acc + Math.max(0, Number(t.amount) - (t.bank_paid_amount || 0));
+        }, 0);
         const amount = friendTxns
           .filter((t: any) => !t.is_paid)
-          .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+          .reduce((acc: number, t: any) => {
+            return acc + Math.max(0, Number(t.amount) - (t.bank_paid_amount || 0));
+          }, 0);
 
         return { holderName: fh.name, amount, usage };
       })
@@ -106,7 +110,10 @@ export default function CardDetailScreen() {
 
   const toCollect = transactions.reduce((acc: number, t: any) => {
     if (t.type !== 'spend' || t.is_paid || !currentHolder) return acc;
-    if (t.holder_id_at_time !== currentHolder.id) return acc + Number(t.amount);
+    if (t.holder_id_at_time !== currentHolder.id) {
+      const remaining = Number(t.amount) - (t.bank_paid_amount || 0);
+      return acc + Math.max(0, remaining);
+    }
     return acc;
   }, 0);
 

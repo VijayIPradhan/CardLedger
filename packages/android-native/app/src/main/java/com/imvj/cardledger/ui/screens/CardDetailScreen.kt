@@ -1028,7 +1028,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     }
                 }
 
-                val eligibleSpends = s.transactions.filter { it.holder_id_at_time == pmtFunderId && !it.is_paid && it.type == "spend" }
+                val eligibleSpends = s.transactions.filter { !it.is_paid && it.type == "spend" }
                 
                 ExposedDropdownMenuBox(
                     expanded = eligibleSpends.isNotEmpty() && linkedTxnExpanded,
