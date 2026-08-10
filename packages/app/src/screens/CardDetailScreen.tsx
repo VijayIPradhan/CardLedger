@@ -29,6 +29,7 @@ export default function CardDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const { data: card } = useCard(id!);
+  const { data: allCardsRaw } = useCards();
   const { data: holders = [] } = useHolders();
   const { data: assignments = [] } = useAssignments(id);
   const { data: transactions = [] } = useTransactions({ card_id: id });
@@ -72,7 +73,6 @@ export default function CardDetailScreen() {
     })
     .filter((c) => c.txns.length > 0);
 
-  const { data: allCardsRaw } = useCards();
   const allCards = Array.isArray(allCardsRaw) ? allCardsRaw : [];
 
   const activeAssignment = (assignments as Assignment[]).find((a) => !a.returned_date);
