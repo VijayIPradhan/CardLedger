@@ -51,33 +51,51 @@ export async function transactionRoutes(app: FastifyInstance) {
       }
     });
 
-    const formattedTxns = txns.map((t) => ({
-      ...t,
-      bank_paid_amount: cpMap.get(t.id) || 0,
-    }));
+    const formattedTxns = txns.map((txn) => {
+      let d = txn.txn_date as any;
+      if (d instanceof Date) {
+        d = d.toISOString().split('T')[0];
+      } else if (typeof d === 'string') {
+        d = d.split('T')[0];
+      }
 
-    const formattedPayments = cPayments.map((p) => ({
-      id: p.id,
-      card_id: p.card_id,
-      amount: p.amount,
-      merchant: p.notes || 'Payment to Bank',
-      txn_date: String(p.payment_date),
-      source: 'manual',
-      type: 'bill_payment',
-      category: null,
-      tags: null,
-      original_currency: null,
-      original_amount: null,
-      forex_markup_fee: null,
-      reward_earned: null,
-      reward_currency: null,
-      is_paid: true, // bill payments don't have is_paid
-      holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
-      raw_sms_encrypted: null,
-      dedupe_hash: null,
-      created_at: p.created_at,
-      bank_paid_amount: 0,
-    }));
+      return {
+        ...txn,
+        txn_date: d,
+        bank_paid_amount: cpMap.get(txn.id) || 0,
+      };
+    });
+
+    const formattedPayments = cPayments.map((p) => {
+      let pd = p.payment_date as any;
+      if (pd instanceof Date) {
+        pd = pd.toISOString().split('T')[0];
+      } else if (typeof pd === 'string') {
+        pd = pd.split('T')[0];
+      }
+      return {
+        id: p.id,
+        card_id: p.card_id,
+        amount: p.amount,
+        merchant: p.notes || 'Payment to Bank',
+        txn_date: pd,
+        source: 'manual',
+        type: 'bill_payment',
+        category: null,
+        tags: null,
+        original_currency: null,
+        original_amount: null,
+        forex_markup_fee: null,
+        reward_earned: null,
+        reward_currency: null,
+        is_paid: true, // bill payments don't have is_paid
+        holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
+        raw_sms_encrypted: null,
+        dedupe_hash: null,
+        created_at: p.created_at,
+        bank_paid_amount: 0,
+      };
+    });
 
     // Filter formattedPayments if holder_id was provided
     const filteredPayments = holder_id
@@ -100,7 +118,15 @@ export async function transactionRoutes(app: FastifyInstance) {
       .innerJoin(cards, eq(transactions.card_id, cards.id))
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
     if (!txn) return reply.status(404).send({ error: 'Not found' });
-    return txn;
+
+    let d = txn.txn_date as any;
+    if (d instanceof Date) {
+      d = d.toISOString().split('T')[0];
+    } else if (typeof d === 'string') {
+      d = d.split('T')[0];
+    }
+
+    return { ...txn, txn_date: d };
   });
 
   app.post('/', auth, async (req, reply) => {
@@ -339,10 +365,11 @@ export async function transactionRoutes(app: FastifyInstance) {
       .where(eq(transactions.id, req.params.id))
       .returning();
 
-    if (amount !== undefined || txn_date !== undefined) {
+    if (amount !== undefined || txn_date !== undefined || rest.holder_id_at_time !== undefined) {
       const paymentUpdate: any = {};
       if (amount !== undefined) paymentUpdate.amount = String(amount);
       if (txn_date !== undefined) paymentUpdate.payment_date = txn_date;
+      if (rest.holder_id_at_time !== undefined) paymentUpdate.holder_id = rest.holder_id_at_time;
       await db.update(payments).set(paymentUpdate).where(eq(payments.transaction_id, txn.id));
     }
 
