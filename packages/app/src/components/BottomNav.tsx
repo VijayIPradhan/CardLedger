@@ -4,8 +4,9 @@ import { Link, useLocation } from 'react-router-dom';
 const TABS = [
   { path: '/', label: 'Home', icon: '⬡' },
   { path: '/analytics', label: 'Analytics', icon: '📊' },
+  { path: '/cards', label: 'Cards', icon: '💳' },
+  { path: '/recommender', label: 'Recs', icon: '⭐' },
   { path: '/holders', label: 'Holders', icon: '◎' },
-  { path: '/settings', label: 'Settings', icon: '◈' },
 ];
 
 export function BottomNav() {

@@ -10,7 +10,9 @@ import HolderViewScreen from './screens/HolderViewScreen.js';
 import SettingsScreen from './screens/SettingsScreen.js';
 import AppLockScreen from './screens/AppLockScreen.js';
 import AddCardScreen from './screens/AddCardScreen.js';
-
+import SearchScreen from './screens/SearchScreen.js';
+import CardsScreen from './screens/CardsScreen.js';
+import RecommenderScreen from './screens/RecommenderScreen.js';
 export default function App() {
   return (
     <Routes>
@@ -20,10 +22,13 @@ export default function App() {
         <Route element={<AppLockGuard />}>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/analytics" element={<AnalyticsScreen />} />
+          <Route path="/search" element={<SearchScreen />} />
+          <Route path="/cards" element={<CardsScreen />} />
           <Route path="/cards/new" element={<AddCardScreen />} />
           <Route path="/cards/:id" element={<CardDetailScreen />} />
           <Route path="/cards/:id/edit" element={<AddCardScreen />} />
           <Route path="/holders" element={<HolderViewScreen />} />
+          <Route path="/recommender" element={<RecommenderScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
