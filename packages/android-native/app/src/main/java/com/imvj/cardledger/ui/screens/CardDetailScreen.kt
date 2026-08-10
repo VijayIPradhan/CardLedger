@@ -799,7 +799,6 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     singleLine = true,
                 )
 
-                if (txn.type == "spend") {
                     ExposedDropdownMenuBox(
                         expanded = holderExpanded,
                         onExpandedChange = { holderExpanded = it },
@@ -810,7 +809,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                             } ?: "",
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Who used") },
+                            label = { Text(if (txn.type == "spend") "Who used" else "Funded By") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = holderExpanded) },
                             modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                         )
@@ -831,7 +830,6 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                             }
                         }
                     }
-                }
 
                 if (txn.type == "spend" && !txn.is_paid) {
                     Button(
