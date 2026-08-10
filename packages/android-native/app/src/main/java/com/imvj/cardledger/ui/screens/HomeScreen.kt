@@ -475,7 +475,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                         }
                                         val initials = holder?.let { initialsOf(it.name) }
                                         val isMe = holder?.relationship == "me"
-                                        val spend = s.projections.find { it.cardId == card.id }?.currentUnbilled ?: (s.spendByCard[card.id] ?: 0.0)
+                                        val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
 
                                         Box(
                                             Modifier

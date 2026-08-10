@@ -154,20 +154,13 @@ export async function summaryRoutes(app: FastifyInstance) {
         0,
       );
       const byCard: Record<string, number> = {};
-      let remainingDebt = Math.max(0, expenses - paid);
       const baseCards = rawByCard;
 
       Object.entries(baseCards).forEach(([cId, amt]) => {
         if (amt <= 0) {
           byCard[cId] = 0;
         } else {
-          if (remainingDebt >= amt) {
-            byCard[cId] = amt;
-            remainingDebt -= amt;
-          } else {
-            byCard[cId] = Math.round(remainingDebt * 100) / 100;
-            remainingDebt = 0;
-          }
+          byCard[cId] = Math.round(amt * 100) / 100;
           toCollectByCard[cId] =
             Math.round(((toCollectByCard[cId] || 0) + byCard[cId]) * 100) / 100;
         }

@@ -58,17 +58,19 @@ export default function CardDetailScreen() {
     const friendHolders = holders.filter((h: any) => h.relationship === 'friend');
     const breakdown = friendHolders
       .map((fh: any) => {
-        const usage = transactions
-          .filter((t: any) => t.type === 'spend' && t.holder_id_at_time === fh.id)
+        const friendTxns = transactions.filter(
+          (t: any) => t.type === 'spend' && t.holder_id_at_time === fh.id,
+        );
+        const usage = friendTxns.reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+        const amount = friendTxns
+          .filter((t: any) => !t.is_paid)
           .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
-        const paidByThem = (payments as any[])
-          .filter((p) => p.holder_id === fh.id)
-          .reduce((acc: number, p: any) => acc + Number(p.amount), 0);
-        return { holderName: fh.name, amount: usage - paidByThem, usage };
+
+        return { holderName: fh.name, amount, usage };
       })
       .filter((b) => b.amount > 0 || b.usage > 0);
     return breakdown;
-  }, [transactions, holders, payments]);
+  }, [transactions, holders]);
 
   if (!card) {
     return (
