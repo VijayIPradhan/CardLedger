@@ -34,19 +34,15 @@ export async function transactionRoutes(app: FastifyInstance) {
       .where(and(...conditions))
       .orderBy(desc(transactions.txn_date));
 
+    const cpConditions: ReturnType<typeof eq>[] = [eq(cards.user_id, userId)];
+    if (card_id) cpConditions.push(eq(card_payments.card_id, card_id));
+
     // Fetch card_payments to merge as 'bill_payment' transactions
     const cPayments = await db
       .select({ ...getTableColumns(card_payments) })
       .from(card_payments)
       .innerJoin(cards, eq(card_payments.card_id, cards.id))
-      .where(
-        and(
-          ...conditions.filter((c) => {
-            // filter out holder_id condition if any, because card_payments uses holder_id, not holder_id_at_time
-            return (c as any)?.config?.left?.name !== 'holder_id_at_time';
-          }),
-        ),
-      );
+      .where(and(...cpConditions));
 
     const formattedPayments = cPayments.map((p) => ({
       id: p.id,
