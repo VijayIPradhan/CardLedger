@@ -169,7 +169,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch {
             c.transactionRepo.update(txnId, UpdateTransactionDto(amount = amount, merchant = merchant, txn_date = date, holder_id_at_time = holderId, linked_transaction_id = linkedTxnId))
                 .onSuccess { load(cardId); onDone() }
-                .onFailure { _state.value = _state.value.copy(error = "Could not update transaction.") }
+                .onFailure { _state.value = _state.value.copy(error = "Could not update transaction."); onDone() }
         }
     }
 
@@ -278,6 +278,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 onDone()
             }.onFailure {
                 _state.value = _state.value.copy(error = "Could not record payment.")
+                onDone()
             }
         }
     }

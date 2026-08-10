@@ -205,7 +205,19 @@ export async function transactionRoutes(app: FastifyInstance) {
           payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
         })
         .returning();
-      return { ...rest, id: newPayment.id, amount: String(amount) };
+      return {
+        id: newPayment.id,
+        card_id: parsed.data.card_id,
+        amount: String(amount),
+        merchant: rest.merchant || 'Friend Payment',
+        txn_date: rest.txn_date || new Date().toISOString().split('T')[0],
+        source: 'manual',
+        type: 'payment',
+        is_paid: true,
+        holder_id_at_time: finalHolderId,
+        linked_transaction_id: linked_transaction_id,
+        created_at: newPayment.created_at,
+      };
     }
 
     if (rest.type === 'bill_payment') {
@@ -221,7 +233,19 @@ export async function transactionRoutes(app: FastifyInstance) {
           notes: rest.merchant || 'Bill Payment',
         })
         .returning();
-      return { ...rest, id: newCardPayment.id, amount: String(amount) };
+      return {
+        id: newCardPayment.id,
+        card_id: parsed.data.card_id,
+        amount: String(amount),
+        merchant: rest.merchant || 'Payment to Bank',
+        txn_date: rest.txn_date || new Date().toISOString().split('T')[0],
+        source: 'manual',
+        type: 'bill_payment',
+        is_paid: true,
+        holder_id_at_time: funded_by_holder_id || finalHolderId,
+        linked_transaction_id: linked_transaction_id || null,
+        created_at: newCardPayment.created_at,
+      };
     }
 
     const txn = await db.transaction(async (tx) => {
