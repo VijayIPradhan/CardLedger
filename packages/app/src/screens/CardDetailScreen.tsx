@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, useAnimation } from 'framer-motion';
 import type { UseMutationResult } from '@tanstack/react-query';
@@ -18,6 +18,8 @@ import {
   useUpdateTransaction,
 } from '../data/hooks/useTransactions.js';
 import { useCreateTransaction } from '../data/hooks/useTransactions.js';
+import { useUploadStatement } from '../data/hooks/useStatements.js';
+import { usePayments } from '../data/hooks/usePayments.js';
 import { useUiStore } from '../store/uiStore.js';
 import { getCycleRange } from '@cardledger/shared';
 import type { Transaction, Holder, Assignment } from '@cardledger/shared';
@@ -44,6 +46,9 @@ export default function CardDetailScreen() {
   const [editHolder, setEditHolder] = useState('');
 
   const createTxn = useCreateTransaction();
+  const uploadStmt = useUploadStatement();
+  const { data: payments = [] } = usePayments();
+  const [isUploading, setIsUploading] = useState(false);
   const [cardPaymentAmount, setCardPaymentAmount] = useState('');
   const [cardPaymentDate, setCardPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -79,6 +84,28 @@ export default function CardDetailScreen() {
   const currentHolder = activeAssignment
     ? holderMap[activeAssignment.holder_id]
     : holders.find((h: Holder) => h.relationship === 'me');
+
+  const toCollect = transactions.reduce((acc: number, t: any) => {
+    if (t.type !== 'spend' || t.is_paid || !currentHolder) return acc;
+    if (t.holder_id_at_time !== currentHolder.id) return acc + Number(t.amount);
+    return acc;
+  }, 0);
+
+  const friendBreakdown = useMemo(() => {
+    const friendHolders = holders.filter((h: any) => h.relationship === 'friend');
+    const breakdown = friendHolders
+      .map((fh: any) => {
+        const usage = transactions
+          .filter((t: any) => t.type === 'spend' && t.holder_id_at_time === fh.id)
+          .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+        const paidByThem = (payments as any[])
+          .filter((p) => p.holder_id === fh.id)
+          .reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+        return { holderName: fh.name, amount: usage - paidByThem, usage };
+      })
+      .filter((b) => b.amount > 0 || b.usage > 0);
+    return breakdown;
+  }, [transactions, holders, payments]);
 
   const groupId = card.shared_limit_with || card.id;
   const totalSpend = allCards
@@ -299,6 +326,59 @@ export default function CardDetailScreen() {
         </div>
       </div>
 
+      {/* Smart Statement Upload */}
+      <div className="px-4 mb-4">
+        <div className="p-4 rounded-xl bg-surface border border-elevated shadow-md space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-on-dark flex items-center gap-1.5">
+              <span>📄</span> Smart Statement Upload
+            </span>
+          </div>
+          <p className="text-[11px] text-muted leading-relaxed">
+            Upload your monthly PDF statement to automatically extract hidden fees, forex charges,
+            and verify reward rates.
+          </p>
+          <input
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            id="statement-upload"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setIsUploading(true);
+              try {
+                const txns = await uploadStmt.mutateAsync({ cardId: card.id, file });
+                for (const t of txns) {
+                  await createTxn.mutateAsync({
+                    card_id: card.id,
+                    amount: Number(t.amount) || 0,
+                    merchant: String(t.merchant || 'Unknown'),
+                    txn_date: String(t.txn_date || new Date().toISOString().split('T')[0]),
+                    type: (t.type as any) || 'spend',
+                    source: 'manual',
+                    holder_id_at_time: currentHolder?.id,
+                  });
+                }
+                alert('Statement parsed and ' + txns.length + ' transactions added!');
+              } catch (e: any) {
+                alert('Upload failed: ' + e.message);
+              } finally {
+                setIsUploading(false);
+                e.target.value = '';
+              }
+            }}
+          />
+          <button
+            onClick={() => document.getElementById('statement-upload')?.click()}
+            disabled={isUploading}
+            className="bg-elevated text-on-dark text-xs font-semibold px-3 py-2.5 rounded-lg w-full disabled:opacity-50"
+          >
+            {isUploading ? 'Parsing PDF...' : 'Select PDF Statement'}
+          </button>
+        </div>
+      </div>
+
       <div className="px-4 flex gap-2 mb-4">
         <button
           onClick={() => nav(`/cards/${card.id}/edit`)}
@@ -316,20 +396,71 @@ export default function CardDetailScreen() {
       {error && <p className="px-4 text-danger text-xs mb-2">{error}</p>}
 
       <div className="px-4">
-        {cycles.map((c) => (
-          <div key={c.label}>
-            <p className="text-xs text-muted mt-4 mb-1">{c.label}</p>
-            {c.txns.map((t) => (
-              <SwipeableTransaction
-                key={t.id}
-                t={t}
-                holderMap={holderMap}
-                openTxnActions={openTxnActions}
-                updateTxn={updateTxn}
-              />
-            ))}
+        {(toCollect > 0 || friendBreakdown.length > 0) && (
+          <div className="p-4 rounded-xl bg-elevated mb-4 space-y-3 shadow-md">
+            <div className="flex justify-between items-start">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted font-medium">To Collect (from friends)</span>
+                <span
+                  className={`text-lg font-bold ${toCollect > 0 ? 'text-gold' : 'text-success'}`}
+                >
+                  ₹{toCollect.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+            {friendBreakdown.length > 0 && (
+              <div className="border-t border-surface pt-3 space-y-2">
+                {friendBreakdown.map((fb: any) => (
+                  <div key={fb.holderName} className="flex justify-between items-center">
+                    <span className="text-xs text-muted">{fb.holderName}</span>
+                    <span
+                      className={`text-xs font-semibold ${fb.amount > 0 ? 'text-gold' : 'text-on-dark'}`}
+                    >
+                      {fb.usage > fb.amount
+                        ? `₹${fb.amount.toLocaleString('en-IN')} (Usage: ₹${fb.usage.toLocaleString('en-IN')})`
+                        : `₹${fb.amount.toLocaleString('en-IN')}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+        )}
+
+        {cycles.map((c) => {
+          const unpaidInCycle = c.txns.filter((t) => !t.is_paid && t.type === 'spend').length;
+          return (
+            <div key={c.label}>
+              <div className="flex justify-between items-center mt-4 mb-1">
+                <p className="text-xs text-muted">{c.label}</p>
+                {unpaidInCycle > 0 && (
+                  <button
+                    onClick={async () => {
+                      const toUpdate = c.txns.filter((t) => !t.is_paid && t.type === 'spend');
+                      for (const t of toUpdate) {
+                        await updateTxn.mutateAsync({ id: t.id, is_paid: true });
+                      }
+                    }}
+                    className="bg-gold/15 text-gold text-[10px] font-bold px-2 py-1 rounded"
+                  >
+                    Mark {unpaidInCycle} paid
+                  </button>
+                )}
+              </div>
+              {c.txns.map((t) => (
+                <SwipeableTransaction
+                  key={t.id}
+                  t={t}
+                  holderMap={holderMap}
+                  openTxnActions={openTxnActions}
+                  updateTxn={updateTxn}
+                  currentHolder={currentHolder}
+                  payments={payments as any[]}
+                />
+              ))}
+            </div>
+          );
+        })}
         {cycles.length === 0 && (
           <p className="text-muted text-sm text-center py-8">No transactions yet</p>
         )}
@@ -457,11 +588,15 @@ function SwipeableTransaction({
   holderMap,
   openTxnActions,
   updateTxn,
+  currentHolder,
+  payments,
 }: {
   t: Transaction;
   holderMap: Record<string, Holder>;
   openTxnActions: (t: Transaction) => void;
   updateTxn: UseMutationResult<Transaction, Error, Partial<Transaction> & { id: string }>;
+  currentHolder?: Holder;
+  payments?: any[];
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const controls = useAnimation();
@@ -588,11 +723,54 @@ function SwipeableTransaction({
               : `${holderMap[t.holder_id_at_time]?.name ?? '—'} · ${t.txn_date.slice(5)}`}
           </p>
         </div>
-        <span
-          className={`text-sm font-bold ${t.is_paid && t.type !== 'bill_payment' ? 'line-through text-muted' : t.type === 'bill_payment' ? 'text-success' : 'text-danger'}`}
-        >
-          {t.type === 'bill_payment' ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={`text-sm font-bold ${t.is_paid && t.type !== 'bill_payment' ? 'line-through text-muted' : t.type === 'bill_payment' ? 'text-success' : 'text-danger'}`}
+          >
+            {t.type === 'bill_payment' ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
+          </span>
+          {currentHolder &&
+            t.holder_id_at_time !== currentHolder.id &&
+            t.type === 'spend' &&
+            (() => {
+              const isCollected = payments?.some((p: any) => p.transaction_id === t.id);
+              if (!isCollected) {
+                return (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alert('Implement collect sheet here');
+                    }}
+                    className="bg-gold/15 border border-gold/50 rounded px-1.5 py-0.5 flex items-center gap-1 mt-0.5 cursor-pointer"
+                  >
+                    <span className="text-[9px]">🤝</span>
+                    <span className="text-[9px] text-gold font-bold">Collect</span>
+                  </div>
+                );
+              } else {
+                const totalCollected =
+                  payments
+                    ?.filter((p: any) => p.transaction_id === t.id)
+                    .reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+                const remaining = Number(t.amount) - totalCollected;
+                if (remaining > 0) {
+                  return (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alert('Implement collect sheet here');
+                      }}
+                      className="bg-gold/15 border border-gold/50 rounded px-1.5 py-0.5 flex items-center gap-1 mt-0.5 cursor-pointer"
+                    >
+                      <span className="text-[9px]">🤝</span>
+                      <span className="text-[9px] text-gold font-bold">Collect Remainder</span>
+                    </div>
+                  );
+                }
+                return null;
+              }
+            })()}
+        </div>
       </motion.div>
     </div>
   );
