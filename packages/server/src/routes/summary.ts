@@ -59,8 +59,6 @@ export async function summaryRoutes(app: FastifyInstance) {
     // Fetch all user holders
     const userHolders = await db.select().from(holders).where(eq(holders.user_id, userId));
 
-    const holderIds = userHolders.map((h) => h.id);
-
     // Fetch transactions & payments for user cards/holders
     const userTxns = await db
       .select()
@@ -135,10 +133,6 @@ export async function summaryRoutes(app: FastifyInstance) {
         .filter((p) => p.payments.holder_id === friend.id)
         .reduce((sum, p) => sum + (parseFloat(p.payments.amount) || 0), 0);
 
-      const paidFromCardPayments = userCardPayments
-        .filter((p) => p.card_payments.holder_id === friend.id)
-        .reduce((sum, p) => sum + (parseFloat(p.card_payments.amount) || 0), 0);
-
       const paid = paidFromPayments;
 
       const cardPaymentsByCard: Record<string, number> = {};
@@ -155,14 +149,6 @@ export async function summaryRoutes(app: FastifyInstance) {
       friendTotalPaid += paid;
       const remainingToPay = Math.max(0, expenses - paid);
 
-      const totalRawUnpaid = Object.values(rawByCard).reduce(
-        (sum, val) => sum + Math.max(0, val),
-        0,
-      );
-      const totalFriendCardSpend = Object.values(totalSpendByCard).reduce(
-        (sum, val) => sum + Math.max(0, val),
-        0,
-      );
       const byCard: Record<string, number> = {};
       const baseCards = rawByCard;
 

@@ -79,6 +79,7 @@ export const UpdateTransactionSchema = z.object({
   holder_id_at_time: z.string().uuid().optional(),
   category: z.string().max(100).optional(),
   tags: z.array(z.string()).optional(),
+  linked_transaction_id: z.string().uuid().nullable().optional(),
 });
 
 export const LoginSchema = z.object({

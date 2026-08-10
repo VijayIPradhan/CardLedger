@@ -49,35 +49,29 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val holdersD = async { c.holderRepo.list().getOrElse { emptyList() } }
             val assignmentsD = async { c.assignmentRepo.list(id).getOrElse { emptyList() } }
             val txnsD = async { c.transactionRepo.list(cardId = id).getOrElse { emptyList() } }
-            val allTxnsD = async { c.transactionRepo.list().getOrElse { emptyList() } }
+            val summaryD = async { c.dashboardRepo.getSummary() }
             val allPaymentsD = async { c.paymentRepo.list().getOrElse { emptyList() } }
-            val allCardsD = async { c.cardRepo.list().getOrElse { emptyList() } }
 
             val card = cardD.await()
             val holders = holdersD.await()
             val assignments = assignmentsD.await()
             val txns = txnsD.await()
-            val allCards = allCardsD.await()
-            val allTxns = allTxnsD.await()
             val allPayments = allPaymentsD.await()
             val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
 
-            val summaryRes = c.dashboardRepo.getSummary()
+            val summaryRes = summaryD.await()
             val summary = summaryRes.getOrNull()
 
             val total = if (summary != null && card != null && summary.spendByCard.containsKey(card.id)) {
                 summary.spendByCard[card.id] ?: 0.0
-            } else if (card != null) {
-                val groupId = card.shared_limit_with ?: card.id
-                allCards.filter { (it.shared_limit_with ?: it.id) == groupId }
-                    .sumOf { it.current_spend?.toDoubleOrNull() ?: 0.0 }
-            } else 0.0
+            } else {
+                card?.current_spend?.toDoubleOrNull() ?: 0.0
+            }
             
             val isMarkedCollected = c.prefsStore.getCollectedCards().contains(id)
             var cardToCollect = 0.0
             var cardCollectedInHand = 0.0
             val friendBreakdown = mutableListOf<FriendCollectable>()
-            val friends = holders.filter { it.relationship == "friend" }
             if (summary != null) {
                 cardToCollect = summary.friendDebts.sumOf { debt ->
                     debt.byCard[id] ?: 0.0
@@ -89,44 +83,6 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     if (netAmt > 0.0 || inHand > 0.0) {
                         friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand, rawAmt))
                         cardCollectedInHand += inHand
-                    }
-                }
-            } else {
-                friends.forEach { friend ->
-                    val friendCardTxns = allTxns.filter { it.holder_id_at_time == friend.id && it.card_id == id }
-                    var rawUnpaid = 0.0
-                    var totalFriendSpendOnCard = 0.0
-                    friendCardTxns.forEach { txn ->
-                        val amt = txn.amount.toDoubleOrNull() ?: 0.0
-                        if (txn.type == "refund") {
-                            totalFriendSpendOnCard -= amt
-                            if (!txn.is_paid && amt > 0) rawUnpaid -= amt
-                        } else if (txn.type == "spend") {
-                            totalFriendSpendOnCard += amt
-                            if (!txn.is_paid && amt > 0) rawUnpaid += amt
-                        }
-                    }
-                    val totalPaid = allPayments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    val totalFriendSpend = allTxns.filter { it.holder_id_at_time == friend.id && it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    val remainingToPay = maxOf(0.0, totalFriendSpend - totalPaid)
-                    val allRawUnpaid = allTxns.filter { it.holder_id_at_time == friend.id && !it.is_paid && it.type == "spend" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    val baseAmt = rawUnpaid
-                    val baseTotal = allRawUnpaid
-
-                    val netAmt = if (baseAmt <= 0.0) {
-                        0.0
-                    } else {
-                        baseAmt
-                    }
-                    val inHand = if (totalPaid > totalFriendSpend && netAmt <= 0.0) {
-                        kotlin.math.round((totalPaid - totalFriendSpend) * 100.0) / 100.0
-                    } else {
-                        0.0
-                    }
-                    if (netAmt > 0.0 || inHand > 0.0) {
-                        cardToCollect += netAmt
-                        cardCollectedInHand += inHand
-                        friendBreakdown.add(FriendCollectable(friend.id, friend.name, netAmt, inHand, rawUnpaid))
                     }
                 }
             }
@@ -207,10 +163,11 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         merchant: String,
         date: String,
         holderId: String,
+        linkedTxnId: String? = null,
         onDone: () -> Unit,
     ) {
         viewModelScope.launch {
-            c.transactionRepo.update(txnId, UpdateTransactionDto(amount = amount, merchant = merchant, txn_date = date, holder_id_at_time = holderId))
+            c.transactionRepo.update(txnId, UpdateTransactionDto(amount = amount, merchant = merchant, txn_date = date, holder_id_at_time = holderId, linked_transaction_id = linkedTxnId))
                 .onSuccess { load(cardId); onDone() }
                 .onFailure { _state.value = _state.value.copy(error = "Could not update transaction.") }
         }

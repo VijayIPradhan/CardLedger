@@ -80,6 +80,7 @@ data class TransactionDto(
     val type: String,
     val is_paid: Boolean = false,
     val holder_id_at_time: String,
+    val linked_transaction_id: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
     val category: String? = null,
@@ -123,6 +124,7 @@ data class UpdateTransactionDto(
     val holder_id_at_time: String? = null,
     val category: String? = null,
     val tags: List<String>? = null,
+    val linked_transaction_id: String? = null,
 )
 
 @Serializable

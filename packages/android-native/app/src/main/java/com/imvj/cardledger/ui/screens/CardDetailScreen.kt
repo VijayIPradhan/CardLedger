@@ -753,13 +753,16 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
         var editMerchant by remember { mutableStateOf("") }
         var editDate by remember { mutableStateOf("") }
         var editHolderId by remember { mutableStateOf("") }
+        var editLinkedTxnId by remember { mutableStateOf<String?>(null) }
         var holderExpanded by remember { mutableStateOf(false) }
+        var linkedTxnExpanded by remember { mutableStateOf(false) }
 
         LaunchedEffect(txn) {
             editAmount = txn.amount
             editMerchant = txn.merchant
             editDate = txn.txn_date
             editHolderId = txn.holder_id_at_time
+            editLinkedTxnId = txn.linked_transaction_id
         }
 
         val selectedHolder = s.holders.firstOrNull { it.id == editHolderId }
@@ -831,6 +834,60 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                         }
                     }
 
+                if (txn.type == "bill_payment") {
+                    val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                    val eligibleSpends = s.transactions.filter {
+                        (!it.is_paid || it.id == editLinkedTxnId) && it.type == "spend" &&
+                        (editHolderId == meId || it.holder_id_at_time == editHolderId)
+                    }
+
+                    ExposedDropdownMenuBox(
+                        expanded = eligibleSpends.isNotEmpty() && linkedTxnExpanded,
+                        onExpandedChange = { if (eligibleSpends.isNotEmpty()) linkedTxnExpanded = it },
+                    ) {
+                        val selectedSpend = eligibleSpends.firstOrNull { it.id == editLinkedTxnId }
+                        val displayValue = if (eligibleSpends.isEmpty()) {
+                            "No unpaid spends found"
+                        } else {
+                            selectedSpend?.let { "${it.merchant} (${money(it.amount.toDoubleOrNull() ?: 0.0)})" } ?: "None (General Payment)"
+                        }
+                        OutlinedTextField(
+                            value = displayValue,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Pays For (Optional)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = linkedTxnExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                            enabled = eligibleSpends.isNotEmpty()
+                        )
+                        if (eligibleSpends.isNotEmpty()) {
+                            ExposedDropdownMenu(
+                                expanded = linkedTxnExpanded,
+                                onDismissRequest = { linkedTxnExpanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("None (General Payment)") },
+                                    onClick = {
+                                        editLinkedTxnId = null
+                                        linkedTxnExpanded = false
+                                    }
+                                )
+                                eligibleSpends.forEach { spend ->
+                                    DropdownMenuItem(
+                                        text = { Text("${spend.merchant} (${money(spend.amount.toDoubleOrNull() ?: 0.0)})") },
+                                        onClick = {
+                                            editLinkedTxnId = spend.id
+                                            linkedTxnExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        } else {
+                            editLinkedTxnId = null
+                        }
+                    }
+                }
+
                 if (txn.type == "spend" && !txn.is_paid) {
                     Button(
                         onClick = {
@@ -859,6 +916,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                 merchant = editMerchant,
                                 date = editDate,
                                 holderId = editHolderId,
+                                linkedTxnId = editLinkedTxnId,
                                 onDone = { showTxnSheet = false },
                             )
                         },
@@ -1026,7 +1084,11 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     }
                 }
 
-                val eligibleSpends = s.transactions.filter { !it.is_paid && it.type == "spend" }
+                val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
+                val eligibleSpends = s.transactions.filter { 
+                    (!it.is_paid || it.id == linkedTxnId) && it.type == "spend" &&
+                    (pmtFunderId == meId || it.holder_id_at_time == pmtFunderId)
+                }
                 
                 ExposedDropdownMenuBox(
                     expanded = eligibleSpends.isNotEmpty() && linkedTxnExpanded,

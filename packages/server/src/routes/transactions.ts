@@ -90,6 +90,7 @@ export async function transactionRoutes(app: FastifyInstance) {
         reward_currency: null,
         is_paid: true, // bill payments don't have is_paid
         holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
+        linked_transaction_id: p.transaction_id || null,
         raw_sms_encrypted: null,
         dedupe_hash: null,
         created_at: p.created_at,
@@ -255,8 +256,8 @@ export async function transactionRoutes(app: FastifyInstance) {
 
       const [newTxn] = await tx.insert(transactions).values(insertValues).returning();
 
-      // Atomically create a payment record if funded by someone else
-      if ((rest.type === 'payment' || rest.type === 'bill_payment') && funded_by_holder_id) {
+      // Atomically create a payment record if funded by someone else (only for cash payments to user)
+      if (rest.type === 'payment' && funded_by_holder_id) {
         let finalLinkedTxnId = linked_transaction_id ?? newTxn.id;
 
         if (linked_transaction_id) {
@@ -338,12 +339,19 @@ export async function transactionRoutes(app: FastifyInstance) {
 
       if (!existingCp) return reply.status(404).send({ error: 'Not found' });
 
-      const { amount, txn_date, merchant, holder_id_at_time } = parsed.data;
+      const {
+        amount,
+        txn_date,
+        merchant,
+        holder_id_at_time,
+        linked_transaction_id: cpLinkedTxnId,
+      } = parsed.data;
       const updateCp: any = {};
       if (amount !== undefined) updateCp.amount = String(amount);
       if (txn_date !== undefined) updateCp.payment_date = txn_date;
       if (merchant !== undefined) updateCp.notes = merchant;
       if (holder_id_at_time !== undefined) updateCp.holder_id = holder_id_at_time;
+      if (cpLinkedTxnId !== undefined) updateCp.transaction_id = cpLinkedTxnId;
 
       const [updatedCp] = await db
         .update(card_payments)
@@ -351,10 +359,27 @@ export async function transactionRoutes(app: FastifyInstance) {
         .where(eq(card_payments.id, req.params.id))
         .returning();
 
-      return updatedCp;
+      // Return transaction-compatible shape for consistency
+      let pd = updatedCp.payment_date as any;
+      if (pd instanceof Date) pd = pd.toISOString().split('T')[0];
+      else if (typeof pd === 'string') pd = pd.split('T')[0];
+
+      return {
+        id: updatedCp.id,
+        card_id: updatedCp.card_id,
+        amount: updatedCp.amount,
+        merchant: updatedCp.notes || 'Payment to Bank',
+        txn_date: pd,
+        source: 'manual',
+        type: 'bill_payment',
+        is_paid: true,
+        holder_id_at_time: updatedCp.holder_id,
+        linked_transaction_id: updatedCp.transaction_id || null,
+        created_at: updatedCp.created_at,
+      };
     }
 
-    const { amount, txn_date, ...rest } = parsed.data;
+    const { amount, txn_date, linked_transaction_id, ...rest } = parsed.data;
     const update: any = { ...rest };
     if (amount !== undefined) update.amount = String(amount);
     if (txn_date !== undefined) update.txn_date = txn_date;
