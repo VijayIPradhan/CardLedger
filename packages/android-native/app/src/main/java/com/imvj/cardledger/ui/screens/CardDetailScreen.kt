@@ -651,13 +651,32 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                     )
                                                 }
                                                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text(
-                                                        "${if (txn.type == "bill_payment" || txn.type == "refund") "+" else "−"}${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
-                                                        color = if (txn.is_paid && txn.type != "bill_payment" && txn.type != "refund") Muted else if (txn.type == "bill_payment" || txn.type == "refund") Success else Danger,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        fontSize = 14.sp,
-                                                        textDecoration = if (txn.is_paid && txn.type != "bill_payment" && txn.type != "refund") TextDecoration.LineThrough else null
-                                                    )
+                                                    if (txn.type == "spend" && (txn.bank_paid_amount ?: 0.0) > 0.0) {
+                                                        val bankPaid = txn.bank_paid_amount ?: 0.0
+                                                        val originalAmt = txn.amount.toDoubleOrNull() ?: 0.0
+                                                        val remaining = originalAmt - bankPaid
+                                                        Column(horizontalAlignment = Alignment.End) {
+                                                            Text(
+                                                                "−${money(originalAmt)}",
+                                                                color = Muted,
+                                                                fontSize = 12.sp,
+                                                                textDecoration = TextDecoration.LineThrough
+                                                            )
+                                                            if (remaining > 0) {
+                                                                Text("−${money(remaining)}", color = Danger, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                                            } else {
+                                                                Text("Fully Paid to Bank", color = Success, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                            }
+                                                        }
+                                                    } else {
+                                                        Text(
+                                                            "${if (txn.type == "bill_payment" || txn.type == "refund") "+" else "−"}${money(txn.amount.toDoubleOrNull() ?: 0.0)}",
+                                                            color = if (txn.is_paid && txn.type != "bill_payment" && txn.type != "refund") Muted else if (txn.type == "bill_payment" || txn.type == "refund") Success else Danger,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            fontSize = 14.sp,
+                                                            textDecoration = if (txn.is_paid && txn.type != "bill_payment" && txn.type != "refund") TextDecoration.LineThrough else null
+                                                        )
+                                                    }
                                                     val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
                                                     if (txn.holder_id_at_time != meId && txn.type == "spend") {
                                                         val isCollected = s.payments.any { it.transaction_id == txn.id }

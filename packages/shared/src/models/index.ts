@@ -49,6 +49,8 @@ export interface Transaction {
   raw_sms_encrypted: string | null;
   dedupe_hash: string | null;
   created_at: string;
+  bank_paid_amount?: number;
+  linked_transaction_id?: string;
 }
 
 export interface Payment {

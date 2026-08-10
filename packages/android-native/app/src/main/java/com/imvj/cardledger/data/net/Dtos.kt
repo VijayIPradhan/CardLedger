@@ -90,6 +90,7 @@ data class TransactionDto(
     val reward_earned: String? = null,
     val reward_currency: String? = null,
     val created_at: String? = null,
+    val bank_paid_amount: Double? = null,
 )
 
 @Serializable

@@ -51,6 +51,7 @@ export default function CardDetailScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [cardPaymentAmount, setCardPaymentAmount] = useState('');
   const [cardPaymentDate, setCardPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [linkedTransactionId, setLinkedTransactionId] = useState<string>('');
 
   const [error, setError] = useState('');
 
@@ -176,9 +177,10 @@ export default function CardDetailScreen() {
     openBottomSheet('txn-actions');
   }
 
-  function openCardPayment() {
-    setCardPaymentAmount('');
+  function openCardPayment(linkedTxnId?: string, defaultAmount?: string) {
+    setCardPaymentAmount(defaultAmount || '');
     setCardPaymentDate(new Date().toISOString().split('T')[0]);
+    setLinkedTransactionId(linkedTxnId || '');
     setError('');
     openBottomSheet('card-payment-form');
   }
@@ -200,6 +202,7 @@ export default function CardDetailScreen() {
         type: 'bill_payment',
         source: 'manual',
         holder_id_at_time: currentHolder?.id,
+        linked_transaction_id: linkedTransactionId || undefined,
       });
       closeBottomSheet();
     } catch {
@@ -250,7 +253,7 @@ export default function CardDetailScreen() {
               </p>
               <div className="mt-2 flex gap-2">
                 <button
-                  onClick={openCardPayment}
+                  onClick={() => openCardPayment()}
                   className="bg-gold text-surface text-xs font-bold px-3 py-1.5 rounded-input w-full"
                 >
                   Pay Credit Card Bill
@@ -458,6 +461,7 @@ export default function CardDetailScreen() {
                   updateTxn={updateTxn}
                   currentHolder={currentHolder}
                   payments={payments as any[]}
+                  openCardPayment={openCardPayment}
                 />
               ))}
             </div>
@@ -563,6 +567,23 @@ export default function CardDetailScreen() {
               className={inputCls}
             />
           </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">Link to Transaction (Optional)</label>
+            <select
+              value={linkedTransactionId}
+              onChange={(e) => setLinkedTransactionId(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">None (General Payment)</option>
+              {transactions
+                ?.filter((t) => t.type === 'spend' && !t.is_paid)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.merchant} ({Number(t.amount).toLocaleString('en-IN')})
+                  </option>
+                ))}
+            </select>
+          </div>
           {error && <p className="text-danger text-xs">{error}</p>}
           <button
             type="submit"
@@ -592,13 +613,15 @@ function SwipeableTransaction({
   updateTxn,
   currentHolder,
   payments,
+  openCardPayment,
 }: {
   t: Transaction;
   holderMap: Record<string, Holder>;
   openTxnActions: (t: Transaction) => void;
   updateTxn: UseMutationResult<Transaction, Error, Partial<Transaction> & { id: string }>;
   currentHolder?: Holder;
-  payments?: any[];
+  payments: any[];
+  openCardPayment: (linkedTxnId?: string, defaultAmount?: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const controls = useAnimation();
@@ -726,11 +749,26 @@ function SwipeableTransaction({
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <span
-            className={`text-sm font-bold ${t.is_paid && t.type !== 'bill_payment' ? 'line-through text-muted' : t.type === 'bill_payment' ? 'text-success' : 'text-danger'}`}
-          >
-            {t.type === 'bill_payment' ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
-          </span>
+          {t.type === 'spend' && (t.bank_paid_amount || 0) > 0 ? (
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-muted line-through">
+                −₹{Number(t.amount).toLocaleString('en-IN')}
+              </span>
+              {Number(t.amount) - (t.bank_paid_amount || 0) > 0 ? (
+                <span className="text-sm font-bold text-danger">
+                  −₹{(Number(t.amount) - (t.bank_paid_amount || 0)).toLocaleString('en-IN')}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-success">Fully Paid to Bank</span>
+              )}
+            </div>
+          ) : (
+            <span
+              className={`text-sm font-bold ${t.is_paid && t.type !== 'bill_payment' ? 'line-through text-muted' : t.type === 'bill_payment' ? 'text-success' : 'text-danger'}`}
+            >
+              {t.type === 'bill_payment' ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
+            </span>
+          )}
           {currentHolder &&
             t.holder_id_at_time !== currentHolder.id &&
             t.type === 'spend' &&
@@ -738,15 +776,32 @@ function SwipeableTransaction({
               const isCollected = payments?.some((p: any) => p.transaction_id === t.id);
               if (!isCollected) {
                 return (
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert('Implement collect sheet here');
-                    }}
-                    className="bg-gold/15 border border-gold/50 rounded px-1.5 py-0.5 flex items-center gap-1 mt-0.5 cursor-pointer"
-                  >
-                    <span className="text-[9px]">🤝</span>
-                    <span className="text-[9px] text-gold font-bold">Collect</span>
+                  <div className="flex gap-1 mt-0.5">
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alert('Implement collect sheet here');
+                      }}
+                      className="bg-gold/15 border border-gold/50 rounded px-1.5 py-0.5 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="text-[9px]">🤝</span>
+                      <span className="text-[9px] text-gold font-bold">Collect</span>
+                    </div>
+                    {(t.bank_paid_amount || 0) < Number(t.amount) && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCardPayment(
+                            t.id,
+                            String(Number(t.amount) - (t.bank_paid_amount || 0)),
+                          );
+                        }}
+                        className="bg-success/15 border border-success/50 rounded px-1.5 py-0.5 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="text-[9px]">🏦</span>
+                        <span className="text-[9px] text-success font-bold">Pay Bank</span>
+                      </div>
+                    )}
                   </div>
                 );
               } else {

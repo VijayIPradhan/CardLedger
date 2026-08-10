@@ -44,6 +44,18 @@ export async function transactionRoutes(app: FastifyInstance) {
       .innerJoin(cards, eq(card_payments.card_id, cards.id))
       .where(and(...cpConditions));
 
+    const cpMap = new Map<string, number>();
+    cPayments.forEach((p) => {
+      if (p.transaction_id) {
+        cpMap.set(p.transaction_id, (cpMap.get(p.transaction_id) || 0) + Number(p.amount));
+      }
+    });
+
+    const formattedTxns = txns.map((t) => ({
+      ...t,
+      bank_paid_amount: cpMap.get(t.id) || 0,
+    }));
+
     const formattedPayments = cPayments.map((p) => ({
       id: p.id,
       card_id: p.card_id,
@@ -64,6 +76,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       raw_sms_encrypted: null,
       dedupe_hash: null,
       created_at: p.created_at,
+      bank_paid_amount: 0,
     }));
 
     // Filter formattedPayments if holder_id was provided
@@ -71,7 +84,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       ? formattedPayments.filter((p) => p.holder_id_at_time === holder_id)
       : formattedPayments;
 
-    return [...txns, ...filteredPayments].sort((a, b) => {
+    return [...formattedTxns, ...filteredPayments].sort((a, b) => {
       const dateA = new Date(a.txn_date).getTime();
       const dateB = new Date(b.txn_date).getTime();
       if (dateA !== dateB) return dateB - dateA;
@@ -175,6 +188,7 @@ export async function transactionRoutes(app: FastifyInstance) {
         .values({
           card_id: parsed.data.card_id,
           holder_id: funded_by_holder_id || finalHolderId,
+          transaction_id: linked_transaction_id || null,
           amount: String(amount),
           payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
           notes: rest.merchant || 'Bill Payment',
