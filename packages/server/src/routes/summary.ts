@@ -142,6 +142,18 @@ export async function summaryRoutes(app: FastifyInstance) {
 
       const paid = paidFromPayments;
 
+      const paymentsByCard: Record<string, number> = {};
+      userPayments
+        .filter((p) => p.payments.holder_id === friend.id && p.payments.transaction_id)
+        .forEach((p) => {
+          const txn = userTxns.find((t) => t.transactions.id === p.payments.transaction_id);
+          if (txn) {
+            const cId = txn.transactions.card_id;
+            const amt = parseFloat(p.payments.amount) || 0;
+            paymentsByCard[cId] = (paymentsByCard[cId] || 0) + amt;
+          }
+        });
+
       const cardPaymentsByCard: Record<string, number> = {};
       userCardPayments
         .filter((p) => p.card_payments.holder_id === friend.id)
@@ -162,7 +174,8 @@ export async function summaryRoutes(app: FastifyInstance) {
 
       Object.entries(baseCards).forEach(([cId, amt]) => {
         const cpAmt = cardPaymentsByCard[cId] || 0;
-        const adjustedAmt = amt - cpAmt;
+        const pAmt = paymentsByCard[cId] || 0;
+        const adjustedAmt = amt - cpAmt - pAmt;
         if (adjustedAmt <= 0) {
           byCard[cId] = 0;
         } else {

@@ -252,13 +252,23 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             val byCard = mutableMapOf<String, Double>()
 
             val baseCards = rawByCard
+            val paymentsByCard = mutableMapOf<String, Double>()
+            payments.filter { it.holder_id == friend.id && it.transaction_id != null }.forEach { p ->
+                val txn = txns.find { t -> t.id == p.transaction_id }
+                if (txn != null) {
+                    val cid = txn.card_id
+                    paymentsByCard[cid] = (paymentsByCard[cid] ?: 0.0) + (p.amount.toDoubleOrNull() ?: 0.0)
+                }
+            }
 
             baseCards.forEach { (cid, amt) ->
-                if (amt <= 0.0) {
+                val pAmt = paymentsByCard[cid] ?: 0.0
+                val adjusted = amt - pAmt
+                if (adjusted <= 0.0) {
                     byCard[cid] = 0.0
                 } else {
-                    byCard[cid] = amt
-                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
+                    byCard[cid] = adjusted
+                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + adjusted) * 100.0) / 100.0
                 }
             }
             friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard, rawByCard))
