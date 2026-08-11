@@ -94,6 +94,8 @@ export async function summaryRoutes(app: FastifyInstance) {
     let friendTotalSpend = 0;
     let friendTotalPaid = 0;
     let friendTotalCardPayments = 0;
+    let friendTotalGrossSpend = 0;
+    let friendTotalUnpaidSpend = 0;
     const toCollectByCard: Record<string, number> = {};
     const friendDebts: Array<{
       holderId: string;
@@ -117,15 +119,19 @@ export async function summaryRoutes(app: FastifyInstance) {
         const cId = t.transactions.card_id;
         if (t.transactions.type === 'refund') {
           expenses -= amt;
+          friendTotalGrossSpend -= amt;
           totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) - amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {
             rawByCard[cId] = Math.round(((rawByCard[cId] || 0) - amt) * 100) / 100;
+            friendTotalUnpaidSpend -= amt;
           }
         } else if (t.transactions.type === 'spend') {
           expenses += amt;
+          friendTotalGrossSpend += amt;
           totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) + amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {
             rawByCard[cId] = Math.round(((rawByCard[cId] || 0) + amt) * 100) / 100;
+            friendTotalUnpaidSpend += amt;
           }
         }
       });
@@ -182,7 +188,8 @@ export async function summaryRoutes(app: FastifyInstance) {
 
     const totalToCollect = Object.values(toCollectByCard).reduce((a, b) => a + b, 0);
     const friendRemainingToPay = Math.max(0, friendTotalSpend - friendTotalPaid);
-    const friendAdvanceInHand = Math.max(0, friendTotalPaid - friendTotalCardPayments);
+    const paidSpend = friendTotalGrossSpend - friendTotalUnpaidSpend;
+    const friendAdvanceInHand = Math.max(0, friendTotalPaid - paidSpend - friendTotalCardPayments);
 
     // ── 3. Total Utilization & Net Position ──
     const totalLimit = userCards

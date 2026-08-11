@@ -217,6 +217,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         val friends = holders.filter { it.relationship == "friend" }
         var friendTotalSpend = 0.0
         var friendTotalPaid = 0.0
+        var friendTotalUnpaidSpend = 0.0
         val toCollectByCard = mutableMapOf<String, Double>()
         val friendDebts = mutableListOf<FriendDebtDto>()
         friends.forEach { friend ->
@@ -246,6 +247,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalPaid += paid
             val remainingToPay = maxOf(0.0, expenses - paid)
             val totalRawUnpaid = rawByCard.values.sumOf { maxOf(0.0, it) }
+            friendTotalUnpaidSpend += totalRawUnpaid
             val totalFriendCardSpend = totalSpendByCard.values.sumOf { maxOf(0.0, it) }
             val byCard = mutableMapOf<String, Double>()
 
@@ -390,7 +392,10 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalSpend = friendTotalSpend,
             friendTotalPaid = friendTotalPaid,
             friendRemainingToPay = friendRemainingToPay,
-            friendAdvanceInHand = friendTotalPaid,
+            friendAdvanceInHand = let {
+                val paidSpend = friendTotalSpend - friendTotalUnpaidSpend
+                maxOf(0.0, friendTotalPaid - paidSpend)
+            },
             payments = payments,
             friendDebts = friendDebts,
         )
