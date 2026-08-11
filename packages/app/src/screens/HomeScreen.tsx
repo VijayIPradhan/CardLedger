@@ -12,7 +12,7 @@ import { useAssignments } from '../data/hooks/useAssignments.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
 import { usePayments } from '../data/hooks/usePayments.js';
 import { useUiStore } from '../store/uiStore.js';
-import { getUpcomingDues } from '@cardledger/shared';
+import { getFriendCollectionTotal, getUpcomingDues } from '@cardledger/shared';
 import type { Card, Holder, Transaction, Assignment, Payment } from '@cardledger/shared';
 
 const todayISO = () => new Date().toISOString().split('T')[0];
@@ -43,16 +43,11 @@ export default function HomeScreen() {
   });
 
   // Analytics calculations
-  let totalToCollect = 0;
-  friends.forEach((friend: Holder) => {
-    const expenses = (transactions as Transaction[])
-      .filter((t) => t.holder_id_at_time === friend.id)
-      .reduce((s, t) => s + Number(t.amount), 0);
-    const payments = (allPayments as Payment[])
-      .filter((p) => p.holder_id === friend.id)
-      .reduce((s, p) => s + Number(p.amount), 0);
-    totalToCollect += expenses - payments;
-  });
+  const totalToCollect = getFriendCollectionTotal(
+    friends,
+    transactions as Transaction[],
+    allPayments as Payment[],
+  );
 
   const totalLimit = cardList
     .filter((c) => !c.shared_limit_with)

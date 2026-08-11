@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { getCardUtilization, getTotalUtilization, getUpcomingDues } from './analytics.js';
+import {
+  getCardUtilization,
+  getFriendCollectionTotal,
+  getTotalUtilization,
+  getUpcomingDues,
+} from './analytics.js';
 
 describe('getCardUtilization', () => {
   it('computes percent to one decimal', () => {
@@ -51,5 +56,24 @@ describe('getUpcomingDues', () => {
     ];
     const dues = getUpcomingDues(cards, '2026-06-06', 10);
     expect(dues.map((d) => d.cardId)).toEqual(['near', 'far']);
+  });
+});
+
+describe('getFriendCollectionTotal', () => {
+  it('counts only spend/refund ledger rows and payments table rows for friend collection', () => {
+    const holders = [
+      { id: 'me', relationship: 'me' },
+      { id: 'navin', relationship: 'friend' },
+    ];
+    const transactions = [
+      { holder_id_at_time: 'navin', amount: '1000.00', type: 'spend' },
+      { holder_id_at_time: 'navin', amount: '500.00', type: 'bill_payment' },
+      { holder_id_at_time: 'navin', amount: '200.00', type: 'payment' },
+      { holder_id_at_time: 'navin', amount: '100.00', type: 'refund' },
+      { holder_id_at_time: 'me', amount: '9999.00', type: 'spend' },
+    ];
+    const payments = [{ holder_id: 'navin', amount: '300.00' }];
+
+    expect(getFriendCollectionTotal(holders, transactions, payments)).toBe(600);
   });
 });
