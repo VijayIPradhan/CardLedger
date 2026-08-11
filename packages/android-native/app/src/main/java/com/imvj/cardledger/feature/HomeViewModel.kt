@@ -7,6 +7,7 @@ import com.imvj.cardledger.data.net.*
 import com.imvj.cardledger.data.store.OfflineCache
 import com.imvj.cardledger.domain.*
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -79,9 +80,13 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
     @Volatile private var lastNetworkFetchMs: Long = 0L
 
     fun load(forceRefresh: Boolean = false) {
-        // Cancel any in-flight load to avoid race conditions
-        loadJob?.cancel()
+        // Cancel any in-flight load to avoid race conditions. Capture and publish the job
+        // handle synchronously, then await the old job from inside the new one — joining
+        // guarantees the outgoing load's _state writes land before ours, which a bare
+        // cancel() does not.
+        val previousJob = loadJob
         loadJob = viewModelScope.launch {
+            previousJob?.cancelAndJoin()
             if (forceRefresh) {
                 _state.value = _state.value.copy(isRefreshing = true)
             } else if (_state.value.cards.isEmpty()) {
@@ -213,62 +218,109 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             card.id to (card.current_spend?.toDoubleOrNull() ?: 0.0)
         }
         
-        val collectedCards = c.prefsStore.getCollectedCards()
+        // ── 2. Friend Collections & Remaining ──
+        // This offline logic mirrors summary.ts on the backend. It distinguishes Gross Spend
+        // (all recorded spend), Unpaid Spend (spend not yet marked 'is_paid'), Cash Payments
+        // (cash received from a friend), and Card Payments (money paid straight to the bank
+        // on a friend's behalf).
+        //
+        // Card payments live in their own `card_payments` table server-side. The /transactions
+        // endpoint projects them into this list as synthetic rows with type == "bill_payment",
+        // mapping card_payments.holder_id → holder_id_at_time and .transaction_id →
+        // linked_transaction_id. Every bill_payment POST is routed into card_payments, so a
+        // bill_payment row here is always a card payment, never a real transaction.
         val friends = holders.filter { it.relationship == "friend" }
-        var friendTotalSpend = 0.0
-        var friendTotalPaid = 0.0
-        var friendTotalUnpaidSpend = 0.0
+        var friendTotalSpend = 0.0 // Gross Spend less Card Payments, summed across all friends
+        var friendTotalPaid = 0.0 // Global tracker for Cash Payments received
+        var friendTotalGrossSpend = 0.0 // Gross Spend, NOT reduced by Card Payments
+        var friendTotalUnpaidSpend = 0.0 // Global tracker for Unpaid Spend (spend not marked 'is_paid')
+        var friendTotalCardPayments = 0.0 // Global tracker for money paid straight to the bank
         val toCollectByCard = mutableMapOf<String, Double>()
         val friendDebts = mutableListOf<FriendDebtDto>()
         friends.forEach { friend ->
             val friendTxns = txns.filter { it.holder_id_at_time == friend.id }
             var expenses = 0.0
             val rawByCard = mutableMapOf<String, Double>()
-            val totalSpendByCard = mutableMapOf<String, Double>()
             friendTxns.forEach { txn ->
                 val amt = txn.amount.toDoubleOrNull() ?: 0.0
                 val cid = txn.card_id
                 if (txn.type == "refund") {
                     expenses -= amt
-                    totalSpendByCard[cid] = kotlin.math.round(((totalSpendByCard[cid] ?: 0.0) - amt) * 100.0) / 100.0
+                    friendTotalGrossSpend -= amt
                     if (!txn.is_paid && amt > 0) {
                         rawByCard[cid] = kotlin.math.round(((rawByCard[cid] ?: 0.0) - amt) * 100.0) / 100.0
+                        friendTotalUnpaidSpend -= amt
                     }
                 } else if (txn.type == "spend") {
                     expenses += amt
-                    totalSpendByCard[cid] = kotlin.math.round(((totalSpendByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
+                    friendTotalGrossSpend += amt
                     if (!txn.is_paid && amt > 0) {
                         rawByCard[cid] = kotlin.math.round(((rawByCard[cid] ?: 0.0) + amt) * 100.0) / 100.0
+                        friendTotalUnpaidSpend += amt
                     }
                 }
             }
+            // Accumulate cash payments received from this friend
             val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-            friendTotalSpend += expenses
-            friendTotalPaid += paid
-            val remainingToPay = maxOf(0.0, expenses - paid)
-            val totalRawUnpaid = rawByCard.values.sumOf { maxOf(0.0, it) }
-            friendTotalUnpaidSpend += totalRawUnpaid
-            val totalFriendCardSpend = totalSpendByCard.values.sumOf { maxOf(0.0, it) }
-            val byCard = mutableMapOf<String, Double>()
 
-            val baseCards = rawByCard
+            // Track cash payments explicitly linked to specific transactions.
             val paymentsByCard = mutableMapOf<String, Double>()
             payments.filter { it.holder_id == friend.id && it.transaction_id != null }.forEach { p ->
                 val txn = txns.find { t -> t.id == p.transaction_id }
-                if (txn != null) {
+                // CRITICAL: Prevent double-dipping by only subtracting the payment if the linked transaction is NOT marked paid.
+                // If it is marked paid, it's already dropped from 'rawByCard', so subtracting the payment again would wipe out other debt.
+                if (txn != null && !txn.is_paid) {
                     val cid = txn.card_id
                     paymentsByCard[cid] = (paymentsByCard[cid] ?: 0.0) + (p.amount.toDoubleOrNull() ?: 0.0)
                 }
             }
 
+            // Track card payments made to the bank on this friend's behalf. These reduce the
+            // friend's overall debt, and globally reduce "Collected (Not Settled)" because the
+            // cash in hand was spent paying the bank.
+            val cardPaymentsByCard = mutableMapOf<String, Double>()
+            friendTxns.filter { it.type == "bill_payment" }.forEach { cp ->
+                val amt = cp.amount.toDoubleOrNull() ?: 0.0
+                expenses -= amt
+                friendTotalCardPayments += amt
+
+                val linkedId = cp.linked_transaction_id
+                if (linkedId != null) {
+                    val txn = txns.find { t -> t.id == linkedId }
+                    // CRITICAL: Same double-dip guard as above. If the linked transaction is already
+                    // marked paid it is gone from 'rawByCard', so don't subtract this card payment again.
+                    if (txn != null && !txn.is_paid) {
+                        cardPaymentsByCard[cp.card_id] = (cardPaymentsByCard[cp.card_id] ?: 0.0) + amt
+                    }
+                } else {
+                    // Unlinked card payments reduce per-card debt directly.
+                    cardPaymentsByCard[cp.card_id] = (cardPaymentsByCard[cp.card_id] ?: 0.0) + amt
+                }
+            }
+
+            friendTotalSpend += expenses
+            friendTotalPaid += paid
+            // Global remaining debt: Gross Expenses (less Card Payments) minus Cash Payments
+            val remainingToPay = maxOf(0.0, expenses - paid)
+
+            // Per-card debt breakdown for this friend.
+            val byCard = mutableMapOf<String, Double>()
+            val baseCards = rawByCard // Starts as Unpaid Spend (is_paid = false)
             baseCards.forEach { (cid, amt) ->
+                val cpAmt = cardPaymentsByCard[cid] ?: 0.0
                 val pAmt = paymentsByCard[cid] ?: 0.0
-                val adjusted = amt - pAmt
+                // Final 'To Collect' debt for this card is Unpaid Spend - Linked Card Payments - Linked Cash Payments
+                val adjusted = amt - cpAmt - pAmt
                 if (adjusted <= 0.0) {
                     byCard[cid] = 0.0
+                    // If negative (refunds/payments exceeded spend), reduce the global toCollectByCard for this card
+                    if (adjusted < 0.0 && toCollectByCard.containsKey(cid)) {
+                        toCollectByCard[cid] = maxOf(0.0, kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + adjusted) * 100.0) / 100.0)
+                    }
                 } else {
-                    byCard[cid] = adjusted
-                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + adjusted) * 100.0) / 100.0
+                    val rounded = kotlin.math.round(adjusted * 100.0) / 100.0
+                    byCard[cid] = rounded
+                    toCollectByCard[cid] = kotlin.math.round(((toCollectByCard[cid] ?: 0.0) + rounded) * 100.0) / 100.0
                 }
             }
             friendDebts.add(FriendDebtDto(friend.id, friend.name, friend.phone, expenses, paid, remainingToPay, byCard, rawByCard))
@@ -403,8 +455,16 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             friendTotalPaid = friendTotalPaid,
             friendRemainingToPay = friendRemainingToPay,
             friendAdvanceInHand = let {
-                val paidSpend = friendTotalSpend - friendTotalUnpaidSpend
-                maxOf(0.0, friendTotalPaid - paidSpend)
+                // Calculate "Advance In Hand" / "Collected (Not Settled)"
+                // This represents physical cash that has been collected but has NOT YET been used to either:
+                // 1. Settle transactions (Paid Spend)
+                // 2. Pay the bank (Card Payments)
+                // paidSpend = Total Gross Spend minus Total Unpaid Spend. (i.e. transactions marked as 'is_paid = true').
+                // Note this uses friendTotalGrossSpend, not friendTotalSpend — the latter is already
+                // reduced by card payments, which would subtract them twice here.
+                val paidSpend = friendTotalGrossSpend - friendTotalUnpaidSpend
+                // Advance = (Total Cash Received) - (Cash used to settle txns) - (Cash used to pay the bank directly).
+                maxOf(0.0, friendTotalPaid - paidSpend - friendTotalCardPayments)
             },
             payments = payments,
             friendDebts = friendDebts,

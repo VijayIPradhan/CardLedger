@@ -90,12 +90,15 @@ export async function summaryRoutes(app: FastifyInstance) {
     });
 
     // ── 2. Friend Collections & Remaining ──
+    // This section computes everything related to money owed by friends.
+    // It distinguishes between Gross Spend (total recorded spend), Unpaid Spend (spend not yet marked as 'Paid' in UI),
+    // Cash Payments (cash received from friends), and Card Payments (payments directly to the credit card on behalf of a friend).
     const friends = userHolders.filter((h) => h.relationship === 'friend');
-    let friendTotalSpend = 0;
-    let friendTotalPaid = 0;
-    let friendTotalCardPayments = 0;
-    let friendTotalGrossSpend = 0;
-    let friendTotalUnpaidSpend = 0;
+    let friendTotalSpend = 0; // Gross Spend LESS Card Payments, summed across all friends
+    let friendTotalPaid = 0; // Total Cash Payments received from all friends
+    let friendTotalCardPayments = 0; // Total payments made to credit cards on behalf of friends
+    let friendTotalGrossSpend = 0; // Cumulative tracker for total gross spend (used for Advance In Hand logic)
+    let friendTotalUnpaidSpend = 0; // Cumulative tracker for spend that hasn't been marked 'is_paid = true'
     const toCollectByCard: Record<string, number> = {};
     const friendDebts: Array<{
       holderId: string;
@@ -111,7 +114,6 @@ export async function summaryRoutes(app: FastifyInstance) {
     friends.forEach((friend) => {
       const friendTxns = userTxns.filter((t) => t.transactions.holder_id_at_time === friend.id);
       const rawByCard: Record<string, number> = {};
-      const totalSpendByCard: Record<string, number> = {};
       let expenses = 0;
 
       friendTxns.forEach((t) => {
@@ -120,7 +122,6 @@ export async function summaryRoutes(app: FastifyInstance) {
         if (t.transactions.type === 'refund') {
           expenses -= amt;
           friendTotalGrossSpend -= amt;
-          totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) - amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {
             rawByCard[cId] = Math.round(((rawByCard[cId] || 0) - amt) * 100) / 100;
             friendTotalUnpaidSpend -= amt;
@@ -128,7 +129,6 @@ export async function summaryRoutes(app: FastifyInstance) {
         } else if (t.transactions.type === 'spend') {
           expenses += amt;
           friendTotalGrossSpend += amt;
-          totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) + amt) * 100) / 100;
           if (!t.transactions.is_paid && amt > 0) {
             rawByCard[cId] = Math.round(((rawByCard[cId] || 0) + amt) * 100) / 100;
             friendTotalUnpaidSpend += amt;
@@ -136,48 +136,81 @@ export async function summaryRoutes(app: FastifyInstance) {
         }
       });
 
+      // Accumulate cash payments (`payments` table) received from this friend.
+      // These payments represent physical cash in our hand, which increases our "Collected (Not Settled)" balance.
       const paidFromPayments = userPayments
         .filter((p) => p.payments.holder_id === friend.id)
         .reduce((sum, p) => sum + (parseFloat(p.payments.amount) || 0), 0);
 
       const paid = paidFromPayments;
 
+      // Track cash payments explicitly linked to specific transactions.
+      // If a payment is linked to a transaction, it should decrease the "To Collect" amount for that specific card.
       const paymentsByCard: Record<string, number> = {};
       userPayments
         .filter((p) => p.payments.holder_id === friend.id && p.payments.transaction_id)
         .forEach((p) => {
           const txn = userTxns.find((t) => t.transactions.id === p.payments.transaction_id);
-          if (txn) {
+          // CRITICAL: We only count the payment if the linked transaction is NOT marked as paid.
+          // If the transaction is already 'is_paid = true', it has been dropped from 'rawByCard'.
+          // If we subtracted it again here, we would double-dip and incorrectly wipe out other debts on the card.
+          if (txn && !txn.transactions.is_paid) {
             const cId = txn.transactions.card_id;
             const amt = parseFloat(p.payments.amount) || 0;
             paymentsByCard[cId] = (paymentsByCard[cId] || 0) + amt;
           }
         });
 
+      // Track card payments (`card_payments` table) made on behalf of this friend.
+      // These payments represent money sent directly to the bank, so they decrease overall global debt (expenses).
       const cardPaymentsByCard: Record<string, number> = {};
       userCardPayments
         .filter((p) => p.card_payments.holder_id === friend.id)
         .forEach((p) => {
-          const cId = p.card_payments.card_id;
           const amt = parseFloat(p.card_payments.amount) || 0;
-          cardPaymentsByCard[cId] = (cardPaymentsByCard[cId] || 0) + amt;
-          expenses -= amt;
-          friendTotalCardPayments += amt;
+          expenses -= amt; // Card payments decrease the friend's overall debt
+          friendTotalCardPayments += amt; // Used globally to reduce "Collected (Not Settled)" since cash was used for the bank
+
+          if (p.card_payments.transaction_id) {
+            const txn = userTxns.find((t) => t.transactions.id === p.card_payments.transaction_id);
+            // CRITICAL: Prevent double-dipping. If the transaction was already marked 'is_paid = true',
+            // it's gone from 'rawByCard'. Don't subtract this card payment from 'rawByCard' again.
+            if (txn && !txn.transactions.is_paid) {
+              const cId = p.card_payments.card_id;
+              cardPaymentsByCard[cId] = (cardPaymentsByCard[cId] || 0) + amt;
+            }
+            // If txn.is_paid = true, the card payment has already reduced global expenses above (line 174),
+            // but should NOT be subtracted again from rawByCard per-card calculations to avoid double-dipping.
+          } else {
+            // Unlinked card payments (no transaction_id) should reduce per-card debt
+            const cId = p.card_payments.card_id;
+            cardPaymentsByCard[cId] = (cardPaymentsByCard[cId] || 0) + amt;
+          }
         });
 
       friendTotalSpend += expenses;
       friendTotalPaid += paid;
+      // Global remaining to pay is always Gross Expenses (minus Card Payments) minus Total Cash Payments.
       const remainingToPay = Math.max(0, expenses - paid);
 
+      // Calculate the specific debt breakdown PER CARD for this friend.
       const byCard: Record<string, number> = {};
-      const baseCards = rawByCard;
+      const baseCards = rawByCard; // Starts as Unpaid Spend (is_paid = false)
 
       Object.entries(baseCards).forEach(([cId, amt]) => {
         const cpAmt = cardPaymentsByCard[cId] || 0;
         const pAmt = paymentsByCard[cId] || 0;
+        // The card's final 'To Collect' debt is Unpaid Spend - (Linked Card Payments) - (Linked Cash Payments)
         const adjustedAmt = amt - cpAmt - pAmt;
         if (adjustedAmt <= 0) {
           byCard[cId] = 0;
+          // If negative (refunds/payments exceeded spend), reduce the global toCollectByCard for this card
+          if (adjustedAmt < 0 && toCollectByCard[cId]) {
+            toCollectByCard[cId] = Math.max(
+              0,
+              Math.round((toCollectByCard[cId] + adjustedAmt) * 100) / 100,
+            );
+          }
         } else {
           byCard[cId] = Math.round(adjustedAmt * 100) / 100;
           toCollectByCard[cId] =
@@ -199,9 +232,17 @@ export async function summaryRoutes(app: FastifyInstance) {
 
     friendDebts.sort((a, b) => b.remainingToPay - a.remainingToPay);
 
+    // Calculate aggregate totals for friend collections
     const totalToCollect = Object.values(toCollectByCard).reduce((a, b) => a + b, 0);
     const friendRemainingToPay = Math.max(0, friendTotalSpend - friendTotalPaid);
+
+    // Calculate "Advance In Hand" / "Collected (Not Settled)"
+    // This represents physical cash that has been collected but has NOT YET been used to either:
+    // 1. Settle transactions (Paid Spend)
+    // 2. Pay the bank (Card Payments)
+    // paidSpend = Total Gross Spend minus Total Unpaid Spend. (i.e. the total amount of transactions marked as 'is_paid = true').
     const paidSpend = friendTotalGrossSpend - friendTotalUnpaidSpend;
+    // Advance = (Total Cash Received) - (Cash used to settle txns) - (Cash used to pay the bank directly).
     const friendAdvanceInHand = Math.max(0, friendTotalPaid - paidSpend - friendTotalCardPayments);
 
     // ── 3. Total Utilization & Net Position ──
