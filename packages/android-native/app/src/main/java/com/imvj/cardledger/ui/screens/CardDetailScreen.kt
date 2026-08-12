@@ -395,15 +395,25 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
-                                    // Usage is the server's gross figure. Shown whenever it exceeds what is
-                                    // left to collect — settled spend is out of toCollect, so the two differ
-                                    // even on a card against which no cash has been linked.
+                                    // Unpaid usage, shown whenever it exceeds what is left to collect —
+                                    // cash and card payments come off toCollect but not off usage, so the
+                                    // two differ as soon as anything has been collected.
                                     if (s.friendUsage > s.toCollect + 0.5) {
                                         val collected =
                                             if (s.collectedInHand > 0.5) " · Collected: +${money(s.collectedInHand)}" else ""
                                         Text(
-                                            "Total Friend Usage: ${money(s.friendUsage)}$collected",
+                                            "Unpaid Friend Usage: ${money(s.friendUsage)}$collected",
                                             color = Success,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    // The cycle figure is what the next bill will ask for, so it is only worth
+                                    // a line of its own when it differs from the unpaid total above.
+                                    if (s.friendCycleUsage > 0.5 && s.friendUsage > s.friendCycleUsage + 0.5) {
+                                        Text(
+                                            "This cycle: ${money(s.friendCycleUsage)}",
+                                            color = Muted,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontSize = 11.sp
                                         )

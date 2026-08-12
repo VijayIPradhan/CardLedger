@@ -71,7 +71,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
     // that ran on every frame of the expand/collapse transition.
     val activeCards = remember(s.cards, s.spendByCard, s.toCollectByCard) {
         s.cards.filter { card ->
-            val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
+            val spend = cardSpend(card, s.spendByCard[card.id])
             val toCollect = s.toCollectByCard[card.id] ?: 0.0
             spend > 0.0 || toCollect > 0.0
         }
@@ -100,10 +100,12 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
             card.id to (activeByCard[card.id]?.let { holderById[it.holder_id] } ?: me)
         }
     }
+    // Unpaid, not gross: the tile prints this next to to-collect, and lifetime spend beside a
+    // live balance reads as a discrepancy rather than as the subtotal it is.
     val friendUsageByCardId = remember(s.friendDebts) {
         buildMap<String, Double> {
             s.friendDebts.forEach { debt ->
-                debt.rawByCard.forEach { (cardId, amt) ->
+                debt.unpaidByCard.forEach { (cardId, amt) ->
                     put(cardId, (get(cardId) ?: 0.0) + amt)
                 }
             }
@@ -282,7 +284,9 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                             )
-                                            val myPersonalUsage = maxOf(0.0, s.total.spend - s.friendDebts.sumOf { debt -> debt.rawByCard.values.sum() })
+                                            // Both sides on an unpaid basis: total.spend is what the banks are still
+                                            // owed, so netting off gross friend spend would understate my own share.
+                                            val myPersonalUsage = maxOf(0.0, s.total.spend - friendUsageByCardId.values.sum())
                                             if (myPersonalUsage > 0.5) {
                                                 Text(
                                                     "My usage: ${money(myPersonalUsage)}",
@@ -358,7 +362,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                 }
                                 if (bestCard != null) {
                                     val limit = bestCard.credit_limit.toDoubleOrNull() ?: 0.0
-                                    val spend = s.spendByCard[bestCard.id] ?: 0.0
+                                    val spend = cardSpend(bestCard, s.spendByCard[bestCard.id])
                                     val pct = if (limit > 0) ((spend / limit) * 100).toInt() else 0
                                     if (pct < 50) {
                                         Surface(
@@ -505,7 +509,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                         val holder = holderByCardId[card.id]
                                         val initials = holder?.let { initialsOf(it.name) }
                                         val isMe = holder?.relationship == "me"
-                                        val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
+                                        val spend = cardSpend(card, s.spendByCard[card.id])
 
                                         Box(
                                             Modifier

@@ -10,6 +10,7 @@ import {
   card_payments,
 } from '../db/schema.js';
 import { eq, and, desc, sql, getTableColumns } from 'drizzle-orm';
+import { currentSpendSql } from '../db/sqlFragments.js';
 import { computeFriendDebts } from '@cardledger/shared';
 
 export async function summaryRoutes(app: FastifyInstance) {
@@ -22,7 +23,7 @@ export async function summaryRoutes(app: FastifyInstance) {
     const userCards = await db
       .select({
         ...getTableColumns(cards),
-        current_spend: sql<string>`(COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend'), 0) - COALESCE((SELECT SUM(amount) FROM ${transactions} WHERE ${transactions.card_id} = ${cards.id} AND ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('bill_payment', 'refund')), 0) - COALESCE((SELECT SUM(amount) FROM ${card_payments} WHERE ${card_payments.card_id} = ${cards.id}), 0))::text`,
+        current_spend: currentSpendSql,
       })
       .from(cards)
       .where(eq(cards.user_id, userId));

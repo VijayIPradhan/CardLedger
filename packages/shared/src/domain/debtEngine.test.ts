@@ -58,6 +58,7 @@ describe('computeFriendDebts — what a friend owes', () => {
     const r = run([ALICE], [txn({ id: 't1', amount: 1000 })]);
     expect(r.toCollectByCard).toEqual({ cardA: 1000 });
     expect(r.friendDebts[0].rawByCard).toEqual({ cardA: 1000 });
+    expect(r.friendDebts[0].unpaidByCard).toEqual({ cardA: 1000 });
     expect(r.friendDebts[0].byCard).toEqual({ cardA: 1000 });
   });
 
@@ -70,8 +71,30 @@ describe('computeFriendDebts — what a friend owes', () => {
     expect(r.totalToCollect).toBe(0);
     expect(r.friendDebts[0].byCard).toEqual({ cardA: 0 });
     expect(r.friendDebts[0].rawByCard).toEqual({ cardA: 1000 });
+    expect(r.friendDebts[0].unpaidByCard).toEqual({ cardA: 0 });
     expect(r.friendDebts[0].totalSpend).toBe(1000);
     expect(r.friendDebts[0].remainingToPay).toBe(1000);
+  });
+
+  it('keeps unpaidByCard on a pre-settlement basis, unlike byCard', () => {
+    // This pair is what a card tile shows — "of this much still on the card, this much is left
+    // to collect" — so cash and card payments move byCard only.
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 1000 })],
+      [{ holder_id: 'alice', transaction_id: 't1', amount: 100 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 300 }],
+    );
+    expect(r.friendDebts[0].unpaidByCard).toEqual({ cardA: 1000 });
+    expect(r.friendDebts[0].byCard).toEqual({ cardA: 600 });
+  });
+
+  it('floors unpaidByCard at zero when refunds outrun unsettled spend', () => {
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 100 }), txn({ id: 't2', amount: 400, type: 'refund' })],
+    );
+    expect(r.friendDebts[0].unpaidByCard).toEqual({ cardA: 0 });
   });
 
   it('nets refunds out of both gross and collectable spend', () => {
@@ -273,6 +296,42 @@ describe('computeFriendDebts — advance in hand', () => {
       [{ holder_id: 'alice', amount: 1500 }],
     );
     expect(r.friendAdvanceInHand).toBe(1000);
+  });
+
+  it('falls when collected cash is forwarded to a bank as a card payment', () => {
+    // Recording a card payment against unsettled spend is the one case is_paid cannot see: the
+    // cash has left, so it must come off the advance. The friend's own balance is untouched.
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 1000 })],
+      [{ holder_id: 'alice', amount: 1000 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 600 }],
+    );
+    expect(r.friendAdvanceInHand).toBe(400);
+    expect(r.friendRemainingToPay).toBe(0);
+  });
+
+  it('deducts a card payment only as far as there is unsettled spend to pay off', () => {
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 400 })],
+      [{ holder_id: 'alice', amount: 1000 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 900 }],
+    );
+    expect(r.friendAdvanceInHand).toBe(600);
+  });
+
+  it('stops counting a card payment once its spend is flagged settled', () => {
+    // Otherwise the same outflow would be subtracted twice — once as settled spend and once as
+    // the card payment — and the advance would collapse to zero the moment a bill was flagged.
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 600, is_paid: true }), txn({ id: 't2', amount: 400 })],
+      [{ holder_id: 'alice', amount: 1000 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 600 }],
+    );
+    // 1000 collected, 600 settled, and the card payment covers 400 of the 400 still unsettled.
+    expect(r.friendAdvanceInHand).toBe(0);
   });
 
   it('is measured by settled spend, not by card_payments rows', () => {

@@ -141,7 +141,13 @@ export interface CardFriendBreakdown {
   owed: number;
   /** Cash already received from this friend against transactions on this card. */
   collectedInHand: number;
-  /** Gross usage of this card by this friend, net of refunds. */
+  /**
+   * This friend's spend on the card that is not yet flagged is_paid, net of refunds and before
+   * any cash is applied — so it is `owed` plus whatever cash has already come in against it.
+   *
+   * Unpaid rather than lifetime-gross on purpose: the row shows this next to `owed`, and a
+   * lifetime figure beside a live balance reads as a discrepancy rather than as a subtotal.
+   */
   usage: number;
 }
 
@@ -163,13 +169,20 @@ export interface CardDetailResult {
   toCollect: number;
   collectedInHand: number;
   /**
-   * Total gross usage of this card by friends, net of refunds.
+   * Total friend usage still sitting on the card: spend not yet flagged is_paid, net of refunds,
+   * before any cash or card payment is applied. Same basis as the card tiles.
    *
    * Served rather than left to the clients: `toCollect + collectedInHand` looks like it should
-   * reproduce it and no longer does, because settled spend is out of `toCollect` and its cash
-   * may have arrived as an unlinked lump sum that never lands in `collectedInHand`.
+   * reproduce it and does not, because cash can arrive as an unlinked lump sum that never lands
+   * in `collectedInHand`.
    */
   friendUsage: number;
+  /**
+   * Friend usage inside the current billing cycle — what the next bill will ask for, as opposed
+   * to `friendUsage`, which carries every unpaid cycle. Future-dated transactions count towards
+   * the cycle in progress, matching `cycles[0]`.
+   */
+  friendCycleUsage: number;
   friendBreakdown: CardFriendBreakdown[];
   cycles: CardCycleGroup[];
   currentHolderId: string | null;
@@ -211,13 +224,15 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
   for (const debt of debts.friendDebts) {
     const owed = roundMoney(debt.byCard[cardId] || 0);
     const inHand = roundMoney(inHandByHolder.get(debt.holderId) || 0);
-    // rawByCard is already this friend's gross usage of the card, net of refunds.
-    const usage = roundMoney(debt.rawByCard[cardId] || 0);
+    // The engine has both figures already: unpaid is what the row and the tile show, gross only
+    // decides whether the friend belongs on this card at all.
+    const usage = roundMoney(debt.unpaidByCard[cardId] || 0);
+    const gross = roundMoney(debt.rawByCard[cardId] || 0);
     toCollect = roundMoney(toCollect + owed);
 
-    // Usage keeps the row alive once everything on the card is settled. Gating on owed alone
-    // would empty the breakdown for a fully paid-off card and lose sight of who spent on it.
-    if (owed > 0 || inHand > 0 || usage !== 0) {
+    // Gross keeps the row alive once everything on the card is settled. Gating on owed or unpaid
+    // usage would empty the breakdown for a fully paid-off card and lose sight of who spent on it.
+    if (owed > 0 || inHand > 0 || gross !== 0) {
       friendBreakdown.push({
         holderId: debt.holderId,
         holderName: debt.holderName,
@@ -230,6 +245,17 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     }
   }
 
+  // Friend spend billed in the cycle now running. No upper bound on the range, for the same
+  // reason buildCycleGroups has none: a future-dated transaction is part of the current bill.
+  const friendIds = new Set(debts.friendDebts.map((d) => d.holderId));
+  const cycle = getCycleRange(billingCycleDay, today);
+  let friendCycleUsage = 0;
+  for (const t of cardTxns) {
+    if (t.txn_date < cycle.start || !friendIds.has(t.holder_id_at_time)) continue;
+    if (t.type === 'spend') friendCycleUsage += money(t.amount);
+    else if (t.type === 'refund') friendCycleUsage -= money(t.amount);
+  }
+
   const activeAssignment = input.assignments.find((a) => a.card_id === cardId && !a.returned_date);
   const currentHolderId =
     activeAssignment?.holder_id ?? holders.find((h) => h.relationship === 'me')?.id ?? null;
@@ -239,6 +265,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     toCollect,
     collectedInHand,
     friendUsage,
+    friendCycleUsage: roundMoney(friendCycleUsage),
     friendBreakdown,
     cycles: buildCycleGroups(billingCycleDay, cardTxns, today),
     currentHolderId,

@@ -17,8 +17,8 @@ import java.io.File
 
 data class CycleGroup(val label: String, val txns: List<TransactionDto>)
 
-/** `usage` is the server's gross figure — it is not `amount + collectedInHand`, which omits
- *  settled spend and any cash that arrived as an unlinked lump sum. */
+/** `usage` is the server's unpaid figure — it is not `amount + collectedInHand`, which misses
+ *  cash that arrived as an unlinked lump sum naming no transaction. */
 data class FriendCollectable(val holderId: String, val holderName: String, val amount: Double, val collectedInHand: Double = 0.0, val usage: Double = 0.0)
 
 data class CardDetailUiState(
@@ -32,8 +32,10 @@ data class CardDetailUiState(
     val currentHolder: HolderDto? = null,
     val toCollect: Double = 0.0,
     val collectedInHand: Double = 0.0,
-    /** Gross friend usage of this card, served rather than derived. */
+    /** Unpaid friend usage of this card, served rather than derived. */
     val friendUsage: Double = 0.0,
+    /** Friend usage inside the cycle now running — what the next bill will ask for. */
+    val friendCycleUsage: Double = 0.0,
     val friendBreakdown: List<FriendCollectable> = emptyList(),
     val isMarkedCollected: Boolean = false,
     /** Cash received per transaction id, straight from the server. */
@@ -87,6 +89,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 toCollect = cardToCollect,
                 collectedInHand = cardCollectedInHand,
                 friendUsage = detail?.friendUsage ?: 0.0,
+                friendCycleUsage = detail?.friendCycleUsage ?: 0.0,
                 friendBreakdown = detail?.friendBreakdown.orEmpty().map { fb ->
                     FriendCollectable(fb.holderId, fb.holderName, fb.owed, fb.collectedInHand, fb.usage)
                 },

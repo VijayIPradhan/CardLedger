@@ -246,6 +246,12 @@ data class FriendDebtDto(
     val remainingToPay: Double = 0.0,
     val byCard: Map<String, Double> = emptyMap(),
     val rawByCard: Map<String, Double> = emptyMap(),
+    /**
+     * Per-card spend not yet flagged paid, before any cash or card payment is applied. This is
+     * the "usage" the card tiles pair with to-collect; `rawByCard` is lifetime spend and would
+     * sit oddly beside a live balance.
+     */
+    val unpaidByCard: Map<String, Double> = emptyMap(),
 )
 
 @Serializable
@@ -302,6 +308,7 @@ data class CardFriendBreakdownDto(
     val holderName: String,
     val owed: Double = 0.0,
     val collectedInHand: Double = 0.0,
+    /** Unpaid spend on this card by this friend — `owed` plus whatever cash has come in for it. */
     val usage: Double = 0.0,
 )
 
@@ -311,8 +318,10 @@ data class CardDetailDto(
     val cardId: String,
     val toCollect: Double = 0.0,
     val collectedInHand: Double = 0.0,
-    /** Gross friend usage of this card, net of refunds. Not derivable from the two above. */
+    /** Unpaid friend usage of this card, net of refunds. Not derivable from the two above. */
     val friendUsage: Double = 0.0,
+    /** Friend usage inside the cycle now running — what the next bill will ask for. */
+    val friendCycleUsage: Double = 0.0,
     val friendBreakdown: List<CardFriendBreakdownDto> = emptyList(),
     val cycles: List<CardCycleGroupDto> = emptyList(),
     val currentHolderId: String? = null,

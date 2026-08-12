@@ -17,6 +17,18 @@ import androidx.compose.ui.unit.sp
 import com.imvj.cardledger.data.net.CardDto
 import com.imvj.cardledger.ui.theme.cardBrush
 
+/**
+ * The spend figure the ring, the bar and the utilization badge all render.
+ *
+ * Prefers the dashboard's per-card total and falls back to the card row's own `current_spend`.
+ * The two are the same quantity — unpaid spend less credits less card payments — computed from
+ * the same rows by the same server, so the fallback cannot contradict the dashboard. It exists
+ * because a summary that reports a flat zero for every card leaves every ring drawn as an empty
+ * arc at 0%, which is indistinguishable from a card with nothing on it.
+ */
+fun cardSpend(card: CardDto, fromDashboard: Double?): Double =
+    fromDashboard?.takeIf { it > 0.0 } ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
+
 @Composable
 fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend: Double, limitRank: Int? = null, toCollect: Double = 0.0, friendUsage: Double = 0.0) {
     val white60 = Color.White.copy(alpha = 0.6f)
