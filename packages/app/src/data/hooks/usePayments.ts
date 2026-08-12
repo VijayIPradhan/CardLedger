@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../apiClient.js';
 import type { Payment } from '@cardledger/shared';
+import { DASHBOARD_KEY } from './useDashboard.js';
 
 type CreatePaymentInput = {
   holder_id: string;
   amount: number;
   payment_date: string;
   notes?: string;
+  /** Links the cash to a specific transaction, which is what lets it reduce per-card debt. */
+  transaction_id?: string;
 };
 
 export function usePayments(holderId?: string) {
@@ -31,6 +34,7 @@ export function useCreatePayment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['payments', variables.holder_id] });
       queryClient.invalidateQueries({ queryKey: ['payments', undefined] });
+      queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY });
     },
   });
 }

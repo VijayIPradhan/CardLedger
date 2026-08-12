@@ -5,8 +5,8 @@ import { BottomNav } from '../components/BottomNav.js';
 import { useCards } from '../data/hooks/useCards.js';
 import { useHolders } from '../data/hooks/useHolders.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
-import { usePayments } from '../data/hooks/usePayments.js';
-import type { Card, Holder, Transaction, Payment } from '@cardledger/shared';
+import { useSummary } from '../data/hooks/useDashboard.js';
+import type { Card, Holder, Transaction } from '@cardledger/shared';
 
 const TABS = [
   { id: 'shield', label: '🛡️ 30% Shield' },
@@ -40,32 +40,20 @@ export default function AnalyticsScreen() {
   const { data: cards = [], isLoading: cardsLoading } = useCards();
   const { data: holders = [] } = useHolders();
   const { data: transactions = [] } = useTransactions();
-  const { data: allPayments = [] } = usePayments();
+  // Utilisation, friend debt and per-card spend are all server-computed. The block that used to
+  // sit here summed `expenses - paid` per friend, ignoring is_paid and every card payment.
+  const { data: summary } = useSummary();
 
   const cardList = cards as Card[];
-  const friendList = holders.filter((h: Holder) => h.relationship === 'friend');
   const txns = transactions as Transaction[];
-  const payments = allPayments as Payment[];
 
-  // Analytics calculations
-  let totalToCollect = 0;
-  let totalFriendSpend = 0;
-  friendList.forEach((friend: Holder) => {
-    const expenses = txns
-      .filter((t) => t.holder_id_at_time === friend.id)
-      .reduce((s, t) => s + Number(t.amount), 0);
-    const paid = payments
-      .filter((p) => p.holder_id === friend.id)
-      .reduce((s, p) => s + Number(p.amount), 0);
-    totalFriendSpend += expenses;
-    totalToCollect += expenses - paid;
-  });
-
-  const totalLimit = cardList
-    .filter((c) => !c.shared_limit_with)
-    .reduce((acc, c) => acc + Number(c.credit_limit || 0), 0);
-  const totalSpendVal = cardList.reduce((acc, c) => acc + Number(c.current_spend || 0), 0);
-  const overallPct = totalLimit > 0 ? Math.round((totalSpendVal / totalLimit) * 100) : 0;
+  const spendByCard = summary?.spendByCard ?? {};
+  const friendDebts = summary?.friendDebts ?? [];
+  const totalToCollect = summary?.totalToCollect ?? 0;
+  const totalFriendSpend = summary?.friendTotalSpend ?? 0;
+  const totalLimit = summary?.totalLimit ?? 0;
+  const totalSpendVal = summary?.totalSpend ?? 0;
+  const overallPct = Math.round(summary?.totalUtilizationPercent ?? 0);
   const isSafe = overallPct < 30;
   const isCaution = overallPct >= 30 && overallPct <= 50;
 
@@ -195,7 +183,7 @@ export default function AnalyticsScreen() {
                 {cardList
                   .map((card) => {
                     const limit = Number(card.credit_limit || 0);
-                    const spend = Number(card.current_spend || 0);
+                    const spend = spendByCard[card.id] ?? 0;
                     const pct = limit > 0 ? Math.round((spend / limit) * 100) : 0;
                     const max30 = limit * 0.3;
                     const headroom30 = Math.max(0, max30 - spend);
@@ -276,7 +264,7 @@ export default function AnalyticsScreen() {
               const recs = cardList
                 .map((card) => {
                   const limit = Number(card.credit_limit || 0);
-                  const spend = Number(card.current_spend || 0);
+                  const spend = spendByCard[card.id] ?? 0;
                   const pct = limit > 0 ? Math.round((spend / limit) * 100) : 0;
                   if (pct >= 50) return null;
                   const cycleDay = card.billing_cycle_day || 1;
@@ -469,15 +457,15 @@ export default function AnalyticsScreen() {
               </p>
               <div className="space-y-2 pt-1">
                 {cardList
-                  .filter((c) => Number(c.current_spend || 0) > 0)
+                  .filter((c) => (spendByCard[c.id] ?? 0) > 0)
                   .sort((a, b) => {
                     const pctA =
                       Number(a.credit_limit) > 0
-                        ? Number(a.current_spend) / Number(a.credit_limit)
+                        ? (spendByCard[a.id] ?? 0) / Number(a.credit_limit)
                         : 0;
                     const pctB =
                       Number(b.credit_limit) > 0
-                        ? Number(b.current_spend) / Number(b.credit_limit)
+                        ? (spendByCard[b.id] ?? 0) / Number(b.credit_limit)
                         : 0;
                     return pctB - pctA;
                   })
@@ -491,7 +479,7 @@ export default function AnalyticsScreen() {
                         #{idx + 1} Priority: {card.nickname}
                       </span>
                       <span className="font-bold text-gold">
-                        {money(Number(card.current_spend || 0))} balance
+                        {money(spendByCard[card.id] ?? 0)} balance
                       </span>
                     </div>
                   ))}
@@ -550,34 +538,30 @@ export default function AnalyticsScreen() {
               <h3 className="text-xs font-bold tracking-wider text-muted">
                 WHO OWES WHAT (BY FRIEND)
               </h3>
-              {friendList.length === 0 ? (
+              {friendDebts.length === 0 ? (
                 <div className="p-4 rounded-xl bg-surface text-center text-muted text-xs">
                   No friend transactions recorded yet.
                 </div>
               ) : (
-                friendList.map((friend: Holder) => {
-                  const friendExpenses = txns
-                    .filter((t) => t.holder_id_at_time === friend.id)
-                    .reduce((s, t) => s + Number(t.amount), 0);
-                  const friendPaid = payments
-                    .filter((p) => p.holder_id === friend.id)
-                    .reduce((s, p) => s + Number(p.amount), 0);
-                  const owed = Math.max(0, friendExpenses - friendPaid);
+                friendDebts.map((friend) => {
+                  const friendExpenses = friend.totalSpend;
+                  const friendPaid = friend.totalPaid;
+                  const owed = friend.remainingToPay;
 
                   if (friendExpenses === 0) return null;
 
                   return (
                     <div
-                      key={friend.id}
+                      key={friend.holderId}
                       className="p-4 rounded-xl bg-surface border border-elevated flex flex-col gap-3"
                     >
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-elevated text-gold flex items-center justify-center font-bold text-sm">
-                            {friend.name.slice(0, 2).toUpperCase()}
+                            {friend.holderName.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-bold text-sm text-on-dark">{friend.name}</p>
+                            <p className="font-bold text-sm text-on-dark">{friend.holderName}</p>
                             <p className="text-xs text-muted">
                               Total volume: {money(friendExpenses)}
                             </p>
@@ -598,9 +582,11 @@ export default function AnalyticsScreen() {
                         {owed > 0 && (
                           <button
                             onClick={() => {
-                              const msg = `Hey ${friend.name}! 🌟 Here is your CardLedger batch payment summary: Total Volume: ₹${friendExpenses.toLocaleString('en-IN')}, Paid: ₹${friendPaid.toLocaleString('en-IN')}, Outstanding Balance: ₹${owed.toLocaleString('en-IN')}. Please pay when convenient! 🙏`;
+                              const msg = `Hey ${friend.holderName}! 🌟 Here is your CardLedger batch payment summary: Total Volume: ₹${friendExpenses.toLocaleString('en-IN')}, Paid: ₹${friendPaid.toLocaleString('en-IN')}, Outstanding Balance: ₹${owed.toLocaleString('en-IN')}. Please pay when convenient! 🙏`;
                               navigator.clipboard.writeText(msg);
-                              alert(`Copied WhatsApp Summary for ${friend.name} to clipboard!`);
+                              alert(
+                                `Copied WhatsApp Summary for ${friend.holderName} to clipboard!`,
+                              );
                             }}
                             className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors"
                           >
@@ -638,7 +624,7 @@ export default function AnalyticsScreen() {
             <div className="space-y-2 pt-2">
               <h3 className="text-xs font-bold tracking-wider text-muted">SPEND BY CARD</h3>
               {cardList.map((card) => {
-                const spend = Number(card.current_spend || 0);
+                const spend = spendByCard[card.id] ?? 0;
                 const limit = Number(card.credit_limit || 0);
                 const pct = limit > 0 ? Math.round((spend / limit) * 100) : 0;
                 return (

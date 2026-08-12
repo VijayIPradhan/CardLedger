@@ -12,6 +12,7 @@ import { paymentRoutes } from './routes/payments.js';
 import { metadataRoutes } from './routes/metadata.js';
 import { smsRoutes } from './routes/sms.js';
 import { summaryRoutes } from './routes/summary.js';
+import { summaryDetailRoutes } from './routes/summaryDetail.js';
 import { budgetRoutes } from './routes/budgets.js';
 import { cardRecommendRoutes } from './routes/cards_recommend.js';
 import { statementRoutes } from './routes/statements.js';
@@ -67,6 +68,7 @@ export async function buildApp() {
   await app.register(metadataRoutes, { prefix: '/metadata' });
   await app.register(smsRoutes, { prefix: '/sms' });
   await app.register(summaryRoutes, { prefix: '/dashboard' });
+  await app.register(summaryDetailRoutes, { prefix: '/dashboard' });
 
   return app;
 }

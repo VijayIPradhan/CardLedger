@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../apiClient.js';
 import type { Transaction } from '@cardledger/shared';
+import { DASHBOARD_KEY } from './useDashboard.js';
 
 export function useTransactions(params?: { card_id?: string; holder_id?: string }) {
   return useQuery<Transaction[]>({
@@ -29,7 +30,7 @@ export function useCreateTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['cards'] });
-      qc.invalidateQueries({ queryKey: ['summary'] });
+      qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
     },
   });
 }
@@ -42,7 +43,7 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['cards'] });
-      qc.invalidateQueries({ queryKey: ['summary'] });
+      qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
     },
   });
 }
@@ -54,7 +55,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['cards'] });
-      qc.invalidateQueries({ queryKey: ['summary'] });
+      qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
     },
   });
 }
