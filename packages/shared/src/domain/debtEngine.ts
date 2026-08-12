@@ -85,8 +85,16 @@ export interface FriendDebt {
    * — expect it to come out higher wherever lump sums are involved.
    */
   byCard: Record<string, number>;
-  /** Per-card gross spend, settled or not, before any cash is applied. Drives "usage". */
+  /** Per-card gross spend, settled or not, before any cash is applied. */
   rawByCard: Record<string, number>;
+  /**
+   * Per-card spend not yet flagged is_paid, before any cash or card payment is applied.
+   *
+   * This is what the card tiles show as "usage": it is `byCard` plus whatever has been settled
+   * against the card, so the pair reads as "of this much still on the card, this much is left to
+   * collect". `rawByCard` would put lifetime spend next to a live to-collect figure instead.
+   */
+  unpaidByCard: Record<string, number>;
 }
 
 export interface FriendDebtResult {
@@ -139,6 +147,7 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   let friendTotalSpend = 0; // gross spend less refunds, across all friends
   let friendTotalPaid = 0; // cash received, across all friends
   let friendTotalSettled = 0; // spend whose bill has been paid to a bank
+  let friendTotalForwarded = 0; // collected cash sent on to a bank as a card payment
 
   const toCollectByCard: Record<string, number> = {};
   const friendDebts: FriendDebt[] = [];
@@ -180,8 +189,20 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
         settlementByCard[txn.card_id] = (settlementByCard[txn.card_id] || 0) + money(p.amount);
       }
     }
+    const cardPaymentByCard: Record<string, number> = {};
     for (const cp of friendCardPayments) {
       settlementByCard[cp.card_id] = (settlementByCard[cp.card_id] || 0) + money(cp.amount);
+      cardPaymentByCard[cp.card_id] = (cardPaymentByCard[cp.card_id] || 0) + money(cp.amount);
+    }
+
+    // Card payments only count as cash leaving the hand where there is still-unsettled spend for
+    // them to pay off. Beyond that the bill has already been flagged is_paid, and `settled` above
+    // has counted the same outflow — subtracting both would report the cash gone twice over. Once
+    // a transaction is later flagged is_paid its card payment drops out of this sum on its own,
+    // so the figure never double-counts and never needs a reconciliation pass.
+    for (const cId of Object.keys(cardPaymentByCard)) {
+      const unsettled = Math.max(0, unsettledByCard[cId] || 0);
+      friendTotalForwarded += Math.min(unsettled, cardPaymentByCard[cId]);
     }
 
     friendTotalSpend += expenses;
@@ -190,8 +211,10 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     const remainingToPay = Math.max(0, roundMoney(expenses - paid));
 
     const byCard: Record<string, number> = {};
+    const unpaidByCard: Record<string, number> = {};
     for (const cId of Object.keys(rawByCard)) {
       const unsettled = unsettledByCard[cId] || 0;
+      unpaidByCard[cId] = Math.max(0, roundMoney(unsettled));
       if (unsettled <= 0) {
         byCard[cId] = 0;
         // Refunds outrunning unsettled spend is real credit on the card; drop it on the floor
@@ -219,6 +242,7 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
       remainingToPay,
       byCard,
       rawByCard,
+      unpaidByCard,
     });
   }
 
@@ -227,12 +251,22 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   const totalToCollect = roundMoney(Object.values(toCollectByCard).reduce((a, b) => a + b, 0));
   const friendRemainingToPay = Math.max(0, roundMoney(friendTotalSpend - friendTotalPaid));
 
-  // "Collected (Not Settled)": cash friends have handed over that has not yet left as a paid
-  // bill. Settled spend is the measure of what went out, because that is what this ledger
-  // actually records — `card_payments` rows are written for only a fraction of the bills
-  // paid, so metering the outflow by them alone reports lakhs of cash sitting in hand that
-  // was in fact forwarded to the banks months ago.
-  const friendAdvanceInHand = Math.max(0, roundMoney(friendTotalPaid - friendTotalSettled));
+  // "Collected (Not Settled)" / "Advance In Hand": cash friends have handed over that has not
+  // yet left again. Two things take it out of hand.
+  //
+  // Settled spend, because flagging a bill is_paid is how this ledger records that its money
+  // went to the bank. `card_payments` rows exist for only a fraction of the bills ever paid, so
+  // metering the outflow by them alone would report lakhs still in hand that left months ago.
+  //
+  // And card payments against spend that is *not* yet settled, which is the case the is_paid
+  // flag cannot see: recording one means you have already forwarded that cash to the bank on the
+  // friend's behalf. It is deliberately the only figure a card payment moves besides the card's
+  // own to-collect — friend-level Outstanding and the dashboard's To Collect stay put, because a
+  // card payment is not the friend paying you.
+  const friendAdvanceInHand = Math.max(
+    0,
+    roundMoney(friendTotalPaid - friendTotalSettled - friendTotalForwarded),
+  );
 
   return {
     friendDebts,

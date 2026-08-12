@@ -3,9 +3,8 @@ import { db } from '../db/index.js';
 import { cards, transactions, assignments } from '../db/schema.js';
 import { eq, sql, getTableColumns, and } from 'drizzle-orm';
 import { CreateCardSchema, UpdateCardSchema } from '@cardledger/shared';
-
-// Reused in both GET / and GET /:id to keep the spend definition in one place
-const currentSpendSql = sql<string>`(COALESCE(SUM(CASE WHEN ${transactions.is_paid} = FALSE AND ${transactions.type} = 'spend' THEN ${transactions.amount} WHEN ${transactions.is_paid} = FALSE AND ${transactions.type} IN ('bill_payment', 'refund') THEN -${transactions.amount} ELSE 0 END), 0) - COALESCE((SELECT SUM(amount) FROM card_payments WHERE card_payments.card_id = ${cards.id}), 0))::text`;
+// Shared with the dashboard summary so the two can never drift on what "current spend" means.
+import { currentSpendSql } from '../db/sqlFragments.js';
 
 class ConflictError extends Error {}
 
@@ -17,9 +16,7 @@ export async function cardRoutes(app: FastifyInstance) {
     return db
       .select({ ...getTableColumns(cards), current_spend: currentSpendSql })
       .from(cards)
-      .leftJoin(transactions, eq(cards.id, transactions.card_id))
       .where(eq(cards.user_id, userId))
-      .groupBy(cards.id)
       .orderBy(cards.created_at);
   });
 
@@ -28,9 +25,7 @@ export async function cardRoutes(app: FastifyInstance) {
     const [card] = await db
       .select({ ...getTableColumns(cards), current_spend: currentSpendSql })
       .from(cards)
-      .leftJoin(transactions, eq(cards.id, transactions.card_id))
-      .where(and(eq(cards.id, req.params.id), eq(cards.user_id, userId)))
-      .groupBy(cards.id);
+      .where(and(eq(cards.id, req.params.id), eq(cards.user_id, userId)));
     if (!card) return reply.status(404).send({ error: 'Not found' });
     return card;
   });

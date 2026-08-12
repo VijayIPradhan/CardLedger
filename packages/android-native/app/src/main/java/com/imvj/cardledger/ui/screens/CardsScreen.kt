@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.imvj.cardledger.feature.HomeViewModel
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.components.CardTile
+import com.imvj.cardledger.ui.components.cardSpend
 import com.imvj.cardledger.ui.components.initialsOf
 import com.imvj.cardledger.ui.nav.BottomBar
 import com.imvj.cardledger.ui.nav.Routes
@@ -65,6 +66,16 @@ fun CardsScreen(nav: NavHostController, vm: HomeViewModel) {
         s.cards.associate { card ->
             val assigned = activeByCard[card.id]?.let { holderById[it.holder_id] }
             card.id to (assigned ?: me)
+        }
+    }
+    // Same unpaid basis as the Home stack, so a card's badge reads identically on both screens.
+    val friendUsageByCardId = remember(s.friendDebts) {
+        buildMap<String, Double> {
+            s.friendDebts.forEach { debt ->
+                debt.unpaidByCard.forEach { (cardId, amt) ->
+                    put(cardId, (get(cardId) ?: 0.0) + amt)
+                }
+            }
         }
     }
 
@@ -130,7 +141,7 @@ fun CardsScreen(nav: NavHostController, vm: HomeViewModel) {
                         val holder = holderByCardId[card.id]
                         val initials = holder?.let { initialsOf(it.name) }
                         val isMe = holder?.relationship == "me"
-                        val spend = s.spendByCard[card.id] ?: 0.0
+                        val spend = cardSpend(card, s.spendByCard[card.id])
 
                         Box(
                             Modifier
@@ -144,7 +155,15 @@ fun CardsScreen(nav: NavHostController, vm: HomeViewModel) {
                                 )
                                 .clickable { nav.navigate("${Routes.CARD_DETAIL}/${card.id}") }
                         ) {
-                            CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0)
+                            CardTile(
+                                card,
+                                initials,
+                                isMe,
+                                spend,
+                                limitRank,
+                                s.toCollectByCard[card.id] ?: 0.0,
+                                friendUsageByCardId[card.id] ?: 0.0,
+                            )
                         }
                     }
                 }

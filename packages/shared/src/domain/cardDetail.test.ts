@@ -209,8 +209,9 @@ describe('computeCardDetail', () => {
   });
 
   it('reports friend usage the clients can no longer derive themselves', () => {
-    // Settled spend paid for with an unlinked lump sum: it is out of toCollect and its cash
-    // never reaches collectedInHand, so toCollect + collectedInHand understates usage by 900.
+    // A settled bill drops out of usage entirely — it is done with. What remains is the 400 that
+    // is still on the card, which toCollect + collectedInHand happens to reproduce here only
+    // because no cash has come in against it yet.
     const r = computeCardDetail({
       ...base,
       holders: [ALICE],
@@ -220,10 +221,10 @@ describe('computeCardDetail', () => {
     });
     expect(r.toCollect).toBe(400);
     expect(r.collectedInHand).toBe(0);
-    expect(r.friendUsage).toBe(1300);
+    expect(r.friendUsage).toBe(400);
   });
 
-  it('keeps usage gross while owed reflects only what is still uncollected', () => {
+  it('keeps usage on an unpaid basis while owed reflects only what is still uncollected', () => {
     const r = computeCardDetail({
       ...base,
       holders: [ALICE],
@@ -231,7 +232,44 @@ describe('computeCardDetail', () => {
       payments: [{ holder_id: 'alice', transaction_id: 't1', amount: 1000 }],
       cardPayments: [],
     });
+    // Cash received does not retire spend from the card; only paying the bank does. So usage
+    // stays at 1300 and owed is what is left of it.
     expect(r.friendBreakdown[0]).toMatchObject({ owed: 300, usage: 1300 });
+    expect(r.friendUsage).toBe(1300);
+  });
+
+  it('bills only the current cycle to friendCycleUsage', () => {
+    // Cycle day 1 and today 2026-06-20, so the cycle in progress is June.
+    const r = computeCardDetail({
+      ...base,
+      holders: [ME, ALICE],
+      transactions: [
+        txn({ id: 'june', amount: 500 }),
+        txn({ id: 'june-refund', amount: 200, type: 'refund' }),
+        txn({ id: 'future', amount: 100, txn_date: '2026-09-02' }),
+        txn({ id: 'may', amount: 700, txn_date: '2026-05-15' }),
+        txn({ id: 'mine', amount: 900, holder_id_at_time: 'me' }),
+      ],
+      payments: [],
+      cardPayments: [],
+    });
+    // 500 - 200 + 100: May is a past cycle, and my own spend is not friend usage. The unpaid
+    // figure carries every cycle, so the two deliberately disagree.
+    expect(r.friendCycleUsage).toBe(400);
+    expect(r.friendUsage).toBe(1100);
+  });
+
+  it('leaves friendCycleUsage at zero once the cycle rolls over', () => {
+    const r = computeCardDetail({
+      ...base,
+      today: '2026-08-20',
+      holders: [ALICE],
+      transactions: [txn({ id: 't1', amount: 500 })],
+      payments: [],
+      cardPayments: [],
+    });
+    expect(r.friendCycleUsage).toBe(0);
+    expect(r.friendUsage).toBe(500);
   });
 
   it('resolves the current holder from the active assignment', () => {
