@@ -12,16 +12,18 @@ import {
   useDeleteHolder,
 } from '../data/hooks/useHolders.js';
 import { useCards } from '../data/hooks/useCards.js';
-import { useTransactions } from '../data/hooks/useTransactions.js';
-import { usePayments, useCreatePayment } from '../data/hooks/usePayments.js';
+import { useCreatePayment } from '../data/hooks/usePayments.js';
+import { useHolderDetails } from '../data/hooks/useDashboard.js';
 import { useUiStore } from '../store/uiStore.js';
-import type { Holder, Card, Transaction, Payment } from '@cardledger/shared';
+import type { Holder, Card } from '@cardledger/shared';
 
 export default function HolderViewScreen() {
   const { data: holders = [] } = useHolders();
   const { data: cards = [] } = useCards();
-  const { data: transactions = [] } = useTransactions();
-  const { data: allPayments = [] } = usePayments();
+  // Outstanding balances and per-card breakdowns are computed server-side by the shared debt
+  // engine. This screen used to do `expenses - payments`, which ignored is_paid and every
+  // card payment, and so overstated what friends owed.
+  const { data: holderDetails = [] } = useHolderDetails();
   const createHolder = useCreateHolder();
   const updateHolder = useUpdateHolder();
   const deleteHolder = useDeleteHolder();
@@ -34,32 +36,12 @@ export default function HolderViewScreen() {
 
   const cardMap = Object.fromEntries(cards.map((c: Card) => [c.id, c]));
   const friends = holders.filter((h: Holder) => h.relationship === 'friend');
+  const detailById = Object.fromEntries(holderDetails.map((d) => [d.holderId, d]));
 
-  function getTotalExpenses(holder: Holder) {
-    return transactions
-      .filter((t: Transaction) => t.holder_id_at_time === holder.id)
-      .reduce((s: number, t: Transaction) => s + Number(t.amount), 0);
-  }
-
-  function getTotalPayments(holder: Holder) {
-    return allPayments
-      .filter((p: Payment) => p.holder_id === holder.id)
-      .reduce((s: number, p: Payment) => s + Number(p.amount), 0);
-  }
-
-  function getOutstanding(holder: Holder) {
-    return getTotalExpenses(holder) - getTotalPayments(holder);
-  }
-
-  function getBreakdown(holder: Holder) {
-    const byCard: Record<string, number> = {};
-    transactions
-      .filter((t: Transaction) => t.holder_id_at_time === holder.id)
-      .forEach((t: Transaction) => {
-        byCard[t.card_id] = (byCard[t.card_id] ?? 0) + Number(t.amount);
-      });
-    return Object.entries(byCard)
-      .map(([cardId, amount]) => ({ card: cardMap[cardId] as Card | undefined, amount }))
+  /** Resolves the server's card ids to cards, dropping any the client hasn't loaded yet. */
+  function getBreakdown(holderId: string) {
+    return (detailById[holderId]?.byCard ?? [])
+      .map((b) => ({ card: cardMap[b.cardId] as Card | undefined, amount: b.grossAmount }))
       .filter((x): x is { card: Card; amount: number } => !!x.card);
   }
 
@@ -144,8 +126,8 @@ export default function HolderViewScreen() {
         )}
 
         {friends.map((holder: Holder, i: number) => {
-          const outstanding = getOutstanding(holder);
-          const breakdown = getBreakdown(holder);
+          const outstanding = detailById[holder.id]?.outstanding ?? 0;
+          const breakdown = getBreakdown(holder.id);
           const initials = holder.name
             .split(' ')
             .map((w) => w[0])

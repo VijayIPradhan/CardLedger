@@ -9,9 +9,8 @@ import { BottomSheet } from '../components/BottomSheet.js';
 import { CardTile } from '../components/CardTile.js';
 import { Fab } from '../components/Fab.js';
 import { AddTransactionSheet } from '../components/AddTransactionSheet.js';
-import { useCard, useCards, useDeleteCard } from '../data/hooks/useCards.js';
+import { useCard, useDeleteCard } from '../data/hooks/useCards.js';
 import { useHolders } from '../data/hooks/useHolders.js';
-import { useAssignments } from '../data/hooks/useAssignments.js';
 import {
   useTransactions,
   useDeleteTransaction,
@@ -19,10 +18,9 @@ import {
 } from '../data/hooks/useTransactions.js';
 import { useCreateTransaction } from '../data/hooks/useTransactions.js';
 import { useUploadStatement } from '../data/hooks/useStatements.js';
-import { usePayments } from '../data/hooks/usePayments.js';
+import { useCardDetail } from '../data/hooks/useDashboard.js';
 import { useUiStore } from '../store/uiStore.js';
-import { getCycleRange } from '@cardledger/shared';
-import type { Transaction, Holder, Assignment } from '@cardledger/shared';
+import type { Transaction, Holder } from '@cardledger/shared';
 
 const inputCls =
   'w-full bg-elevated border border-elevated rounded-input px-3 py-2 text-sm focus:border-gold outline-none';
@@ -31,10 +29,11 @@ export default function CardDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const { data: card } = useCard(id!);
-  const { data: allCardsRaw } = useCards();
   const { data: holders = [] } = useHolders();
-  const { data: assignments = [] } = useAssignments(id);
   const { data: transactions = [] } = useTransactions({ card_id: id });
+  // Cycles, to-collect, the friend breakdown and group-aware spend all come from the server.
+  // This screen previously recomputed them and disagreed with both /summary and Android.
+  const { data: detail } = useCardDetail(id);
   const deleteCard = useDeleteCard();
   const deleteTxn = useDeleteTransaction();
   const updateTxn = useUpdateTransaction();
@@ -47,7 +46,6 @@ export default function CardDetailScreen() {
 
   const createTxn = useCreateTransaction();
   const uploadStmt = useUploadStatement();
-  const { data: payments = [] } = usePayments();
   const [isUploading, setIsUploading] = useState(false);
   const [cardPaymentAmount, setCardPaymentAmount] = useState('');
   const [cardPaymentDate, setCardPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -55,27 +53,10 @@ export default function CardDetailScreen() {
 
   const [error, setError] = useState('');
 
-  const friendBreakdown = useMemo(() => {
-    const friendHolders = holders.filter((h: any) => h.relationship === 'friend');
-    const breakdown = friendHolders
-      .map((fh: any) => {
-        const friendTxns = transactions.filter(
-          (t: any) => t.type === 'spend' && t.holder_id_at_time === fh.id,
-        );
-        const usage = friendTxns.reduce((acc: number, t: any) => {
-          return acc + Math.max(0, Number(t.amount) - (t.bank_paid_amount || 0));
-        }, 0);
-        const amount = friendTxns
-          .filter((t: any) => !t.is_paid)
-          .reduce((acc: number, t: any) => {
-            return acc + Math.max(0, Number(t.amount) - (t.bank_paid_amount || 0));
-          }, 0);
-
-        return { holderName: fh.name, amount, usage };
-      })
-      .filter((b) => b.amount > 0 || b.usage > 0);
-    return breakdown;
-  }, [transactions, holders]);
+  const txnById = useMemo(
+    () => new Map((transactions as Transaction[]).map((t) => [t.id, t])),
+    [transactions],
+  );
 
   if (!card) {
     return (
@@ -87,40 +68,21 @@ export default function CardDetailScreen() {
 
   const holderMap = Object.fromEntries(holders.map((h: Holder) => [h.id, h]));
 
-  // Transaction history grouped by the last 3 billing cycles (for the list).
-  const cycles = ([-2, -1, 0] as const)
-    .map((offset) => {
-      const refDate = new Date();
-      refDate.setMonth(refDate.getMonth() + offset);
-      const ref = refDate.toISOString().split('T')[0];
-      const { start, end } = getCycleRange(card.billing_cycle_day, ref);
-      const txns = (transactions as Transaction[]).filter(
-        (t) => t.txn_date >= start && t.txn_date <= end,
-      );
-      return { label: `${start} – ${end}`, txns };
-    })
+  // The server groups every cycle back through the card's history; resolve its ids to the rows
+  // we already have. A cycle whose rows haven't loaded yet is skipped rather than shown empty.
+  const cycles = (detail?.cycles ?? [])
+    .map((c) => ({
+      label: c.label,
+      unpaidCount: c.unpaidCount,
+      txns: c.transactionIds.map((tid) => txnById.get(tid)).filter((t): t is Transaction => !!t),
+    }))
     .filter((c) => c.txns.length > 0);
 
-  const allCards = Array.isArray(allCardsRaw) ? allCardsRaw : [];
-
-  const activeAssignment = (assignments as Assignment[]).find((a) => !a.returned_date);
-  const currentHolder = activeAssignment
-    ? holderMap[activeAssignment.holder_id]
-    : holders.find((h: Holder) => h.relationship === 'me');
-
-  const toCollect = transactions.reduce((acc: number, t: any) => {
-    if (t.type !== 'spend' || t.is_paid || !currentHolder) return acc;
-    if (t.holder_id_at_time !== currentHolder.id) {
-      const remaining = Number(t.amount) - (t.bank_paid_amount || 0);
-      return acc + Math.max(0, remaining);
-    }
-    return acc;
-  }, 0);
-
-  const groupId = card.shared_limit_with || card.id;
-  const totalSpend = allCards
-    .filter((c: any) => (c.shared_limit_with || c.id) === groupId)
-    .reduce((s, c) => s + Number(c.current_spend || 0), 0);
+  const currentHolder = detail?.currentHolderId ? holderMap[detail.currentHolderId] : undefined;
+  const toCollect = detail?.toCollect ?? 0;
+  const friendBreakdown = detail?.friendBreakdown ?? [];
+  const collectedByTransaction = detail?.collectedByTransaction ?? {};
+  const totalSpend = detail?.totalSpend ?? 0;
 
   async function handleDeleteCard() {
     setError('');
@@ -422,15 +384,15 @@ export default function CardDetailScreen() {
             </div>
             {friendBreakdown.length > 0 && (
               <div className="border-t border-surface pt-3 space-y-2">
-                {friendBreakdown.map((fb: any) => (
-                  <div key={fb.holderName} className="flex justify-between items-center">
+                {friendBreakdown.map((fb) => (
+                  <div key={fb.holderId} className="flex justify-between items-center">
                     <span className="text-xs text-muted">{fb.holderName}</span>
                     <span
-                      className={`text-xs font-semibold ${fb.amount > 0 ? 'text-gold' : 'text-on-dark'}`}
+                      className={`text-xs font-semibold ${fb.owed > 0 ? 'text-gold' : 'text-on-dark'}`}
                     >
-                      {fb.usage > fb.amount
-                        ? `₹${fb.amount.toLocaleString('en-IN')} (Usage: ₹${fb.usage.toLocaleString('en-IN')})`
-                        : `₹${fb.amount.toLocaleString('en-IN')}`}
+                      {fb.usage > fb.owed
+                        ? `₹${fb.owed.toLocaleString('en-IN')} (Usage: ₹${fb.usage.toLocaleString('en-IN')})`
+                        : `₹${fb.owed.toLocaleString('en-IN')}`}
                     </span>
                   </div>
                 ))}
@@ -440,7 +402,7 @@ export default function CardDetailScreen() {
         )}
 
         {cycles.map((c) => {
-          const unpaidInCycle = c.txns.filter((t) => !t.is_paid && t.type === 'spend').length;
+          const unpaidInCycle = c.unpaidCount;
           return (
             <div key={c.label}>
               <div className="flex justify-between items-center mt-4 mb-1">
@@ -467,7 +429,7 @@ export default function CardDetailScreen() {
                   openTxnActions={openTxnActions}
                   updateTxn={updateTxn}
                   currentHolder={currentHolder}
-                  payments={payments as any[]}
+                  collectedAmount={collectedByTransaction[t.id] ?? 0}
                   openCardPayment={openCardPayment}
                 />
               ))}
@@ -619,7 +581,7 @@ function SwipeableTransaction({
   openTxnActions,
   updateTxn,
   currentHolder,
-  payments,
+  collectedAmount,
   openCardPayment,
 }: {
   t: Transaction;
@@ -627,7 +589,8 @@ function SwipeableTransaction({
   openTxnActions: (t: Transaction) => void;
   updateTxn: UseMutationResult<Transaction, Error, Partial<Transaction> & { id: string }>;
   currentHolder?: Holder;
-  payments: any[];
+  /** Cash already received against this transaction, from the server. */
+  collectedAmount: number;
   openCardPayment: (linkedTxnId?: string, defaultAmount?: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -780,8 +743,7 @@ function SwipeableTransaction({
             t.holder_id_at_time !== currentHolder.id &&
             t.type === 'spend' &&
             (() => {
-              const isCollected = payments?.some((p: any) => p.transaction_id === t.id);
-              if (!isCollected) {
+              if (collectedAmount <= 0) {
                 return (
                   <div className="flex gap-1 mt-0.5">
                     <div
@@ -812,11 +774,7 @@ function SwipeableTransaction({
                   </div>
                 );
               } else {
-                const totalCollected =
-                  payments
-                    ?.filter((p: any) => p.transaction_id === t.id)
-                    .reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
-                const remaining = Number(t.amount) - totalCollected;
+                const remaining = Number(t.amount) - collectedAmount;
                 if (remaining > 0) {
                   return (
                     <div

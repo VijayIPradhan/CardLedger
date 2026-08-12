@@ -8,6 +8,16 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
+/**
+ * The last dashboard the server sent us, kept verbatim.
+ *
+ * [summary] holds every money figure. The app no longer derives spend, debt or utilisation
+ * locally, so an offline launch replays the server's last answer rather than recomputing one
+ * that could disagree with it. A snapshot without a summary is unusable and treated as a miss.
+ *
+ * The raw rows are here purely to render lists and resolve names — the recent-activity feed,
+ * card tiles and holder labels — never to do arithmetic on.
+ */
 @Serializable
 data class OfflineCache(
     val cards: List<CardDto>,
@@ -15,6 +25,7 @@ data class OfflineCache(
     val assignments: List<AssignmentDto>,
     val transactions: List<TransactionDto>,
     val payments: List<PaymentDto>,
+    val summary: DashboardSummaryDto? = null,
     val savedAtMillis: Long = System.currentTimeMillis(),
 )
 
@@ -25,6 +36,25 @@ class CacheStore(context: Context) {
     companion object {
         /** Cache considered stale after 5 minutes of inactivity */
         const val MAX_AGE_MS = 5L * 60 * 1000
+    }
+
+    /**
+     * Wall-clock of the most recent server-side write, set by [invalidate].
+     *
+     * In-memory only: a cold start has nothing to invalidate, because the first load of a
+     * new process always hits the network anyway (its ViewModel has no recorded fetch yet).
+     */
+    @Volatile private var invalidatedAtMs: Long = 0L
+
+    /**
+     * Marks the cached snapshot as superseded by a server-side write.
+     *
+     * Called for every successful non-GET request, so any mutation from any ViewModel is
+     * covered without each call site having to remember. Cheap and thread-safe — this runs
+     * on OkHttp's dispatcher threads.
+     */
+    fun invalidate() {
+        invalidatedAtMs = System.currentTimeMillis()
     }
 
     suspend fun save(cache: OfflineCache) = withContext(Dispatchers.IO) {
@@ -45,7 +75,15 @@ class CacheStore(context: Context) {
         }
     }
 
-    /** Returns true if the cached data is still within the staleness window */
+    /**
+     * Returns true if the cached data is still within the staleness window AND has not been
+     * superseded by a write since it was captured.
+     *
+     * The write check matters as much as the age check: a snapshot captured seconds ago is
+     * worthless if the user has since recorded a payment, and treating it as fresh is what
+     * lets a stale dashboard survive a whole [MAX_AGE_MS] window.
+     */
     fun isFresh(cache: OfflineCache): Boolean =
-        (System.currentTimeMillis() - cache.savedAtMillis) < MAX_AGE_MS
+        cache.savedAtMillis > invalidatedAtMs &&
+            (System.currentTimeMillis() - cache.savedAtMillis) < MAX_AGE_MS
 }

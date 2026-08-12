@@ -86,7 +86,7 @@ fun RecommenderScreen(nav: NavHostController, vm: RecommenderViewModel, reviewCo
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(s.recommendations) { rec ->
+                    items(s.recommendations, key = { it.card_id }) { rec ->
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {

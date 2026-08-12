@@ -395,9 +395,14 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
-                                    if (s.collectedInHand > 0.5) {
+                                    // Usage is the server's gross figure. Shown whenever it exceeds what is
+                                    // left to collect — settled spend is out of toCollect, so the two differ
+                                    // even on a card against which no cash has been linked.
+                                    if (s.friendUsage > s.toCollect + 0.5) {
+                                        val collected =
+                                            if (s.collectedInHand > 0.5) " · Collected: +${money(s.collectedInHand)}" else ""
                                         Text(
-                                            "Total Friend Usage: ${money(s.toCollect + s.collectedInHand)} · Collected: +${money(s.collectedInHand)}",
+                                            "Total Friend Usage: ${money(s.friendUsage)}$collected",
                                             color = Success,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontSize = 11.sp
@@ -679,7 +684,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                     }
                                                     val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
                                                     if (txn.holder_id_at_time != meId && txn.type == "spend") {
-                                                        val isCollected = s.payments.any { it.transaction_id == txn.id }
+                                                        val isCollected = (s.collectedByTransaction[txn.id] ?: 0.0) > 0.0
                                                         if (!isCollected) {
                                                             Surface(
                                                                 color = Gold.copy(alpha = 0.15f),
@@ -695,7 +700,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                 }
                                                             }
                                                         } else {
-                                                            val totalCollected = s.payments.filter { it.transaction_id == txn.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                                            val totalCollected = s.collectedByTransaction[txn.id] ?: 0.0
                                                             val remaining = (txn.amount.toDoubleOrNull() ?: 0.0) - totalCollected
                                                             if (remaining > 0) {
                                                                 Surface(
@@ -1158,7 +1163,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
 
         showCollectSheet?.let { txn ->
             var amountStr by remember { mutableStateOf("") }
-            val totalCollected = s.payments.filter { it.transaction_id == txn.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            val totalCollected = s.collectedByTransaction[txn.id] ?: 0.0
             val remaining = maxOf(0.0, (txn.amount.toDoubleOrNull() ?: 0.0) - totalCollected)
             LaunchedEffect(txn) { amountStr = if (remaining > 0) remaining.toString() else "" }
 

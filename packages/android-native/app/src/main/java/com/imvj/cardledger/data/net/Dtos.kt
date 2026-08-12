@@ -286,6 +286,65 @@ data class CardRecommendationDto(
 )
 
 @Serializable
+data class CardCycleGroupDto(
+    val label: String,
+    /** null for the catch-all "Earlier transactions" bucket. */
+    val start: String? = null,
+    val end: String? = null,
+    val transactionIds: List<String> = emptyList(),
+    val total: Double = 0.0,
+    val unpaidCount: Int = 0,
+)
+
+@Serializable
+data class CardFriendBreakdownDto(
+    val holderId: String,
+    val holderName: String,
+    val owed: Double = 0.0,
+    val collectedInHand: Double = 0.0,
+    val usage: Double = 0.0,
+)
+
+/** Payload of GET dashboard/card/{cardId}. Every figure here is computed server-side. */
+@Serializable
+data class CardDetailDto(
+    val cardId: String,
+    val toCollect: Double = 0.0,
+    val collectedInHand: Double = 0.0,
+    /** Gross friend usage of this card, net of refunds. Not derivable from the two above. */
+    val friendUsage: Double = 0.0,
+    val friendBreakdown: List<CardFriendBreakdownDto> = emptyList(),
+    val cycles: List<CardCycleGroupDto> = emptyList(),
+    val currentHolderId: String? = null,
+    val collectedByTransaction: Map<String, Double> = emptyMap(),
+    /** Gross spend across the shared-limit group, paid or not. */
+    val totalSpend: Double = 0.0,
+    /** What the group currently owes the bank: unpaid spend less payments made to it. */
+    val currentSpend: Double = 0.0,
+    val sharedLimitGroup: List<String> = emptyList(),
+)
+
+@Serializable
+data class HolderCardBreakdownDto(
+    val cardId: String,
+    val unpaidAmount: Double = 0.0,
+    val grossAmount: Double = 0.0,
+)
+
+/** One entry of GET dashboard/holders — a friend's balance, computed server-side. */
+@Serializable
+data class HolderDetailDto(
+    val holderId: String,
+    val holderName: String,
+    val phone: String = "",
+    val relationship: String = "friend",
+    val totalSpend: Double = 0.0,
+    val totalPaid: Double = 0.0,
+    val outstanding: Double = 0.0,
+    val byCard: List<HolderCardBreakdownDto> = emptyList(),
+)
+
+@Serializable
 data class DashboardSummaryDto(
     val totalSpend: Double = 0.0,
     val totalLimit: Double = 0.0,

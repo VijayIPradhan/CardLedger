@@ -10,6 +10,7 @@ import {
   card_payments,
 } from '../db/schema.js';
 import { eq, and, desc, sql, getTableColumns } from 'drizzle-orm';
+import { computeFriendDebts } from '@cardledger/shared';
 
 export async function summaryRoutes(app: FastifyInstance) {
   const auth = { onRequest: [app.authenticate] };
@@ -90,119 +91,22 @@ export async function summaryRoutes(app: FastifyInstance) {
     });
 
     // ── 2. Friend Collections & Remaining ──
-    const friends = userHolders.filter((h) => h.relationship === 'friend');
-    let friendTotalSpend = 0;
-    let friendTotalPaid = 0;
-    let friendTotalCardPayments = 0;
-    let friendTotalGrossSpend = 0;
-    let friendTotalUnpaidSpend = 0;
-    const toCollectByCard: Record<string, number> = {};
-    const friendDebts: Array<{
-      holderId: string;
-      holderName: string;
-      phone: string;
-      totalSpend: number;
-      totalPaid: number;
-      remainingToPay: number;
-      byCard: Record<string, number>;
-      rawByCard: Record<string, number>;
-    }> = [];
-
-    friends.forEach((friend) => {
-      const friendTxns = userTxns.filter((t) => t.transactions.holder_id_at_time === friend.id);
-      const rawByCard: Record<string, number> = {};
-      const totalSpendByCard: Record<string, number> = {};
-      let expenses = 0;
-
-      friendTxns.forEach((t) => {
-        const amt = parseFloat(t.transactions.amount) || 0;
-        const cId = t.transactions.card_id;
-        if (t.transactions.type === 'refund') {
-          expenses -= amt;
-          friendTotalGrossSpend -= amt;
-          totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) - amt) * 100) / 100;
-          if (!t.transactions.is_paid && amt > 0) {
-            rawByCard[cId] = Math.round(((rawByCard[cId] || 0) - amt) * 100) / 100;
-            friendTotalUnpaidSpend -= amt;
-          }
-        } else if (t.transactions.type === 'spend') {
-          expenses += amt;
-          friendTotalGrossSpend += amt;
-          totalSpendByCard[cId] = Math.round(((totalSpendByCard[cId] || 0) + amt) * 100) / 100;
-          if (!t.transactions.is_paid && amt > 0) {
-            rawByCard[cId] = Math.round(((rawByCard[cId] || 0) + amt) * 100) / 100;
-            friendTotalUnpaidSpend += amt;
-          }
-        }
-      });
-
-      const paidFromPayments = userPayments
-        .filter((p) => p.payments.holder_id === friend.id)
-        .reduce((sum, p) => sum + (parseFloat(p.payments.amount) || 0), 0);
-
-      const paid = paidFromPayments;
-
-      const paymentsByCard: Record<string, number> = {};
-      userPayments
-        .filter((p) => p.payments.holder_id === friend.id && p.payments.transaction_id)
-        .forEach((p) => {
-          const txn = userTxns.find((t) => t.transactions.id === p.payments.transaction_id);
-          if (txn) {
-            const cId = txn.transactions.card_id;
-            const amt = parseFloat(p.payments.amount) || 0;
-            paymentsByCard[cId] = (paymentsByCard[cId] || 0) + amt;
-          }
-        });
-
-      const cardPaymentsByCard: Record<string, number> = {};
-      userCardPayments
-        .filter((p) => p.card_payments.holder_id === friend.id)
-        .forEach((p) => {
-          const cId = p.card_payments.card_id;
-          const amt = parseFloat(p.card_payments.amount) || 0;
-          cardPaymentsByCard[cId] = (cardPaymentsByCard[cId] || 0) + amt;
-          expenses -= amt;
-          friendTotalCardPayments += amt;
-        });
-
-      friendTotalSpend += expenses;
-      friendTotalPaid += paid;
-      const remainingToPay = Math.max(0, expenses - paid);
-
-      const byCard: Record<string, number> = {};
-      const baseCards = rawByCard;
-
-      Object.entries(baseCards).forEach(([cId, amt]) => {
-        const cpAmt = cardPaymentsByCard[cId] || 0;
-        const pAmt = paymentsByCard[cId] || 0;
-        const adjustedAmt = amt - cpAmt - pAmt;
-        if (adjustedAmt <= 0) {
-          byCard[cId] = 0;
-        } else {
-          byCard[cId] = Math.round(adjustedAmt * 100) / 100;
-          toCollectByCard[cId] =
-            Math.round(((toCollectByCard[cId] || 0) + byCard[cId]) * 100) / 100;
-        }
-      });
-
-      friendDebts.push({
-        holderId: friend.id,
-        holderName: friend.name,
-        phone: friend.phone,
-        totalSpend: expenses,
-        totalPaid: paid,
-        remainingToPay,
-        byCard,
-        rawByCard,
-      });
+    // Delegated to the shared engine, which is the single definition of this math for every
+    // client. See debtEngine.ts for the vocabulary and the double-dip rules.
+    const {
+      friendDebts,
+      toCollectByCard,
+      totalToCollect,
+      friendTotalSpend,
+      friendTotalPaid,
+      friendRemainingToPay,
+      friendAdvanceInHand,
+    } = computeFriendDebts({
+      holders: userHolders,
+      transactions: userTxns.map((t) => t.transactions),
+      payments: userPayments.map((p) => p.payments),
+      cardPayments: userCardPayments.map((p) => p.card_payments),
     });
-
-    friendDebts.sort((a, b) => b.remainingToPay - a.remainingToPay);
-
-    const totalToCollect = Object.values(toCollectByCard).reduce((a, b) => a + b, 0);
-    const friendRemainingToPay = Math.max(0, friendTotalSpend - friendTotalPaid);
-    const paidSpend = friendTotalGrossSpend - friendTotalUnpaidSpend;
-    const friendAdvanceInHand = Math.max(0, friendTotalPaid - paidSpend - friendTotalCardPayments);
 
     // ── 3. Total Utilization & Net Position ──
     const totalLimit = userCards

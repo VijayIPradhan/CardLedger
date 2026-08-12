@@ -10,12 +10,9 @@ import { useCards } from '../data/hooks/useCards.js';
 import { useHolders } from '../data/hooks/useHolders.js';
 import { useAssignments } from '../data/hooks/useAssignments.js';
 import { useTransactions } from '../data/hooks/useTransactions.js';
-import { usePayments } from '../data/hooks/usePayments.js';
+import { useSummary } from '../data/hooks/useDashboard.js';
 import { useUiStore } from '../store/uiStore.js';
-import { getFriendCollectionTotal, getUpcomingDues } from '@cardledger/shared';
-import type { Card, Holder, Transaction, Assignment, Payment } from '@cardledger/shared';
-
-const todayISO = () => new Date().toISOString().split('T')[0];
+import type { Card, Holder, Transaction, Assignment } from '@cardledger/shared';
 
 export default function HomeScreen() {
   const nav = useNavigate();
@@ -24,53 +21,42 @@ export default function HomeScreen() {
   const { data: holders = [] } = useHolders();
   const { data: assignments = [] } = useAssignments();
   const { data: transactions = [] } = useTransactions();
-  const { data: allPayments = [] } = usePayments();
+  // Every figure below comes from here. The server owns the math; this screen only lays it out.
+  const { data: summary } = useSummary();
 
   const holderMap = Object.fromEntries(holders.map((h: Holder) => [h.id, h]));
   const meHolder = holders.find((h: Holder) => h.relationship === 'me');
-  const friends = holders.filter((h: Holder) => h.relationship === 'friend');
   const cardList = cards as Card[];
-  const today = todayISO();
+
+  const spendByCard = summary?.spendByCard ?? {};
+  const totalToCollect = summary?.totalToCollect ?? 0;
+  const total = {
+    spend: summary?.totalSpend ?? 0,
+    limit: summary?.totalLimit ?? 0,
+    percent: summary?.totalUtilizationPercent ?? 0,
+  };
+  const netPosition = summary?.netPosition ?? 0;
 
   const sortedByLimit = [...cardList].sort(
     (a, b) => Number(b.credit_limit) - Number(a.credit_limit),
   );
   const limitRankMap = new Map<string, number>(sortedByLimit.map((c, i) => [c.id, i + 1]));
   const sortedCards = [...cardList].sort((a, b) => {
-    const diff = Number(b.current_spend || 0) - Number(a.current_spend || 0);
+    const diff = (spendByCard[b.id] ?? 0) - (spendByCard[a.id] ?? 0);
     if (diff !== 0) return diff;
     return Number(b.credit_limit || 0) - Number(a.credit_limit || 0);
   });
 
-  // Analytics calculations
-  const totalToCollect = getFriendCollectionTotal(
-    friends,
-    transactions as Transaction[],
-    allPayments as Payment[],
-  );
-
-  const totalLimit = cardList
-    .filter((c) => !c.shared_limit_with)
-    .reduce((acc, c) => acc + Number(c.credit_limit), 0);
-  const totalSpendVal = cardList.reduce((acc, c) => acc + Number(c.current_spend || 0), 0);
-  const total = {
-    spend: totalSpendVal,
-    limit: totalLimit,
-    percent: totalLimit > 0 ? (totalSpendVal / totalLimit) * 100 : 0,
-  };
-
-  // Pre-calculate grouped spends for cards that share a limit
+  // Re-keying the server's per-card spend onto shared-limit groups — a display concern, so it
+  // stays here rather than adding another shape to the summary payload.
   const groupedSpend: Record<string, number> = {};
   for (const c of cardList) {
     const groupId = c.shared_limit_with || c.id;
-    groupedSpend[groupId] = (groupedSpend[groupId] || 0) + Number(c.current_spend || 0);
+    groupedSpend[groupId] = (groupedSpend[groupId] || 0) + (spendByCard[c.id] ?? 0);
   }
 
-  const dues = getUpcomingDues(
-    cardList.map((c) => ({ id: c.id, payment_due_day: c.payment_due_day })),
-    today,
-    7,
-  );
+  // The summary reports dues up to 15 days out; Home only surfaces the next week.
+  const dues = (summary?.dues ?? []).filter((d) => d.daysUntil <= 7);
 
   function getCardHolder(cardId: string): Holder | undefined {
     const active = (assignments as Assignment[]).find(
@@ -175,7 +161,7 @@ export default function HomeScreen() {
                   NET POSITION
                 </p>
                 <p className="text-3xl font-black text-on-dark mt-0.5">
-                  ₹{(total.spend - totalToCollect).toLocaleString('en-IN')}
+                  ₹{netPosition.toLocaleString('en-IN')}
                 </p>
               </div>
               <span className="text-xs font-bold text-gold bg-gold/10 px-2.5 py-1 rounded-full border border-gold/30 flex items-center gap-1 group-hover:scale-105 transition-transform">
@@ -217,7 +203,7 @@ export default function HomeScreen() {
             const bestCard = cardList
               .map((c) => {
                 const limit = Number(c.credit_limit || 0);
-                const spend = Number(c.current_spend || 0);
+                const spend = spendByCard[c.id] ?? 0;
                 const pct = limit > 0 ? Math.round((spend / limit) * 100) : 0;
                 if (pct >= 50) return null;
                 const cycleDay = c.billing_cycle_day || 1;
@@ -356,7 +342,8 @@ export default function HomeScreen() {
           <p className="text-xs text-muted mb-2">⚠ Upcoming dues</p>
           <div className="flex flex-col gap-2">
             {dues.map((d) => {
-              const card = cardList.find((c) => c.id === d.cardId)!;
+              const card = cardList.find((c) => c.id === d.cardId);
+              if (!card) return null;
               return (
                 <button
                   key={d.cardId}

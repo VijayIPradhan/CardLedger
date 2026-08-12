@@ -44,6 +44,8 @@ interface ApiService {
     @POST("sms/parse/ai") suspend fun parseSmsAi(@Body body: com.imvj.cardledger.domain.SmsInput): com.imvj.cardledger.domain.ParseResult
 
     @GET("dashboard/summary") suspend fun getDashboardSummary(): DashboardSummaryDto
+    @GET("dashboard/card/{cardId}") suspend fun getCardDetail(@Path("cardId") cardId: String): CardDetailDto
+    @GET("dashboard/holders") suspend fun getHolderDetails(): List<HolderDetailDto>
 
     @GET("budgets") suspend fun getBudgets(): List<BudgetDto>
     @POST("budgets") suspend fun createBudget(@Body body: CreateBudgetDto): BudgetDto

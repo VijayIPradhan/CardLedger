@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../apiClient.js';
+import { DASHBOARD_KEY } from './useDashboard.js';
 import type { Assignment } from '@cardledger/shared';
 
 export function useAssignments(cardId?: string) {
@@ -29,7 +30,10 @@ export function useCreateAssignment() {
   return useMutation({
     mutationFn: (data: Pick<Assignment, 'card_id' | 'holder_id' | 'handed_over_date'>) =>
       api.post('/assignments', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['assignments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assignments'] });
+      qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
+    },
   });
 }
 
@@ -42,7 +46,10 @@ export function useReturnCard() {
           returned_date: new Date().toISOString().split('T')[0],
         })
         .then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['assignments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assignments'] });
+      qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
+    },
   });
 }
 
@@ -50,6 +57,9 @@ export function useDeleteAssignment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/assignments/${id}`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['assignments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assignments'] });
+      qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
+    },
   });
 }

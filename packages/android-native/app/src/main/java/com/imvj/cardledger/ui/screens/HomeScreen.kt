@@ -37,7 +37,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.lifecycle.compose.LifecycleResumeEffect
 
-import com.imvj.cardledger.domain.cardUtilization
 import com.imvj.cardledger.feature.HomeViewModel
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.components.*
@@ -62,6 +61,55 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
 
     var showAddTxn by remember { mutableStateOf(false) }
     var isStackExpanded by remember { mutableStateOf(false) }
+
+    // ── Card-stack derivations ───────────────────────────────────────────────
+    // Hoisted out of the lazy item and memoised. Previously every one of these was
+    // recomputed on each recomposition, and the per-card lookups below were linear scans
+    // run inside forEachIndexed — limitRank was an indexOf() (O(cards²), each comparison a
+    // full CardDto structural equals), the holder came from two firstOrNull() passes, and
+    // friendUsage summed the whole friendDebts list per card. The card stack animates, so
+    // that ran on every frame of the expand/collapse transition.
+    val activeCards = remember(s.cards, s.spendByCard, s.toCollectByCard) {
+        s.cards.filter { card ->
+            val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
+            val toCollect = s.toCollectByCard[card.id] ?: 0.0
+            spend > 0.0 || toCollect > 0.0
+        }
+    }
+    val sortedCards = remember(activeCards, s.cards, s.spendByCard) {
+        (if (activeCards.isNotEmpty()) activeCards else s.cards.take(1)).sortedWith(
+            compareByDescending<com.imvj.cardledger.data.net.CardDto> { s.spendByCard[it.id] ?: 0.0 }
+                .thenByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
+        )
+    }
+    val limitRankById = remember(s.cards) {
+        s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
+            .withIndex()
+            .associate { (i, card) -> card.id to i + 1 }
+    }
+    val holderByCardId = remember(s.cards, s.assignments, s.holders) {
+        val holderById = s.holders.associateBy { it.id }
+        val me = s.holders.firstOrNull { it.relationship == "me" }
+        // groupBy+first, not associateBy: associateBy keeps the LAST match for a duplicate
+        // card_id, whereas the original firstOrNull kept the first.
+        val activeByCard = s.assignments
+            .filter { it.returned_date == null }
+            .groupBy { it.card_id }
+            .mapValues { (_, matches) -> matches.first() }
+        s.cards.associate { card ->
+            card.id to (activeByCard[card.id]?.let { holderById[it.holder_id] } ?: me)
+        }
+    }
+    val friendUsageByCardId = remember(s.friendDebts) {
+        buildMap<String, Double> {
+            s.friendDebts.forEach { debt ->
+                debt.rawByCard.forEach { (cardId, amt) ->
+                    put(cardId, (get(cardId) ?: 0.0) + amt)
+                }
+            }
+        }
+    }
+    val cardById = remember(s.cards) { s.cards.associateBy { it.id } }
 
     Scaffold(
         bottomBar = { BottomBar(nav, reviewCount) },
@@ -408,17 +456,6 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
 
                         // ── Dynamic Card Stack ───────────────────────────────
                         item {
-                            val sortedByLimit = s.cards.sortedByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
-                            val activeCards = s.cards.filter { card ->
-                                val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
-                                val toCollect = s.toCollectByCard[card.id] ?: 0.0
-                                spend > 0.0 || toCollect > 0.0
-                            }
-                            val sortedCards = (if (activeCards.isNotEmpty()) activeCards else s.cards.take(1)).sortedWith(
-                                compareByDescending<com.imvj.cardledger.data.net.CardDto> { s.spendByCard[it.id] ?: 0.0 }
-                                    .thenByDescending { it.credit_limit.toDoubleOrNull() ?: 0.0 }
-                            )
-
                             Column(Modifier.fillMaxWidth().padding(top = 28.dp, start = 20.dp, end = 20.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text(
@@ -464,15 +501,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                             label = "cardOffset_$i"
                                         )
 
-                                        val limitRank = sortedByLimit.indexOf(card) + 1
-                                        val activeAssignment = s.assignments.firstOrNull {
-                                            it.card_id == card.id && it.returned_date == null
-                                        }
-                                        val holder = if (activeAssignment != null) {
-                                            s.holders.firstOrNull { it.id == activeAssignment.holder_id }
-                                        } else {
-                                            s.holders.firstOrNull { it.relationship == "me" }
-                                        }
+                                        val limitRank = limitRankById[card.id] ?: 0
+                                        val holder = holderByCardId[card.id]
                                         val initials = holder?.let { initialsOf(it.name) }
                                         val isMe = holder?.relationship == "me"
                                         val spend = s.spendByCard[card.id] ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
@@ -496,7 +526,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                     }
                                                 }
                                         ) {
-                                            val friendUsage = s.friendDebts.sumOf { debt -> debt.rawByCard[card.id] ?: 0.0 }
+                                            val friendUsage = friendUsageByCardId[card.id] ?: 0.0
                                             CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0, friendUsage)
                                         }
                                     }
@@ -523,8 +553,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                     )
                                 }
                             }
-                            items(s.dues) { due ->
-                                val dueCard = s.cards.firstOrNull { it.id == due.cardId }
+                            items(s.dues, key = { it.cardId }) { due ->
+                                val dueCard = cardById[due.cardId]
                                 Surface(
                                     Modifier
                                         .fillMaxWidth()

@@ -59,6 +59,14 @@ class PaymentRepository(private val api: ApiService) {
     suspend fun deleteByTransactionId(txnId: String) = call { api.deletePaymentByTransaction(txnId); Unit }
 }
 
+/**
+ * The single source of every money figure in the app.
+ *
+ * All financial math lives on the server (@cardledger/shared). Nothing downstream of this
+ * repository recomputes spend, debt or utilisation — screens format what these return.
+ */
 class DashboardRepository(private val api: ApiService) {
     suspend fun getSummary() = call { api.getDashboardSummary() }
+    suspend fun getCardDetail(cardId: String) = call { api.getCardDetail(cardId) }
+    suspend fun getHolderDetails() = call { api.getHolderDetails() }
 }
