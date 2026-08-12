@@ -60,7 +60,9 @@ export async function summaryDetailRoutes(app: FastifyInstance) {
       holders: userHolders,
       transactions: userTxns.map((t) => ({ ...t, txn_date: isoDate(t.txn_date) })),
       payments: userPayments,
-      cardPayments: userCardPayments,
+      // The date matters only for placing a card payment in a billing cycle on the card screen,
+      // but it has to arrive as an ISO string like every other date the engine sees.
+      cardPayments: userCardPayments.map((p) => ({ ...p, payment_date: isoDate(p.payment_date) })),
       assignments: userAssignments,
     };
   }

@@ -790,7 +790,13 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     .padding(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Edit Transaction", style = MaterialTheme.typography.titleMedium, color = OnDark)
+                // A bill_payment row here is a card payment — money sent to the bank, not a purchase.
+                val isBillPayment = txn.type == "bill_payment"
+                Text(
+                    if (isBillPayment) "Edit Bank Payment" else "Edit Transaction",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = OnDark,
+                )
 
                 OutlinedTextField(
                     value = editAmount,
@@ -812,7 +818,9 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 OutlinedTextField(
                     value = editMerchant,
                     onValueChange = { editMerchant = it },
-                    label = { Text("Merchant") },
+                    // The server stores this column as `notes` for a card payment; there is no
+                    // merchant when the payee is the bank.
+                    label = { Text(if (isBillPayment) "Notes" else "Merchant") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )

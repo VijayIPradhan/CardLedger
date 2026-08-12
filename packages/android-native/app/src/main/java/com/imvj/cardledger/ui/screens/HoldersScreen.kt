@@ -272,7 +272,12 @@ fun HoldersScreen(nav: NavHostController) {
     if (viewingHistory != null) {
         val friend = viewingHistory!!
         val cardMap = s.cards.associateBy { it.id }
-        val friendTxns = s.allTransactions.filter { it.holder_id_at_time == friend.id }.map { txn ->
+        // bill_payment rows are card payments — me forwarding money to a bank, not the friend
+        // paying me. Their holder_id only says whose spend was covered, so showing them here read
+        // as a collection that never happened. What the friend actually paid is in allPayments.
+        val friendTxns = s.allTransactions
+            .filter { it.holder_id_at_time == friend.id && it.type != "bill_payment" }
+            .map { txn ->
             val card = cardMap[txn.card_id]
             LedgerEntry(
                 id = txn.id,

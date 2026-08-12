@@ -98,10 +98,11 @@ export async function transactionRoutes(app: FastifyInstance) {
       };
     });
 
-    // Filter formattedPayments if holder_id was provided
-    const filteredPayments = holder_id
-      ? formattedPayments.filter((p) => p.holder_id_at_time === holder_id)
-      : formattedPayments;
+    // A card payment belongs to a card's history, never a holder's. Its holder_id only records
+    // whose spend the money was forwarded against — the holder did not pay the bank, they paid
+    // into my account, and that is what the `payments` table already records. Listing it under
+    // the friend read as a second collection from them. So a holder-scoped query returns none.
+    const filteredPayments = holder_id ? [] : formattedPayments;
 
     return [...formattedTxns, ...filteredPayments].sort((a, b) => {
       const dateA = new Date(a.txn_date).getTime();

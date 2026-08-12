@@ -272,6 +272,63 @@ describe('computeCardDetail', () => {
     expect(r.friendUsage).toBe(500);
   });
 
+  it('lists card payments alongside transactions so a client can open one', () => {
+    // The clients render whatever `cycles` names, and tapping a row is how the edit sheet opens.
+    // Leaving card payments out of the grouping made them invisible and so uneditable.
+    const r = computeCardDetail({
+      ...base,
+      holders: [ALICE],
+      transactions: [txn({ id: 't1', amount: 1000 })],
+      payments: [],
+      cardPayments: [
+        {
+          id: 'cp1',
+          card_id: 'cardA',
+          holder_id: 'alice',
+          amount: 400,
+          payment_date: '2026-06-12',
+        },
+      ],
+    });
+    expect(r.cycles[0].transactionIds).toEqual(['cp1', 't1']);
+    // A cycle's total is what was spent in it, not what was later paid off, and a card payment
+    // is nobody's unpaid row.
+    expect(r.cycles[0].total).toBe(1000);
+    expect(r.cycles[0].unpaidCount).toBe(1);
+  });
+
+  it('keeps a card payment for another card out of this one’s history', () => {
+    const r = computeCardDetail({
+      ...base,
+      holders: [ALICE],
+      transactions: [txn({ id: 't1', amount: 1000 })],
+      payments: [],
+      cardPayments: [
+        {
+          id: 'cp1',
+          card_id: 'cardB',
+          holder_id: 'alice',
+          amount: 400,
+          payment_date: '2026-06-12',
+        },
+      ],
+    });
+    expect(r.cycles.flatMap((c) => c.transactionIds)).toEqual(['t1']);
+  });
+
+  it('parks an undated card payment in the trailing bucket rather than dropping it', () => {
+    const r = computeCardDetail({
+      ...base,
+      holders: [ALICE],
+      transactions: [txn({ id: 't1', amount: 1000 })],
+      payments: [],
+      cardPayments: [{ id: 'cp1', card_id: 'cardA', holder_id: 'alice', amount: 400 }],
+    });
+    const trailing = r.cycles[r.cycles.length - 1];
+    expect(trailing.label).toBe('Earlier transactions');
+    expect(trailing.transactionIds).toEqual(['cp1']);
+  });
+
   it('resolves the current holder from the active assignment', () => {
     const r = computeCardDetail({
       ...base,
