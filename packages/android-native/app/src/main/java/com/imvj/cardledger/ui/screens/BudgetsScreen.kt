@@ -61,7 +61,7 @@ fun BudgetsScreen(nav: NavHostController, homeVm: HomeViewModel, budgetsVm: Budg
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(homeState.budgetProgress) { progress ->
+                    items(homeState.budgetProgress, key = { it.id }) { progress ->
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {

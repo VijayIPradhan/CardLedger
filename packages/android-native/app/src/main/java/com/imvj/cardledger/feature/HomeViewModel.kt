@@ -115,6 +115,10 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
 
             // Network refresh (always if forceRefresh, or if cache was stale/missing)
             try {
+                // Stamp the snapshot with when the fetch STARTED, not when it finished. A write
+                // that lands mid-flight must leave this snapshot looking stale, otherwise we'd
+                // persist pre-write data bearing a post-write timestamp and trust it.
+                val fetchStartedAtMs = System.currentTimeMillis()
                 val summaryD = async { c.dashboardRepo.getSummary() }
                 val cardsD = async { c.cardRepo.list() }
                 val holdersD = async { c.holderRepo.list() }
@@ -130,8 +134,10 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 val payments = paymentsD.await().getOrNull() ?: emptyList()
 
                 if (cards != null && holders != null && txns != null) {
-                    c.cacheStore.save(OfflineCache(cards, holders, assignments, txns, payments))
-                    lastNetworkFetchMs = System.currentTimeMillis()
+                    c.cacheStore.save(
+                        OfflineCache(cards, holders, assignments, txns, payments, fetchStartedAtMs)
+                    )
+                    lastNetworkFetchMs = fetchStartedAtMs
                     if (summary != null) {
                         applySummary(summary, cards, holders, assignments, txns, payments)
                     } else {
@@ -171,17 +177,11 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             unpaidAmount = summary.unpaidAmount,
             avgDailySpend = summary.avgDailySpend,
             spendByNetwork = summary.spendByNetwork,
-            toCollectByCard = cards.associate { card ->
-                val cid = card.id
-                val rawSum = summary.friendDebts.sumOf { debt ->
-                    if (debt.rawByCard.isNotEmpty() || summary.friendDebts.any { it.rawByCard.isNotEmpty() }) {
-                        debt.rawByCard[cid] ?: 0.0
-                    } else {
-                        debt.byCard[cid] ?: 0.0
-                    }
-                }
-                cid to rawSum
-            },
+            // Use the server's figure directly. It is net of both cash payments and card
+            // payments; summing rawByCard here instead would report GROSS unpaid spend, which
+            // never falls when a payment is recorded. Screens that want the gross number derive
+            // it from friendDebts[].rawByCard themselves (see HomeScreen's friendUsage).
+            toCollectByCard = summary.toCollectByCard,
             projections = summary.projections.map { p ->
                 CardProjection(
                     cardId = p.cardId,
@@ -229,6 +229,13 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         // mapping card_payments.holder_id → holder_id_at_time and .transaction_id →
         // linked_transaction_id. Every bill_payment POST is routed into card_payments, so a
         // bill_payment row here is always a card payment, never a real transaction.
+        // Index once up front. Without these, the friend loop re-scans the whole transaction
+        // list per friend, and each linked payment/card-payment costs another full scan — the
+        // section is O(friends × txns + linkedRecords × txns). Indexed, it is linear.
+        val txnById = txns.associateBy { it.id }
+        val txnsByHolder = txns.groupBy { it.holder_id_at_time }
+        val paymentsByHolder = payments.groupBy { it.holder_id }
+
         val friends = holders.filter { it.relationship == "friend" }
         var friendTotalSpend = 0.0 // Gross Spend less Card Payments, summed across all friends
         var friendTotalPaid = 0.0 // Global tracker for Cash Payments received
@@ -238,7 +245,8 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         val toCollectByCard = mutableMapOf<String, Double>()
         val friendDebts = mutableListOf<FriendDebtDto>()
         friends.forEach { friend ->
-            val friendTxns = txns.filter { it.holder_id_at_time == friend.id }
+            val friendTxns = txnsByHolder[friend.id].orEmpty()
+            val friendPayments = paymentsByHolder[friend.id].orEmpty()
             var expenses = 0.0
             val rawByCard = mutableMapOf<String, Double>()
             friendTxns.forEach { txn ->
@@ -261,12 +269,12 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 }
             }
             // Accumulate cash payments received from this friend
-            val paid = payments.filter { it.holder_id == friend.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            val paid = friendPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
 
             // Track cash payments explicitly linked to specific transactions.
             val paymentsByCard = mutableMapOf<String, Double>()
-            payments.filter { it.holder_id == friend.id && it.transaction_id != null }.forEach { p ->
-                val txn = txns.find { t -> t.id == p.transaction_id }
+            friendPayments.filter { it.transaction_id != null }.forEach { p ->
+                val txn = txnById[p.transaction_id]
                 // CRITICAL: Prevent double-dipping by only subtracting the payment if the linked transaction is NOT marked paid.
                 // If it is marked paid, it's already dropped from 'rawByCard', so subtracting the payment again would wipe out other debt.
                 if (txn != null && !txn.is_paid) {
@@ -286,7 +294,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
 
                 val linkedId = cp.linked_transaction_id
                 if (linkedId != null) {
-                    val txn = txns.find { t -> t.id == linkedId }
+                    val txn = txnById[linkedId]
                     // CRITICAL: Same double-dip guard as above. If the linked transaction is already
                     // marked paid it is gone from 'rawByCard', so don't subtract this card payment again.
                     if (txn != null && !txn.is_paid) {
@@ -351,8 +359,21 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         val todayDate = java.time.LocalDate.parse(today())
         val cutoff30 = todayDate.minusDays(30).toString()
         val cutoff60 = todayDate.minusDays(60).toString()
-        val monthlySpend = spendTxns.filter { it.txn_date >= cutoff30 }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-        val prevMonthSpend = spendTxns.filter { it.txn_date >= cutoff60 && it.txn_date < cutoff30 }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+
+        // Single pass instead of two full filter+sum traversals.
+        var monthlySpend = 0.0
+        var prevMonthSpend = 0.0
+        spendTxns.forEach { t ->
+            val amt = t.amount.toDoubleOrNull() ?: 0.0
+            if (t.txn_date >= cutoff30) monthlySpend += amt
+            else if (t.txn_date >= cutoff60) prevMonthSpend += amt
+        }
+
+        // txn_date is ISO yyyy-MM-dd, so grouping by the raw string is both correct and much
+        // cheaper than seven full scans (one per day) of the transaction list.
+        val spendAmountByDate = spendTxns
+            .groupingBy { it.txn_date }
+            .fold(0.0) { acc, t -> acc + (t.amount.toDoubleOrNull() ?: 0.0) }
 
         val dayNames = listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa")
         val dailySpend = (6 downTo 0).map { offset ->
@@ -361,7 +382,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             DailySpend(
                 date = dateStr,
                 dayLabel = dayNames[date.dayOfWeek.value % 7],
-                amount = spendTxns.filter { it.txn_date == dateStr }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
+                amount = spendAmountByDate[dateStr] ?: 0.0,
                 isToday = offset == 0,
             )
         }
@@ -376,10 +397,12 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             .mapValues { (_, entries) -> entries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } }
             .filter { it.value > 0 }
 
+        val spendTxnsByMerchant = spendTxns.groupBy { it.merchant }
+
         val recurringMerchants = mutableListOf<RecurringBill>()
-        spendTxns.groupBy { it.merchant }.forEach { (merchant, txns) ->
-            if (txns.size >= 2) {
-                val sorted = txns.sortedByDescending { it.txn_date }
+        spendTxnsByMerchant.forEach { (merchant, merchantTxns) ->
+            if (merchantTxns.size >= 2) {
+                val sorted = merchantTxns.sortedByDescending { it.txn_date }
                 val latest = sorted[0]
                 val previous = sorted[1]
                 val d1 = java.time.LocalDate.parse(latest.txn_date)
@@ -397,32 +420,39 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             }
         }
 
+        // Attribute each recurring bill to the card its most recent transaction landed on, once
+        // for all cards. Doing this inside the per-card loop below meant a full transaction scan
+        // for every (card, recurring merchant) pair.
+        val recurringByCardId = recurringMerchants.groupBy { rb ->
+            spendTxnsByMerchant[rb.merchant]?.maxByOrNull { it.txn_date }?.card_id
+        }
+        val spendTxnsByCardId = spendTxns.groupBy { it.card_id }
+        val todayStr = todayDate.toString()
+
         val projections = cards.map { card ->
             var start = todayDate.withDayOfMonth(card.billing_cycle_day.coerceIn(1, 28))
             if (start.isAfter(todayDate)) {
                 start = start.minusMonths(1)
             }
             val end = start.plusMonths(1).minusDays(1)
-            
-            val cardTxns = spendTxns.filter { it.card_id == card.id }
-            val unbilledTxns = cardTxns.filter { 
-                val d = java.time.LocalDate.parse(it.txn_date)
-                !d.isBefore(start) && !d.isAfter(end)
-            }
-            val currentUnbilled = unbilledTxns.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-            
-            val cardRecurringMerchants = recurringMerchants.filter { rb ->
-                val latestTxn = spendTxns.filter { it.merchant == rb.merchant }.maxByOrNull { it.txn_date }
-                latestTxn?.card_id == card.id
+            // Compare ISO yyyy-MM-dd strings rather than re-parsing every date into a LocalDate
+            // per card. Lexicographic order matches chronological order for this format, and it
+            // is what the server does (summary.ts).
+            val startStr = start.toString()
+            val endStr = end.toString()
+
+            // Only unpaid spend counts as unbilled — matches summary.ts, which filters is_paid
+            // here. Omitting it inflated the offline projection by everything already settled.
+            val currentUnbilled = spendTxnsByCardId[card.id].orEmpty()
+                .filter { !it.is_paid && it.txn_date >= startStr && it.txn_date <= endStr }
+                .sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+
+            val upcoming = recurringByCardId[card.id].orEmpty().filter { rb ->
+                rb.expectedDate >= startStr && rb.expectedDate <= endStr && rb.expectedDate >= todayStr
             }
 
-            val upcoming = cardRecurringMerchants.filter { rb ->
-                val exp = java.time.LocalDate.parse(rb.expectedDate)
-                (!exp.isBefore(start) && !exp.isAfter(end)) && !exp.isBefore(todayDate)
-            }
-            
             val projectedUpcoming = upcoming.sumOf { it.amount }
-            
+
             CardProjection(
                 cardId = card.id,
                 currentCycleStart = start.toString(),

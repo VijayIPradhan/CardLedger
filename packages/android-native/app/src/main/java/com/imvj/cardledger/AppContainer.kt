@@ -32,7 +32,10 @@ class AppContainer(context: Context) {
         initialValue = null,
     )
 
-    val api: ApiService = NetworkModule.create { tokenState.value }
+    val api: ApiService = NetworkModule.create(
+        tokenProvider = { tokenState.value },
+        onMutation = cacheStore::invalidate,
+    )
 
     val authRepo = AuthRepository(api)
     val cardRepo = CardRepository(api)

@@ -282,7 +282,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.shieldTabContent(s: H
         CardHeadroomInfo(card, spend, limit, pct, max30, headroom30, headroom50)
     }.sortedByDescending { it.pct }
 
-    items(sortedCards) { info ->
+    items(sortedCards, key = { it.card.id }) { info ->
         val barColor = when {
             info.pct < 30 -> Success
             info.pct <= 50 -> Warning
@@ -442,7 +442,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recommenderTabContent
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                 )
             }
-            items(cardRecommendations.drop(1)) { rec ->
+            items(cardRecommendations.drop(1), key = { it.card.id }) { rec ->
                 Surface(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     shape = RoundedCornerShape(12.dp),
@@ -476,8 +476,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recommenderTabContent
             )
         }
 
-        items(s.projections) { proj ->
-            val card = s.cards.firstOrNull { it.id == proj.cardId }
+        // Indexed once rather than a firstOrNull() scan per row.
+        val cardById = s.cards.associateBy { it.id }
+
+        items(s.projections, key = { it.cardId }) { proj ->
+            val card = cardById[proj.cardId]
             if (card != null) {
                 Surface(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -605,7 +608,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rewardsTabContent(s: 
         Triple("⛽ Fuel & Petrol", "BPCL SBI / IndianOil", "4.2%")
     )
 
-    items(categories.chunked(2)) { pair ->
+    items(categories.chunked(2), key = { it.first().first }) { pair ->
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             pair.forEach { (cat, best, yield) ->
                 Surface(
@@ -732,7 +735,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
             }
         }
     } else {
-        items(friendDebtList) { item ->
+        items(friendDebtList, key = { it.holderId }) { item ->
             val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
             val context = androidx.compose.ui.platform.LocalContext.current
             Surface(
@@ -803,7 +806,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.recoveryTabContent(s:
             }
         }
     } else {
-        items(cardsWithDebt) { (card, amt) ->
+        items(cardsWithDebt, key = { it.first.id }) { (card, amt) ->
             Surface(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 shape = RoundedCornerShape(12.dp),
