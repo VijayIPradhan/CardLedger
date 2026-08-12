@@ -196,6 +196,32 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
   const cardTxns = transactions.filter((t) => t.card_id === cardId);
   const cardTxnIds = new Set(cardTxns.map((t) => t.id));
 
+  /**
+   * What the history list renders: this card's transactions plus its card payments.
+   *
+   * Card payments live in their own table but the clients receive them from /transactions as
+   * `bill_payment` rows, and they render whatever `cycles` names. Leaving them out of the
+   * grouping therefore dropped every card payment off the card screen — which also made them
+   * uneditable, since tapping the row is how the edit sheet opens.
+   *
+   * They are typed `bill_payment` rather than `spend`, so `cycleTotal` and `unpaidCount` ignore
+   * them: a cycle's total is what was spent in it, not what was later paid off.
+   */
+  const cycleRows: CycleTransaction[] = [
+    ...cardTxns,
+    ...cardPayments
+      .filter((p) => p.card_id === cardId && p.id)
+      .map((p) => ({
+        id: p.id as string,
+        // An undated row would be unplaceable; it lands in the trailing bucket rather than
+        // vanishing, on the same principle as a transaction older than the walk-back limit.
+        txn_date: p.payment_date ?? '',
+        type: 'bill_payment',
+        is_paid: true,
+        amount: p.amount,
+      })),
+  ];
+
   // Run the full-user computation, then read this card's slice out of it. Restricting the
   // input to one card would break the cross-card payment and overshoot rules.
   const debts = computeFriendDebts({ holders, transactions, payments, cardPayments });
@@ -267,7 +293,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     friendUsage,
     friendCycleUsage: roundMoney(friendCycleUsage),
     friendBreakdown,
-    cycles: buildCycleGroups(billingCycleDay, cardTxns, today),
+    cycles: buildCycleGroups(billingCycleDay, cycleRows, today),
     currentHolderId,
     collectedByTransaction,
   };

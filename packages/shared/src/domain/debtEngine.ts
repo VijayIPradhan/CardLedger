@@ -58,11 +58,15 @@ export interface DebtPayment {
 }
 
 export interface DebtCardPayment {
+  /** The row's own id. Needed so a card payment can be listed and edited, not for the math. */
+  id?: string;
   card_id: string;
   holder_id: string;
   /** Present in the table but not used here: the card is what a card payment settles. */
   transaction_id?: string | null;
   amount: number | string;
+  /** ISO date. Debt is date-independent; this only places the row in a billing cycle. */
+  payment_date?: string;
 }
 
 export interface FriendDebt {
