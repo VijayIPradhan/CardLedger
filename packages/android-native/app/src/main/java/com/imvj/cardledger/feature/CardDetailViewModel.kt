@@ -5,13 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.imvj.cardledger.AppContainer
 import com.imvj.cardledger.data.net.*
 import com.imvj.cardledger.data.repo.isConflict
-import com.imvj.cardledger.domain.getCycleRange
 import com.imvj.cardledger.domain.today
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -34,7 +32,8 @@ data class CardDetailUiState(
     val collectedInHand: Double = 0.0,
     val friendBreakdown: List<FriendCollectable> = emptyList(),
     val isMarkedCollected: Boolean = false,
-    val payments: List<PaymentDto> = emptyList(),
+    /** Cash received per transaction id, straight from the server. */
+    val collectedByTransaction: Map<String, Double> = emptyMap(),
     val error: String? = null,
 )
 
@@ -49,105 +48,66 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val holdersD = async { c.holderRepo.list().getOrElse { emptyList() } }
             val assignmentsD = async { c.assignmentRepo.list(id).getOrElse { emptyList() } }
             val txnsD = async { c.transactionRepo.list(cardId = id).getOrElse { emptyList() } }
-            val summaryD = async { c.dashboardRepo.getSummary() }
-            val allPaymentsD = async { c.paymentRepo.list().getOrElse { emptyList() } }
+            val detailD = async { c.dashboardRepo.getCardDetail(id).getOrNull() }
 
             val card = cardD.await()
             val holders = holdersD.await()
             val assignments = assignmentsD.await()
             val txns = txnsD.await()
-            val allPayments = allPaymentsD.await()
-            val cycles = if (card != null) buildCycles(card.billing_cycle_day, txns) else emptyList()
+            val detail = detailD.await()
 
-            val summaryRes = summaryD.await()
-            val summary = summaryRes.getOrNull()
-
-            val total = if (summary != null && card != null && summary.spendByCard.containsKey(card.id)) {
-                summary.spendByCard[card.id] ?: 0.0
-            } else {
-                card?.current_spend?.toDoubleOrNull() ?: 0.0
-            }
-            
             val isMarkedCollected = c.prefsStore.getCollectedCards().contains(id)
-            var cardToCollect = 0.0
-            var cardCollectedInHand = 0.0
-            val friendBreakdown = mutableListOf<FriendCollectable>()
-            if (summary != null) {
-                cardToCollect = summary.friendDebts.sumOf { debt ->
-                    debt.byCard[id] ?: 0.0
-                }
-                summary.friendDebts.forEach { debt ->
-                    val netAmt = debt.byCard[id] ?: 0.0
-                    
-                    val inHand = allPayments.filter { p -> 
-                        p.holder_id == debt.holderId && 
-                        txns.any { t -> t.id == p.transaction_id }
-                    }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    
-                    var trueUsage = 0.0
-                    txns.filter { it.holder_id_at_time == debt.holderId }.forEach { t ->
-                        val amt = t.amount.toDoubleOrNull() ?: 0.0
-                        if (t.type == "spend") trueUsage += amt
-                        else if (t.type == "refund") trueUsage -= amt
-                    }
-
-                    if (netAmt > 0.0 || inHand > 0.0) {
-                        friendBreakdown.add(FriendCollectable(debt.holderId, debt.holderName, netAmt, inHand, trueUsage))
-                        cardCollectedInHand += inHand
-                    }
-                }
-            }
-
+            // The card screen's "marked collected" flag is a local display override kept in
+            // DataStore, so it is applied on top of the server figures rather than sent up.
+            var cardToCollect = detail?.toCollect ?: 0.0
+            var cardCollectedInHand = detail?.collectedInHand ?: 0.0
             if (isMarkedCollected) {
                 cardCollectedInHand = maxOf(cardCollectedInHand, cardToCollect)
                 cardToCollect = 0.0
             }
 
-            val active = assignments.firstOrNull { it.returned_date == null }
-            val current = active?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
+            val current = detail?.currentHolderId?.let { hid -> holders.firstOrNull { it.id == hid } }
+                ?: assignments.firstOrNull { it.returned_date == null }
+                    ?.let { a -> holders.firstOrNull { it.id == a.holder_id } }
                 ?: holders.firstOrNull { it.relationship == "me" }
+
             _state.value = CardDetailUiState(
                 loading = false,
                 card = card,
                 holders = holders,
                 assignments = assignments,
                 transactions = txns,
-                cycles = cycles,
-                totalSpend = total,
+                cycles = toCycleGroups(detail, txns),
+                totalSpend = detail?.currentSpend ?: card?.current_spend?.toDoubleOrNull() ?: 0.0,
                 currentHolder = current,
                 toCollect = cardToCollect,
                 collectedInHand = cardCollectedInHand,
-                friendBreakdown = friendBreakdown,
+                friendBreakdown = detail?.friendBreakdown.orEmpty().map { fb ->
+                    FriendCollectable(fb.holderId, fb.holderName, fb.owed, fb.collectedInHand, fb.usage)
+                },
                 isMarkedCollected = isMarkedCollected,
-                payments = allPayments,
+                collectedByTransaction = detail?.collectedByTransaction.orEmpty(),
                 error = null
             )
         }
     }
 
-    private fun buildCycles(cycleDay: Int, txns: List<TransactionDto>): List<CycleGroup> {
-        val out = mutableListOf<CycleGroup>()
-        val oldestDate = txns.minOfOrNull { it.txn_date } ?: LocalDate.now().toString()
-        var offset = 0L
-        val maxOffsetBack = -36L
-        val assignedTxnIds = mutableSetOf<String>()
-
-        while (offset >= maxOffsetBack) {
-            val ref = LocalDate.now().plusMonths(offset).toString()
-            val r = getCycleRange(cycleDay, ref)
-            val inCycle = txns.filter { it.txn_date >= r.start && it.txn_date <= r.end }
-            if (inCycle.isNotEmpty()) {
-                out.add(CycleGroup("${r.start} – ${r.end}", inCycle.sortedByDescending { it.txn_date }))
-                inCycle.forEach { assignedTxnIds.add(it.id) }
-            }
-            if (r.start < oldestDate && assignedTxnIds.size == txns.size) break
-            offset--
+    /**
+     * Hydrates the server's billing-cycle grouping, which arrives as transaction ids.
+     *
+     * If the detail call failed there is nothing to group by — rather than rebuild the cycle
+     * boundaries locally (the drift this refactor removed), fall back to one flat list so the
+     * transactions still render.
+     */
+    private fun toCycleGroups(detail: CardDetailDto?, txns: List<TransactionDto>): List<CycleGroup> {
+        if (detail == null) {
+            return if (txns.isEmpty()) emptyList()
+            else listOf(CycleGroup("All transactions", txns.sortedByDescending { it.txn_date }))
         }
-        val remaining = txns.filter { !assignedTxnIds.contains(it.id) }
-        if (remaining.isNotEmpty()) {
-            out.add(CycleGroup("Earlier Transactions", remaining.sortedByDescending { it.txn_date }))
-        }
-        return out
+        val byId = txns.associateBy { it.id }
+        return detail.cycles
+            .map { cycle -> CycleGroup(cycle.label, cycle.transactionIds.mapNotNull { byId[it] }) }
+            .filter { it.txns.isNotEmpty() }
     }
 
     fun deleteCard(onDone: () -> Unit) {
@@ -195,9 +155,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 )
             ).onSuccess {
                 // Determine if fully paid now
-                val totalCollectedSoFar = _state.value.payments
-                    .filter { it.transaction_id == txn.id }
-                    .sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                val totalCollectedSoFar = _state.value.collectedByTransaction[txn.id] ?: 0.0
                 val txnAmount = txn.amount.toDoubleOrNull() ?: 0.0
                 if (totalCollectedSoFar + amount >= txnAmount && !txn.is_paid) {
                     c.transactionRepo.update(txn.id, UpdateTransactionDto(is_paid = true))

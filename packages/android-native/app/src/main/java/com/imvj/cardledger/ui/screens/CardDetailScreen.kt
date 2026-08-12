@@ -679,7 +679,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                     }
                                                     val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
                                                     if (txn.holder_id_at_time != meId && txn.type == "spend") {
-                                                        val isCollected = s.payments.any { it.transaction_id == txn.id }
+                                                        val isCollected = (s.collectedByTransaction[txn.id] ?: 0.0) > 0.0
                                                         if (!isCollected) {
                                                             Surface(
                                                                 color = Gold.copy(alpha = 0.15f),
@@ -695,7 +695,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                 }
                                                             }
                                                         } else {
-                                                            val totalCollected = s.payments.filter { it.transaction_id == txn.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                                            val totalCollected = s.collectedByTransaction[txn.id] ?: 0.0
                                                             val remaining = (txn.amount.toDoubleOrNull() ?: 0.0) - totalCollected
                                                             if (remaining > 0) {
                                                                 Surface(
@@ -1158,7 +1158,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
 
         showCollectSheet?.let { txn ->
             var amountStr by remember { mutableStateOf("") }
-            val totalCollected = s.payments.filter { it.transaction_id == txn.id }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+            val totalCollected = s.collectedByTransaction[txn.id] ?: 0.0
             val remaining = maxOf(0.0, (txn.amount.toDoubleOrNull() ?: 0.0) - totalCollected)
             LaunchedEffect(txn) { amountStr = if (remaining > 0) remaining.toString() else "" }
 

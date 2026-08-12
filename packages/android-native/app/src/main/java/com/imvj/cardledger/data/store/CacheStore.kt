@@ -8,6 +8,16 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
+/**
+ * The last dashboard the server sent us, kept verbatim.
+ *
+ * [summary] holds every money figure. The app no longer derives spend, debt or utilisation
+ * locally, so an offline launch replays the server's last answer rather than recomputing one
+ * that could disagree with it. A snapshot without a summary is unusable and treated as a miss.
+ *
+ * The raw rows are here purely to render lists and resolve names — the recent-activity feed,
+ * card tiles and holder labels — never to do arithmetic on.
+ */
 @Serializable
 data class OfflineCache(
     val cards: List<CardDto>,
@@ -15,6 +25,7 @@ data class OfflineCache(
     val assignments: List<AssignmentDto>,
     val transactions: List<TransactionDto>,
     val payments: List<PaymentDto>,
+    val summary: DashboardSummaryDto? = null,
     val savedAtMillis: Long = System.currentTimeMillis(),
 )
 

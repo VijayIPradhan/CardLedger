@@ -152,7 +152,8 @@ describe('computeCardDetail', () => {
     ]);
   });
 
-  it('drops to zero to-collect once a card payment settles the card', () => {
+  it('leaves to-collect alone when a card payment settles the bank', () => {
+    // Paying the bill does not collect from Alice — only a payments row does that.
     const r = computeCardDetail({
       ...base,
       holders: [ALICE],
@@ -160,8 +161,8 @@ describe('computeCardDetail', () => {
       payments: [],
       cardPayments: [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
     });
-    expect(r.toCollect).toBe(0);
-    expect(r.friendBreakdown).toEqual([]);
+    expect(r.toCollect).toBe(1000);
+    expect(r.friendBreakdown[0]).toMatchObject({ owed: 1000, collectedInHand: 0 });
   });
 
   it('surfaces cash collected against this card per friend and per transaction', () => {
@@ -206,15 +207,12 @@ describe('computeCardDetail', () => {
     expect(r.friendBreakdown[0]).toMatchObject({ owed: 0, collectedInHand: 1000 });
   });
 
-  it('keeps usage gross while owed reflects only unpaid spend', () => {
+  it('keeps usage gross while owed reflects only what is still uncollected', () => {
     const r = computeCardDetail({
       ...base,
       holders: [ALICE],
-      transactions: [
-        txn({ id: 't1', amount: 1000, is_paid: true }),
-        txn({ id: 't2', amount: 300 }),
-      ],
-      payments: [],
+      transactions: [txn({ id: 't1', amount: 1000 }), txn({ id: 't2', amount: 300 })],
+      payments: [{ holder_id: 'alice', transaction_id: 't1', amount: 1000 }],
       cardPayments: [],
     });
     expect(r.friendBreakdown[0]).toMatchObject({ owed: 300, usage: 1300 });
@@ -287,14 +285,14 @@ describe('computeHolderDetails', () => {
     });
   });
 
-  it('breaks down gross and unpaid amounts per card, biggest usage first', () => {
+  it('breaks down gross and collectable amounts per card, biggest usage first', () => {
     const rows = computeHolderDetails({
       holders: [ALICE],
       transactions: [
         txn({ id: 't1', card_id: 'cardA', amount: 300 }),
-        txn({ id: 't2', card_id: 'cardB', amount: 800, is_paid: true }),
+        txn({ id: 't2', card_id: 'cardB', amount: 800 }),
       ],
-      payments: [],
+      payments: [{ holder_id: 'alice', transaction_id: 't2', amount: 800 }],
       cardPayments: [],
     });
     expect(rows[0].byCard).toEqual([
@@ -329,15 +327,15 @@ describe('computeHolderDetails', () => {
     expect(rows[0].byCard).toEqual([{ cardId: 'cardA', unpaidAmount: 500, grossAmount: 500 }]);
   });
 
-  it('agrees with the summary card payment regression case', () => {
+  it('ignores card payments, which settle the bank rather than the friend', () => {
     const rows = computeHolderDetails({
       holders: [ALICE],
       transactions: [txn({ id: 't1', amount: 1000 })],
       payments: [],
       cardPayments: [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
     });
-    expect(rows[0].outstanding).toBe(0);
-    expect(rows[0].byCard).toEqual([{ cardId: 'cardA', unpaidAmount: 0, grossAmount: 1000 }]);
+    expect(rows[0].outstanding).toBe(1000);
+    expect(rows[0].byCard).toEqual([{ cardId: 'cardA', unpaidAmount: 1000, grossAmount: 1000 }]);
   });
 
   it('returns an empty list when there are no friends', () => {

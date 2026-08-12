@@ -12,12 +12,25 @@
  * the rules that were previously only encoded in comments.
  *
  * ── Vocabulary ────────────────────────────────────────────────────────────────
- * Gross Spend     all `spend` rows less `refund` rows, regardless of is_paid
- * Unpaid Spend    the subset with is_paid = false — the only thing that can be "to collect"
- * Cash Payment    a `payments` row: physical cash a friend handed over
- * Card Payment    a `card_payments` row: money paid straight to the bank for a friend
- * To Collect      unpaid spend less linked cash and card payments, floored at zero
- * Advance In Hand cash received that has not yet been used to settle a txn or pay a bank
+ * Gross Spend     all `spend` rows less `refund` rows
+ * Cash Payment    a `payments` row: money a friend actually handed over / transferred
+ * Card Payment    a `card_payments` row: you forwarding collected cash to the bank
+ * To Collect      gross spend less cash payments, floored at zero
+ * Advance In Hand cash received from friends that has not been forwarded to a bank yet
+ *
+ * ── Why card payments and is_paid do NOT reduce debt ──────────────────────────
+ * Friends never pay the bank. They transfer money to you (a `payments` row) and you pay the
+ * bill yourself (a `card_payments` row). So a card payment is you *spending cash you already
+ * collected* — the `payments` row already cleared the debt, and subtracting the card payment
+ * as well double-counted it. Worse, the resulting negative balance was clawed back off other
+ * friends' debt on the same card via the overshoot rule below.
+ *
+ * `is_paid` means "this transaction's bill has been paid to the bank". It says nothing about
+ * whether the friend settled with you, so it must not remove their debt either. Marking a
+ * friend's spend as paid used to erase what they owed with no `payments` row in sight.
+ *
+ * Both therefore feed only the bank-facing figures (a card's balance, Advance In Hand) and
+ * never the friend-facing ones.
  */
 
 export interface DebtHolder {
@@ -46,6 +59,7 @@ export interface DebtPayment {
 export interface DebtCardPayment {
   card_id: string;
   holder_id: string;
+  /** Present in the table but not used here — a card payment never targets friend debt. */
   transaction_id?: string | null;
   amount: number | string;
 }
@@ -54,14 +68,21 @@ export interface FriendDebt {
   holderId: string;
   holderName: string;
   phone: string;
-  /** Gross spend less refunds less card payments made on this friend's behalf. */
+  /** Gross spend less refunds. Not reduced by card payments or by is_paid. */
   totalSpend: number;
-  /** Cash payments received from this friend. */
+  /** Cash payments received from this friend, linked or not. */
   totalPaid: number;
+  /** totalSpend less totalPaid, floored at zero. Counts unlinked cash too. */
   remainingToPay: number;
-  /** Per-card debt after applying linked cash and card payments, floored at zero. */
+  /**
+   * Per-card debt after applying cash linked to a transaction on that card, floored at zero.
+   *
+   * Unlinked cash is deliberately absent: a lump-sum transfer is not attributable to a card,
+   * so it lowers `remainingToPay` only. Summing `byCard` therefore does NOT reproduce
+   * `remainingToPay` when a friend has paid unlinked cash — that is by design.
+   */
   byCard: Record<string, number>;
-  /** Per-card UNPAID spend before any payment is applied. The gross figure. */
+  /** Per-card gross spend before any cash is applied. */
   rawByCard: Record<string, number>;
 }
 
@@ -112,11 +133,9 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
 
   const friends = holders.filter((h) => h.relationship === 'friend');
 
-  let friendTotalSpend = 0; // gross spend less card payments, across all friends
+  let friendTotalSpend = 0; // gross spend less refunds, across all friends
   let friendTotalPaid = 0; // cash received, across all friends
-  let friendTotalCardPayments = 0; // paid straight to banks on friends' behalf
-  let friendTotalGrossSpend = 0; // needed to derive paid-spend for the advance calc
-  let friendTotalUnpaidSpend = 0;
+  let friendTotalCardPayments = 0; // collected cash forwarded to banks
 
   const toCollectByCard: Record<string, number> = {};
   const friendDebts: FriendDebt[] = [];
@@ -130,23 +149,12 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     let expenses = 0;
 
     for (const txn of friendTxns) {
-      const amt = money(txn.amount);
-      const cId = txn.card_id;
-      if (txn.type === 'refund') {
-        expenses -= amt;
-        friendTotalGrossSpend -= amt;
-        if (!txn.is_paid && amt > 0) {
-          rawByCard[cId] = roundMoney((rawByCard[cId] || 0) - amt);
-          friendTotalUnpaidSpend -= amt;
-        }
-      } else if (txn.type === 'spend') {
-        expenses += amt;
-        friendTotalGrossSpend += amt;
-        if (!txn.is_paid && amt > 0) {
-          rawByCard[cId] = roundMoney((rawByCard[cId] || 0) + amt);
-          friendTotalUnpaidSpend += amt;
-        }
-      }
+      if (txn.type !== 'spend' && txn.type !== 'refund') continue;
+      // is_paid is not consulted: it records that the bank was paid, not that the friend
+      // settled with you.
+      const delta = txn.type === 'refund' ? -money(txn.amount) : money(txn.amount);
+      expenses += delta;
+      rawByCard[txn.card_id] = roundMoney((rawByCard[txn.card_id] || 0) + delta);
     }
 
     // Cash received from this friend. Unlinked cash reduces their overall balance but is not
@@ -157,43 +165,24 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     for (const p of friendPayments) {
       if (!p.transaction_id) continue;
       const txn = txnById.get(p.transaction_id);
-      // Only count it if the linked txn is still unpaid. A paid txn was never added to
-      // rawByCard, so subtracting its payment here would double-dip and wipe out unrelated
-      // debt on the same card.
-      if (txn && !txn.is_paid) {
+      if (txn) {
         paymentsByCard[txn.card_id] = (paymentsByCard[txn.card_id] || 0) + money(p.amount);
       }
     }
 
-    const cardPaymentsByCard: Record<string, number> = {};
-    for (const cp of friendCardPayments) {
-      const amt = money(cp.amount);
-      // Always reduces the friend's overall balance: the money did reach the bank.
-      expenses -= amt;
-      friendTotalCardPayments += amt;
-
-      if (cp.transaction_id) {
-        const txn = txnById.get(cp.transaction_id);
-        // Same double-dip guard as cash above.
-        if (txn && !txn.is_paid) {
-          cardPaymentsByCard[cp.card_id] = (cardPaymentsByCard[cp.card_id] || 0) + amt;
-        }
-      } else {
-        // Unlinked card payments apply to the card they were made against.
-        cardPaymentsByCard[cp.card_id] = (cardPaymentsByCard[cp.card_id] || 0) + amt;
-      }
-    }
+    // Tracked for Advance In Hand only — see the header note on why this cannot touch debt.
+    friendTotalCardPayments += friendCardPayments.reduce((sum, cp) => sum + money(cp.amount), 0);
 
     friendTotalSpend += expenses;
     friendTotalPaid += paid;
-    const remainingToPay = Math.max(0, expenses - paid);
+    const remainingToPay = Math.max(0, roundMoney(expenses - paid));
 
     const byCard: Record<string, number> = {};
     for (const [cId, amt] of Object.entries(rawByCard)) {
-      const adjustedAmt = amt - (cardPaymentsByCard[cId] || 0) - (paymentsByCard[cId] || 0);
+      const adjustedAmt = amt - (paymentsByCard[cId] || 0);
       if (adjustedAmt <= 0) {
         byCard[cId] = 0;
-        // Overshoot (refunds or payments exceeding this friend's spend on the card) is real
+        // Overshoot (refunds or cash exceeding this friend's spend on the card) is real
         // credit; drop it on the floor and the card's total stays too high forever.
         if (adjustedAmt < 0 && toCollectByCard[cId]) {
           toCollectByCard[cId] = Math.max(0, roundMoney(toCollectByCard[cId] + adjustedAmt));
@@ -208,8 +197,8 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
       holderId: friend.id,
       holderName: friend.name,
       phone: friend.phone ?? '',
-      totalSpend: expenses,
-      totalPaid: paid,
+      totalSpend: roundMoney(expenses),
+      totalPaid: roundMoney(paid),
       remainingToPay,
       byCard,
       rawByCard,
@@ -218,13 +207,13 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
 
   friendDebts.sort((a, b) => b.remainingToPay - a.remainingToPay);
 
-  const totalToCollect = Object.values(toCollectByCard).reduce((a, b) => a + b, 0);
-  const friendRemainingToPay = Math.max(0, friendTotalSpend - friendTotalPaid);
+  const totalToCollect = roundMoney(Object.values(toCollectByCard).reduce((a, b) => a + b, 0));
+  const friendRemainingToPay = Math.max(0, roundMoney(friendTotalSpend - friendTotalPaid));
 
-  // Cash we are holding that has not been spent yet. Transactions marked paid consumed some
-  // of it, and card payments consumed some of it; whatever is left is an advance.
-  const paidSpend = friendTotalGrossSpend - friendTotalUnpaidSpend;
-  const friendAdvanceInHand = Math.max(0, friendTotalPaid - paidSpend - friendTotalCardPayments);
+  // "Collected (Not Settled)": cash friends have transferred to you that you have not yet
+  // forwarded to a bank. Only card payments consume it — marking a transaction is_paid records
+  // that the bank was paid, which says nothing about where the money came from.
+  const friendAdvanceInHand = Math.max(0, roundMoney(friendTotalPaid - friendTotalCardPayments));
 
   return {
     friendDebts,

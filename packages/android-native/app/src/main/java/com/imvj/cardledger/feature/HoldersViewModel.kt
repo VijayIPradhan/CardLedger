@@ -37,56 +37,18 @@ class HoldersViewModel(private val c: AppContainer) : ViewModel() {
             val payments = c.paymentRepo.list().getOrElse { emptyList() }
             val cardMap = cards.associateBy { it.id }
 
-            val summaryRes = c.dashboardRepo.getSummary()
-            val friends = if (summaryRes.isSuccess && summaryRes.getOrNull() != null) {
-                val summary = summaryRes.getOrNull()!!
-                val debtMap = summary.friendDebts.associateBy { it.holderId }
-                holders.filter { it.relationship == "friend" }.map { h ->
-                    val debt = debtMap[h.id]
-                    val total = debt?.totalSpend ?: 0.0
-                    val outstanding = debt?.remainingToPay ?: 0.0
-                    val byCard = (debt?.rawByCard ?: debt?.byCard)?.entries?.mapNotNull { (cid, amt) ->
-                        cardMap[cid]?.let { card -> card to amt }
-                    } ?: emptyList()
-                    FriendRow(h, total, outstanding, byCard)
+            // Every balance here is computed server-side. The list is keyed off the server's
+            // rows rather than the holders list so a friend can never be shown with figures
+            // this client guessed at.
+            val details = c.dashboardRepo.getHolderDetails().getOrElse { emptyList() }
+            val holderMap = holders.associateBy { it.id }
+            val friends = details.map { d ->
+                val holder = holderMap[d.holderId]
+                    ?: HolderDto(d.holderId, d.holderName, d.phone, d.relationship)
+                val byCard = d.byCard.mapNotNull { b ->
+                    cardMap[b.cardId]?.let { card -> card to b.grossAmount }
                 }
-            } else {
-                holders.filter { it.relationship == "friend" }.map { h ->
-                    val mine = txns.filter { it.holder_id_at_time == h.id }
-                    val myPayments = payments.filter { it.holder_id == h.id }
-                    var total = 0.0
-                    val rawByCardMap = mutableMapOf<String, Double>()
-                    val totalSpendByCardMap = mutableMapOf<String, Double>()
-                    mine.forEach { t ->
-                        val a = t.amount.toDoubleOrNull() ?: 0.0
-                        if (t.type != "spend") {
-                            total -= a
-                            totalSpendByCardMap[t.card_id] = kotlin.math.round(((totalSpendByCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
-                            if (!t.is_paid && a > 0) {
-                                rawByCardMap[t.card_id] = kotlin.math.round(((rawByCardMap[t.card_id] ?: 0.0) - a) * 100.0) / 100.0
-                            }
-                        } else {
-                            total += a
-                            totalSpendByCardMap[t.card_id] = kotlin.math.round(((totalSpendByCardMap[t.card_id] ?: 0.0) + a) * 100.0) / 100.0
-                            if (!t.is_paid && a > 0) {
-                                rawByCardMap[t.card_id] = kotlin.math.round(((rawByCardMap[t.card_id] ?: 0.0) + a) * 100.0) / 100.0
-                            }
-                        }
-                    }
-                    val totalPaid = myPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                    val outstanding = maxOf(0.0, total - totalPaid)
-                    val totalRawUnpaid = rawByCardMap.values.sumOf { maxOf(0.0, it) }
-                    val totalFriendCardSpend = totalSpendByCardMap.values.sumOf { maxOf(0.0, it) }
-                    val baseCards = rawByCardMap
-
-                    val byCardList = baseCards.mapNotNull { (cid, amt) ->
-                        val card = cardMap[cid]
-                        if (card != null && amt > 0.0) {
-                            card to amt
-                        } else null
-                    }
-                    FriendRow(h, total, outstanding, byCardList)
-                }
+                FriendRow(holder, d.totalSpend, d.outstanding, byCard)
             }
             _state.value = HoldersUiState(false, friends, txns, payments, cards)
         }

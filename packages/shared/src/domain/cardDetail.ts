@@ -137,11 +137,11 @@ function cycleTotal(txns: CycleTransaction[]): number {
 export interface CardFriendBreakdown {
   holderId: string;
   holderName: string;
-  /** Still collectable on this card: unpaid spend less linked payments. */
+  /** Still collectable on this card: gross spend less cash linked to it. */
   owed: number;
   /** Cash already received from this friend against transactions on this card. */
   collectedInHand: number;
-  /** Gross usage of this card by this friend, paid or not. */
+  /** Gross usage of this card by this friend, net of refunds. */
   usage: number;
 }
 
@@ -188,17 +188,6 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     }
   }
 
-  const grossUsageByHolder = new Map<string, number>();
-  for (const t of cardTxns) {
-    const amt = money(t.amount);
-    if (t.type !== 'spend' && t.type !== 'refund') continue;
-    const delta = t.type === 'refund' ? -amt : amt;
-    grossUsageByHolder.set(
-      t.holder_id_at_time,
-      (grossUsageByHolder.get(t.holder_id_at_time) || 0) + delta,
-    );
-  }
-
   const inHandByHolder = new Map<string, number>();
   for (const p of payments) {
     if (p.transaction_id && cardTxnIds.has(p.transaction_id)) {
@@ -213,7 +202,8 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
   for (const debt of debts.friendDebts) {
     const owed = roundMoney(debt.byCard[cardId] || 0);
     const inHand = roundMoney(inHandByHolder.get(debt.holderId) || 0);
-    const usage = roundMoney(grossUsageByHolder.get(debt.holderId) || 0);
+    // rawByCard is already this friend's gross usage of the card, net of refunds.
+    const usage = roundMoney(debt.rawByCard[cardId] || 0);
     toCollect = roundMoney(toCollect + owed);
 
     // A friend with nothing owed and nothing collected has no row to show.
@@ -246,9 +236,9 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
 
 export interface HolderCardBreakdown {
   cardId: string;
-  /** Still collectable on this card. */
+  /** Still collectable on this card: gross spend less cash linked to it. */
   unpaidAmount: number;
-  /** Gross usage of this card by this holder, paid or not. */
+  /** Gross usage of this card by this holder, net of refunds. */
   grossAmount: number;
 }
 
@@ -257,9 +247,11 @@ export interface HolderDetail {
   holderName: string;
   phone: string;
   relationship: string;
-  /** Gross spend less refunds less card payments made on their behalf. */
+  /** Gross spend less refunds. */
   totalSpend: number;
+  /** Cash received from them, linked or not. */
   totalPaid: number;
+  /** totalSpend less totalPaid. Counts unlinked cash, so it can be below the sum of byCard. */
   outstanding: number;
   byCard: HolderCardBreakdown[];
 }
@@ -279,27 +271,14 @@ export function computeHolderDetails(input: HolderDetailInput): HolderDetail[] {
   const debts = computeFriendDebts(input);
   const byId = new Map(input.holders.map((h) => [h.id, h]));
 
-  const grossByHolderCard = new Map<string, Map<string, number>>();
-  for (const t of input.transactions) {
-    if (t.type !== 'spend' && t.type !== 'refund') continue;
-    const delta = t.type === 'refund' ? -money(t.amount) : money(t.amount);
-    let inner = grossByHolderCard.get(t.holder_id_at_time);
-    if (!inner) {
-      inner = new Map();
-      grossByHolderCard.set(t.holder_id_at_time, inner);
-    }
-    inner.set(t.card_id, (inner.get(t.card_id) || 0) + delta);
-  }
-
   return debts.friendDebts.map((debt) => {
-    const gross = grossByHolderCard.get(debt.holderId) ?? new Map<string, number>();
-    const cardIds = new Set([...Object.keys(debt.rawByCard), ...gross.keys()]);
-
-    const byCard: HolderCardBreakdown[] = [...cardIds]
+    // rawByCard carries the gross per-card figure and byCard the collectable one, so there is
+    // nothing left to derive here.
+    const byCard: HolderCardBreakdown[] = Object.keys(debt.rawByCard)
       .map((cardId) => ({
         cardId,
         unpaidAmount: roundMoney(debt.byCard[cardId] || 0),
-        grossAmount: roundMoney(gross.get(cardId) || 0),
+        grossAmount: roundMoney(debt.rawByCard[cardId] || 0),
       }))
       .filter((b) => b.unpaidAmount !== 0 || b.grossAmount !== 0)
       .sort((a, b) => b.grossAmount - a.grossAmount);
