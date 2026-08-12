@@ -137,7 +137,7 @@ function cycleTotal(txns: CycleTransaction[]): number {
 export interface CardFriendBreakdown {
   holderId: string;
   holderName: string;
-  /** Still collectable on this card: gross spend less cash linked to it. */
+  /** Still collectable on this card: unsettled spend, less cash and card payments against it. */
   owed: number;
   /** Cash already received from this friend against transactions on this card. */
   collectedInHand: number;
@@ -162,6 +162,14 @@ export interface CardDetailResult {
   cardId: string;
   toCollect: number;
   collectedInHand: number;
+  /**
+   * Total gross usage of this card by friends, net of refunds.
+   *
+   * Served rather than left to the clients: `toCollect + collectedInHand` looks like it should
+   * reproduce it and no longer does, because settled spend is out of `toCollect` and its cash
+   * may have arrived as an unlinked lump sum that never lands in `collectedInHand`.
+   */
+  friendUsage: number;
   friendBreakdown: CardFriendBreakdown[];
   cycles: CardCycleGroup[];
   currentHolderId: string | null;
@@ -198,6 +206,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
   const friendBreakdown: CardFriendBreakdown[] = [];
   let toCollect = 0;
   let collectedInHand = 0;
+  let friendUsage = 0;
 
   for (const debt of debts.friendDebts) {
     const owed = roundMoney(debt.byCard[cardId] || 0);
@@ -206,8 +215,9 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     const usage = roundMoney(debt.rawByCard[cardId] || 0);
     toCollect = roundMoney(toCollect + owed);
 
-    // A friend with nothing owed and nothing collected has no row to show.
-    if (owed > 0 || inHand > 0) {
+    // Usage keeps the row alive once everything on the card is settled. Gating on owed alone
+    // would empty the breakdown for a fully paid-off card and lose sight of who spent on it.
+    if (owed > 0 || inHand > 0 || usage !== 0) {
       friendBreakdown.push({
         holderId: debt.holderId,
         holderName: debt.holderName,
@@ -216,6 +226,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
         usage,
       });
       collectedInHand = roundMoney(collectedInHand + inHand);
+      friendUsage = roundMoney(friendUsage + usage);
     }
   }
 
@@ -227,6 +238,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     cardId,
     toCollect,
     collectedInHand,
+    friendUsage,
     friendBreakdown,
     cycles: buildCycleGroups(billingCycleDay, cardTxns, today),
     currentHolderId,
@@ -236,7 +248,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
 
 export interface HolderCardBreakdown {
   cardId: string;
-  /** Still collectable on this card: gross spend less cash linked to it. */
+  /** Still collectable on this card: unsettled spend, less cash and card payments against it. */
   unpaidAmount: number;
   /** Gross usage of this card by this holder, net of refunds. */
   grossAmount: number;
@@ -251,7 +263,10 @@ export interface HolderDetail {
   totalSpend: number;
   /** Cash received from them, linked or not. */
   totalPaid: number;
-  /** totalSpend less totalPaid. Counts unlinked cash, so it can be below the sum of byCard. */
+  /**
+   * totalSpend less totalPaid. Counts unlinked cash and ignores is_paid, so it will usually
+   * be lower than the sum of `byCard` — the two answer different questions, see debtEngine.
+   */
   outstanding: number;
   byCard: HolderCardBreakdown[];
 }

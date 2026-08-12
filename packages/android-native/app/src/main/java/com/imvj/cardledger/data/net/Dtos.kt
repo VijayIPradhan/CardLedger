@@ -311,6 +311,8 @@ data class CardDetailDto(
     val cardId: String,
     val toCollect: Double = 0.0,
     val collectedInHand: Double = 0.0,
+    /** Gross friend usage of this card, net of refunds. Not derivable from the two above. */
+    val friendUsage: Double = 0.0,
     val friendBreakdown: List<CardFriendBreakdownDto> = emptyList(),
     val cycles: List<CardCycleGroupDto> = emptyList(),
     val currentHolderId: String? = null,

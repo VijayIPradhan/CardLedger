@@ -61,12 +61,15 @@ describe('computeFriendDebts — what a friend owes', () => {
     expect(r.friendDebts[0].byCard).toEqual({ cardA: 1000 });
   });
 
-  it('keeps the debt when a transaction is marked paid to the bank', () => {
-    // is_paid means "the bill was paid", not "the friend settled up". Paying the bank out of
-    // your own pocket does not make the friend's money appear.
+  it('drops settled spend off the card but keeps it in the friend’s balance', () => {
+    // Flagging a bill paid is how this ledger marks a transaction finished with, so the card
+    // has nothing left to collect. Alice's own balance is a separate question and unaffected:
+    // paying the bank out of your own pocket does not make her money appear.
     const r = run([ALICE], [txn({ id: 't1', amount: 1000, is_paid: true })]);
-    expect(r.toCollectByCard).toEqual({ cardA: 1000 });
-    expect(r.totalToCollect).toBe(1000);
+    expect(r.toCollectByCard).toEqual({});
+    expect(r.totalToCollect).toBe(0);
+    expect(r.friendDebts[0].byCard).toEqual({ cardA: 0 });
+    expect(r.friendDebts[0].rawByCard).toEqual({ cardA: 1000 });
     expect(r.friendDebts[0].totalSpend).toBe(1000);
     expect(r.friendDebts[0].remainingToPay).toBe(1000);
   });
@@ -111,9 +114,9 @@ describe('computeFriendDebts — cash payments', () => {
     expect(r.toCollectByCard).toEqual({ cardA: 600 });
   });
 
-  it('applies cash linked to a transaction whose bill is already paid', () => {
-    // t1's bill went to the bank but Alice still owed it, so her 1000 clears exactly t1 and
-    // t2's 500 survives untouched.
+  it('does not deduct cash linked to an already settled transaction twice', () => {
+    // t1 is settled, so it is out of the card's figure on that basis alone. Subtracting its
+    // 1000 of cash on top would wrongly eat into t2's 500.
     const r = run(
       [ALICE],
       [txn({ id: 't1', amount: 1000, is_paid: true }), txn({ id: 't2', amount: 500 })],
@@ -136,62 +139,89 @@ describe('computeFriendDebts — cash payments', () => {
   });
 });
 
-describe('computeFriendDebts — card payments never touch debt', () => {
-  it('leaves both the balance and the per-card debt untouched when unlinked', () => {
+describe('computeFriendDebts — card payments settle a card', () => {
+  it('lowers the per-card figure but not the friend’s balance', () => {
     const r = run(
       [ALICE],
       [txn({ id: 't1', amount: 1000 })],
       [],
       [{ card_id: 'cardA', holder_id: 'alice', amount: 400 }],
     );
-    // The bank got 400, but Alice has handed over nothing, so she still owes the lot.
-    expect(r.toCollectByCard).toEqual({ cardA: 1000 });
+    // 400 of this card is dealt with, so 600 is left to collect for it. Alice herself has
+    // handed over nothing, so she still owes the full 1000.
+    expect(r.toCollectByCard).toEqual({ cardA: 600 });
     expect(r.friendDebts[0].totalSpend).toBe(1000);
     expect(r.friendDebts[0].remainingToPay).toBe(1000);
   });
 
-  it('leaves the per-card debt untouched when linked to a transaction', () => {
+  it('settles the card it names, whatever transaction it points at', () => {
     const r = run(
       [ALICE],
       [txn({ id: 't1', amount: 1000 })],
       [],
       [{ card_id: 'cardA', holder_id: 'alice', transaction_id: 't1', amount: 250 }],
     );
+    expect(r.toCollectByCard).toEqual({ cardA: 750 });
+  });
+
+  it('only settles the card it names', () => {
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 1000 }), txn({ id: 't2', card_id: 'cardB', amount: 800 })],
+      [],
+      [{ card_id: 'cardB', holder_id: 'alice', amount: 300 }],
+    );
+    expect(r.toCollectByCard).toEqual({ cardA: 1000, cardB: 500 });
+  });
+
+  it('only settles the friend it names', () => {
+    const r = run(
+      [ALICE, BOB],
+      [
+        txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000 }),
+        txn({ id: 't2', holder_id_at_time: 'bob', amount: 600 }),
+      ],
+      [],
+      [{ card_id: 'cardA', holder_id: 'bob', amount: 600 }],
+    );
     expect(r.toCollectByCard).toEqual({ cardA: 1000 });
   });
 
-  it('does not double-count cash that has been forwarded to the bank', () => {
-    // The normal flow: Alice transfers 1000, then you pay the bill with it. Counting the card
-    // payment as well would put her 1000 in credit.
-    const r = run(
-      [ALICE],
-      [txn({ id: 't1', amount: 1000 })],
-      [{ holder_id: 'alice', transaction_id: 't1', amount: 1000 }],
-      [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
-    );
-    expect(r.friendDebts[0].byCard).toEqual({ cardA: 0 });
-    expect(r.totalToCollect).toBe(0);
-    expect(r.friendAdvanceInHand).toBe(0);
-  });
-
-  it('no longer claws another friend’s debt off the card total', () => {
-    // Bob is processed first, so the old double-count drove Alice 1000 into fake credit and
-    // the overshoot rule wiped Bob's real 500 off cardA.
+  it('stops at zero rather than clawing another friend’s debt off the card', () => {
+    // Bob is processed first. Over-forwarding for Alice must not wipe out Bob's real 500.
     const r = run(
       [BOB, ALICE],
       [
         txn({ id: 't1', holder_id_at_time: 'bob', amount: 500 }),
         txn({ id: 't2', holder_id_at_time: 'alice', amount: 1000 }),
       ],
-      [{ holder_id: 'alice', transaction_id: 't2', amount: 1000 }],
-      [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
+      [],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 4000 }],
     );
     expect(r.toCollectByCard).toEqual({ cardA: 500 });
   });
+
+  it('matches the real ledger: unsettled spend less the card payment', () => {
+    // The ICICI Coral case that surfaced this rule — 4 unsettled spends totalling 102,734.82
+    // against one 4,795 card payment.
+    const r = run(
+      [ALICE],
+      [
+        txn({ id: 't1', amount: 52734.82 }),
+        txn({ id: 't2', amount: 20000 }),
+        txn({ id: 't3', amount: 20000 }),
+        txn({ id: 't4', amount: 10000 }),
+        txn({ id: 't5', amount: 336752.82, is_paid: true }),
+      ],
+      [{ holder_id: 'alice', transaction_id: 't5', amount: 96514 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 4795 }],
+    );
+    expect(r.toCollectByCard).toEqual({ cardA: 97939.82 });
+  });
 });
 
-describe('computeFriendDebts — overshoot clawback', () => {
-  it('claws back credit from the card total when one friend overpays', () => {
+describe('computeFriendDebts — refund credit clawback', () => {
+  it('claws back credit from the card total when one friend is refunded', () => {
     // Alice owes 1000 on cardA. Bob has a 300 refund there and no spend, so he is 300 in
     // credit; the card's collectable total must drop to 700 rather than stay at 1000.
     const r = run(
@@ -227,7 +257,7 @@ describe('computeFriendDebts — overshoot clawback', () => {
 });
 
 describe('computeFriendDebts — advance in hand', () => {
-  it('holds all collected cash until it is forwarded to a bank', () => {
+  it('holds all collected cash while no bill has been settled', () => {
     const r = run(
       [ALICE],
       [txn({ id: 't1', amount: 1000 })],
@@ -236,34 +266,41 @@ describe('computeFriendDebts — advance in hand', () => {
     expect(r.friendAdvanceInHand).toBe(800);
   });
 
-  it('falls by each card payment made out of that cash', () => {
+  it('falls as bills are settled out of that cash', () => {
     const r = run(
       [ALICE],
-      [txn({ id: 't1', amount: 1000 })],
+      [txn({ id: 't1', amount: 500, is_paid: true }), txn({ id: 't2', amount: 1000 })],
       [{ holder_id: 'alice', amount: 1500 }],
-      [{ card_id: 'cardA', holder_id: 'alice', amount: 500 }],
     );
     expect(r.friendAdvanceInHand).toBe(1000);
   });
 
-  it('is not consumed by marking a transaction paid to the bank', () => {
-    // Settling the bill from your own funds does not spend the friend's cash — you are still
-    // holding it, so it is still an advance.
+  it('is measured by settled spend, not by card_payments rows', () => {
+    // Only a fraction of bills paid ever get a card_payments row, so metering the outflow by
+    // them reports cash in hand that went to the bank long ago.
     const r = run(
       [ALICE],
       [txn({ id: 't1', amount: 1000, is_paid: true })],
-      [{ holder_id: 'alice', amount: 800 }],
+      [{ holder_id: 'alice', amount: 1000 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
     );
-    expect(r.friendAdvanceInHand).toBe(800);
+    expect(r.friendAdvanceInHand).toBe(0);
   });
 
-  it('never goes negative when more was forwarded than was collected', () => {
+  it('nets refunds out of what has been settled', () => {
     const r = run(
       [ALICE],
-      [txn({ id: 't1', amount: 1000 })],
-      [],
-      [{ card_id: 'cardA', holder_id: 'alice', amount: 500 }],
+      [
+        txn({ id: 't1', amount: 1000, is_paid: true }),
+        txn({ id: 't2', amount: 300, type: 'refund', is_paid: true }),
+      ],
+      [{ holder_id: 'alice', amount: 1000 }],
     );
+    expect(r.friendAdvanceInHand).toBe(300);
+  });
+
+  it('never goes negative when more was settled than was collected', () => {
+    const r = run([ALICE], [txn({ id: 't1', amount: 1000, is_paid: true })], []);
     expect(r.friendAdvanceInHand).toBe(0);
   });
 });

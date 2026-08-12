@@ -12,25 +12,26 @@
  * the rules that were previously only encoded in comments.
  *
  * ── Vocabulary ────────────────────────────────────────────────────────────────
- * Gross Spend     all `spend` rows less `refund` rows
+ * Gross Spend     all `spend` rows less `refund` rows, whatever their is_paid flag
  * Cash Payment    a `payments` row: money a friend actually handed over / transferred
- * Card Payment    a `card_payments` row: you forwarding collected cash to the bank
- * To Collect      gross spend less cash payments, floored at zero
- * Advance In Hand cash received from friends that has not been forwarded to a bank yet
+ * Card Payment    a `card_payments` row: you forwarding collected cash to a bank
+ * Settled Spend   a transaction flagged is_paid — its bill has been paid to the bank
+ * To Collect      per card: unsettled spend, less cash and card payments against it
+ * Outstanding     per friend: gross spend less every rupee of cash received
+ * Advance In Hand cash received that has not yet gone out as a settled bill
  *
- * ── Why card payments and is_paid do NOT reduce debt ──────────────────────────
- * Friends never pay the bank. They transfer money to you (a `payments` row) and you pay the
- * bill yourself (a `card_payments` row). So a card payment is you *spending cash you already
- * collected* — the `payments` row already cleared the debt, and subtracting the card payment
- * as well double-counted it. Worse, the resulting negative balance was clawed back off other
- * friends' debt on the same card via the overshoot rule below.
+ * ── Two different questions, two different answers ────────────────────────────
+ * "What does this friend owe me?" is friend-level: gross spend less every rupee they have
+ * handed over, including lump sums that name no card. That is `remainingToPay`, and `is_paid`
+ * has no say in it — a bill you paid out of your own pocket does not make their money appear.
  *
- * `is_paid` means "this transaction's bill has been paid to the bank". It says nothing about
- * whether the friend settled with you, so it must not remove their debt either. Marking a
- * friend's spend as paid used to erase what they owed with no `payments` row in sight.
+ * "What must I still collect for this card?" is card-level, and in this ledger settling a
+ * bill is how a transaction is recorded as done with: the cash came in, the bill went out,
+ * the row gets flagged is_paid. So per card only *unsettled* spend counts, less cash linked
+ * to it and less card payments made against it.
  *
- * Both therefore feed only the bank-facing figures (a card's balance, Advance In Hand) and
- * never the friend-facing ones.
+ * The two therefore do not have to agree, and where a friend pays in unlinked lump sums they
+ * will not — the per-card figures can sum higher than the friend-level one. See `byCard`.
  */
 
 export interface DebtHolder {
@@ -59,7 +60,7 @@ export interface DebtPayment {
 export interface DebtCardPayment {
   card_id: string;
   holder_id: string;
-  /** Present in the table but not used here — a card payment never targets friend debt. */
+  /** Present in the table but not used here: the card is what a card payment settles. */
   transaction_id?: string | null;
   amount: number | string;
 }
@@ -68,21 +69,23 @@ export interface FriendDebt {
   holderId: string;
   holderName: string;
   phone: string;
-  /** Gross spend less refunds. Not reduced by card payments or by is_paid. */
+  /** Gross spend less refunds, across every card. Not reduced by card payments or is_paid. */
   totalSpend: number;
   /** Cash payments received from this friend, linked or not. */
   totalPaid: number;
   /** totalSpend less totalPaid, floored at zero. Counts unlinked cash too. */
   remainingToPay: number;
   /**
-   * Per-card debt after applying cash linked to a transaction on that card, floored at zero.
+   * Per-card amount still to collect: spend not yet flagged is_paid, less cash linked to
+   * those unsettled transactions, less card payments made for this friend on that card.
    *
-   * Unlinked cash is deliberately absent: a lump-sum transfer is not attributable to a card,
-   * so it lowers `remainingToPay` only. Summing `byCard` therefore does NOT reproduce
-   * `remainingToPay` when a friend has paid unlinked cash — that is by design.
+   * Two things are deliberately absent. Settled spend, because flagging a bill paid is how
+   * this ledger marks a transaction finished with. And unlinked cash, because a lump-sum
+   * transfer names no card. Summing `byCard` therefore does NOT reproduce `remainingToPay`
+   * — expect it to come out higher wherever lump sums are involved.
    */
   byCard: Record<string, number>;
-  /** Per-card gross spend before any cash is applied. */
+  /** Per-card gross spend, settled or not, before any cash is applied. Drives "usage". */
   rawByCard: Record<string, number>;
 }
 
@@ -115,7 +118,7 @@ export function roundMoney(value: number): number {
 /**
  * Computes per-friend and per-card debt.
  *
- * Ordering note: the negative-overshoot clawback below reads `toCollectByCard`, which is
+ * Ordering note: the refund-credit clawback below reads `toCollectByCard`, which is
  * accumulated across friends as the loop runs. A friend whose refunds exceed their spend on
  * a card can therefore only claw back debt from friends processed BEFORE them. That is the
  * behaviour the app has always had and the clients are consistent with it, so it is
@@ -135,7 +138,7 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
 
   let friendTotalSpend = 0; // gross spend less refunds, across all friends
   let friendTotalPaid = 0; // cash received, across all friends
-  let friendTotalCardPayments = 0; // collected cash forwarded to banks
+  let friendTotalSettled = 0; // spend whose bill has been paid to a bank
 
   const toCollectByCard: Record<string, number> = {};
   const friendDebts: FriendDebt[] = [];
@@ -146,49 +149,63 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     const friendCardPayments = cardPaymentsByHolder.get(friend.id) ?? [];
 
     const rawByCard: Record<string, number> = {};
+    const unsettledByCard: Record<string, number> = {};
     let expenses = 0;
+    let settled = 0;
 
     for (const txn of friendTxns) {
       if (txn.type !== 'spend' && txn.type !== 'refund') continue;
-      // is_paid is not consulted: it records that the bank was paid, not that the friend
-      // settled with you.
       const delta = txn.type === 'refund' ? -money(txn.amount) : money(txn.amount);
       expenses += delta;
       rawByCard[txn.card_id] = roundMoney((rawByCard[txn.card_id] || 0) + delta);
-    }
-
-    // Cash received from this friend. Unlinked cash reduces their overall balance but is not
-    // attributable to any one card, so it does not touch paymentsByCard.
-    const paid = friendPayments.reduce((sum, p) => sum + money(p.amount), 0);
-
-    const paymentsByCard: Record<string, number> = {};
-    for (const p of friendPayments) {
-      if (!p.transaction_id) continue;
-      const txn = txnById.get(p.transaction_id);
-      if (txn) {
-        paymentsByCard[txn.card_id] = (paymentsByCard[txn.card_id] || 0) + money(p.amount);
+      if (txn.is_paid) {
+        settled += delta;
+      } else {
+        unsettledByCard[txn.card_id] = roundMoney((unsettledByCard[txn.card_id] || 0) + delta);
       }
     }
 
-    // Tracked for Advance In Hand only — see the header note on why this cannot touch debt.
-    friendTotalCardPayments += friendCardPayments.reduce((sum, cp) => sum + money(cp.amount), 0);
+    // Cash received from this friend. Unlinked cash reduces their overall balance but is not
+    // attributable to any one card, so it does not touch settlementByCard.
+    const paid = friendPayments.reduce((sum, p) => sum + money(p.amount), 0);
+
+    // Cash and card payments that both settle a specific card. Cash linked to an already
+    // settled transaction is skipped: that spend is out of `unsettledByCard` already, so
+    // subtracting its cash a second time would understate what is left to collect.
+    const settlementByCard: Record<string, number> = {};
+    for (const p of friendPayments) {
+      if (!p.transaction_id) continue;
+      const txn = txnById.get(p.transaction_id);
+      if (txn && !txn.is_paid) {
+        settlementByCard[txn.card_id] = (settlementByCard[txn.card_id] || 0) + money(p.amount);
+      }
+    }
+    for (const cp of friendCardPayments) {
+      settlementByCard[cp.card_id] = (settlementByCard[cp.card_id] || 0) + money(cp.amount);
+    }
 
     friendTotalSpend += expenses;
     friendTotalPaid += paid;
+    friendTotalSettled += settled;
     const remainingToPay = Math.max(0, roundMoney(expenses - paid));
 
     const byCard: Record<string, number> = {};
-    for (const [cId, amt] of Object.entries(rawByCard)) {
-      const adjustedAmt = amt - (paymentsByCard[cId] || 0);
-      if (adjustedAmt <= 0) {
+    for (const cId of Object.keys(rawByCard)) {
+      const unsettled = unsettledByCard[cId] || 0;
+      if (unsettled <= 0) {
         byCard[cId] = 0;
-        // Overshoot (refunds or cash exceeding this friend's spend on the card) is real
-        // credit; drop it on the floor and the card's total stays too high forever.
-        if (adjustedAmt < 0 && toCollectByCard[cId]) {
-          toCollectByCard[cId] = Math.max(0, roundMoney(toCollectByCard[cId] + adjustedAmt));
+        // Refunds outrunning unsettled spend is real credit on the card; drop it on the floor
+        // and the card's total stays too high forever.
+        if (unsettled < 0 && toCollectByCard[cId]) {
+          toCollectByCard[cId] = Math.max(0, roundMoney(toCollectByCard[cId] + unsettled));
         }
-      } else {
-        byCard[cId] = roundMoney(adjustedAmt);
+        continue;
+      }
+      // Settlement only ever pays a balance down to zero. Unlike a refund it cannot leave the
+      // friend in credit, so any excess stops here instead of being clawed off whoever else
+      // owes money on this card.
+      byCard[cId] = Math.max(0, roundMoney(unsettled - (settlementByCard[cId] || 0)));
+      if (byCard[cId] > 0) {
         toCollectByCard[cId] = roundMoney((toCollectByCard[cId] || 0) + byCard[cId]);
       }
     }
@@ -210,10 +227,12 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   const totalToCollect = roundMoney(Object.values(toCollectByCard).reduce((a, b) => a + b, 0));
   const friendRemainingToPay = Math.max(0, roundMoney(friendTotalSpend - friendTotalPaid));
 
-  // "Collected (Not Settled)": cash friends have transferred to you that you have not yet
-  // forwarded to a bank. Only card payments consume it — marking a transaction is_paid records
-  // that the bank was paid, which says nothing about where the money came from.
-  const friendAdvanceInHand = Math.max(0, roundMoney(friendTotalPaid - friendTotalCardPayments));
+  // "Collected (Not Settled)": cash friends have handed over that has not yet left as a paid
+  // bill. Settled spend is the measure of what went out, because that is what this ledger
+  // actually records — `card_payments` rows are written for only a fraction of the bills
+  // paid, so metering the outflow by them alone reports lakhs of cash sitting in hand that
+  // was in fact forwarded to the banks months ago.
+  const friendAdvanceInHand = Math.max(0, roundMoney(friendTotalPaid - friendTotalSettled));
 
   return {
     friendDebts,

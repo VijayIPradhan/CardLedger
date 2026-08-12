@@ -152,8 +152,9 @@ describe('computeCardDetail', () => {
     ]);
   });
 
-  it('leaves to-collect alone when a card payment settles the bank', () => {
-    // Paying the bill does not collect from Alice — only a payments row does that.
+  it('lowers to-collect when a card payment settles the bank', () => {
+    // The card is dealt with, so nothing is left to collect for it. Alice has still handed
+    // over no cash, which is why collectedInHand stays at zero.
     const r = computeCardDetail({
       ...base,
       holders: [ALICE],
@@ -161,8 +162,8 @@ describe('computeCardDetail', () => {
       payments: [],
       cardPayments: [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
     });
-    expect(r.toCollect).toBe(1000);
-    expect(r.friendBreakdown[0]).toMatchObject({ owed: 1000, collectedInHand: 0 });
+    expect(r.toCollect).toBe(0);
+    expect(r.friendBreakdown[0]).toMatchObject({ owed: 0, collectedInHand: 0, usage: 1000 });
   });
 
   it('surfaces cash collected against this card per friend and per transaction', () => {
@@ -205,6 +206,21 @@ describe('computeCardDetail', () => {
     });
     expect(r.toCollect).toBe(0);
     expect(r.friendBreakdown[0]).toMatchObject({ owed: 0, collectedInHand: 1000 });
+  });
+
+  it('reports friend usage the clients can no longer derive themselves', () => {
+    // Settled spend paid for with an unlinked lump sum: it is out of toCollect and its cash
+    // never reaches collectedInHand, so toCollect + collectedInHand understates usage by 900.
+    const r = computeCardDetail({
+      ...base,
+      holders: [ALICE],
+      transactions: [txn({ id: 't1', amount: 900, is_paid: true }), txn({ id: 't2', amount: 400 })],
+      payments: [{ holder_id: 'alice', amount: 900 }],
+      cardPayments: [],
+    });
+    expect(r.toCollect).toBe(400);
+    expect(r.collectedInHand).toBe(0);
+    expect(r.friendUsage).toBe(1300);
   });
 
   it('keeps usage gross while owed reflects only what is still uncollected', () => {
@@ -327,7 +343,9 @@ describe('computeHolderDetails', () => {
     expect(rows[0].byCard).toEqual([{ cardId: 'cardA', unpaidAmount: 500, grossAmount: 500 }]);
   });
 
-  it('ignores card payments, which settle the bank rather than the friend', () => {
+  it('lets a card payment clear the card without clearing the friend', () => {
+    // The two columns answer different questions: the card has nothing left to collect for,
+    // while Alice has handed over nothing and so still owes the full 1000.
     const rows = computeHolderDetails({
       holders: [ALICE],
       transactions: [txn({ id: 't1', amount: 1000 })],
@@ -335,7 +353,7 @@ describe('computeHolderDetails', () => {
       cardPayments: [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
     });
     expect(rows[0].outstanding).toBe(1000);
-    expect(rows[0].byCard).toEqual([{ cardId: 'cardA', unpaidAmount: 1000, grossAmount: 1000 }]);
+    expect(rows[0].byCard).toEqual([{ cardId: 'cardA', unpaidAmount: 0, grossAmount: 1000 }]);
   });
 
   it('returns an empty list when there are no friends', () => {

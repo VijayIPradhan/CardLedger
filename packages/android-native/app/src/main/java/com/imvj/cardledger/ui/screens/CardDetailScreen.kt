@@ -395,9 +395,14 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
-                                    if (s.collectedInHand > 0.5) {
+                                    // Usage is the server's gross figure. Shown whenever it exceeds what is
+                                    // left to collect — settled spend is out of toCollect, so the two differ
+                                    // even on a card against which no cash has been linked.
+                                    if (s.friendUsage > s.toCollect + 0.5) {
+                                        val collected =
+                                            if (s.collectedInHand > 0.5) " · Collected: +${money(s.collectedInHand)}" else ""
                                         Text(
-                                            "Total Friend Usage: ${money(s.toCollect + s.collectedInHand)} · Collected: +${money(s.collectedInHand)}",
+                                            "Total Friend Usage: ${money(s.friendUsage)}$collected",
                                             color = Success,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontSize = 11.sp
