@@ -358,9 +358,33 @@ describe('computeFriendDebts — advance in hand', () => {
     expect(r.friendAdvanceInHand).toBe(300);
   });
 
-  it('never goes negative when more was settled than was collected', () => {
+  it('goes negative when a bill was settled before the cash came in', () => {
+    // Out of my own pocket by the full 1000. Flooring this at zero made being square and being
+    // 1000 down look identical, and paying a bill early is exactly when I need to see which.
     const r = run([ALICE], [txn({ id: 't1', amount: 1000, is_paid: true })], []);
-    expect(r.friendAdvanceInHand).toBe(0);
+    expect(r.friendAdvanceInHand).toBe(-1000);
+    // The friend still owes the full amount: me paying the bank is not them paying me.
+    expect(r.friendRemainingToPay).toBe(1000);
+  });
+
+  it('offsets the pocket against cash already collected', () => {
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 1000, is_paid: true })],
+      [{ holder_id: 'alice', amount: 700 }],
+    );
+    expect(r.friendAdvanceInHand).toBe(-300);
+  });
+
+  it('goes negative when a card payment ran ahead of the cash too', () => {
+    // Same overspend, reached via card_payments rather than the is_paid flag.
+    const r = run(
+      [ALICE],
+      [txn({ id: 't1', amount: 1000 })],
+      [{ holder_id: 'alice', amount: 250 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 1000 }],
+    );
+    expect(r.friendAdvanceInHand).toBe(-750);
   });
 });
 

@@ -234,18 +234,35 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                 fontWeight = FontWeight.Bold,
                                             )
                                         }
-                                        if (s.friendAdvanceInHand > 0) {
+                                        // A negative advance means bills were paid before the cash
+                                        // came in — that shortfall is out of my own pocket, which
+                                        // is the opposite situation and must not read as a credit.
+                                        val advance = s.friendAdvanceInHand
+                                        if (kotlin.math.abs(advance) >= 1.0) {
+                                            val inCredit = advance > 0
+                                            val tint = if (inCredit) Success else Danger
                                             Surface(
-                                                color = Success.copy(alpha = 0.15f),
+                                                color = tint.copy(alpha = 0.15f),
                                                 shape = MaterialTheme.shapes.small,
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, Success.copy(alpha = 0.4f))
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = 0.4f))
                                             ) {
                                                 Column(
                                                     Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                                     horizontalAlignment = Alignment.End
                                                 ) {
-                                                    Text("ADVANCE IN HAND", color = Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                                    Text("+${money(s.friendAdvanceInHand)}", color = Success, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                    Text(
+                                                        if (inCredit) "ADVANCE IN HAND" else "PAID FROM POCKET",
+                                                        color = tint,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 0.5.sp,
+                                                    )
+                                                    Text(
+                                                        signedMoney(advance),
+                                                        color = tint,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
                                                 }
                                             }
                                         }
@@ -304,10 +321,18 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
                                         Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Collected (Not settled)", color = Muted, style = MaterialTheme.typography.labelSmall)
+                                            // Same signed figure as the chip above: the label has to
+                                            // flip too, since "collected" is the wrong word for money
+                                            // I put in myself.
+                                            val outOfPocket = s.friendAdvanceInHand < 0
                                             Text(
-                                                money(s.friendAdvanceInHand),
-                                                color = Success,
+                                                if (outOfPocket) "Paid from own pocket" else "Collected (Not settled)",
+                                                color = Muted,
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                            Text(
+                                                signedMoney(s.friendAdvanceInHand),
+                                                color = if (outOfPocket) Danger else Success,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
                                             )
