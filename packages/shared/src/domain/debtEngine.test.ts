@@ -386,6 +386,40 @@ describe('computeFriendDebts — advance in hand', () => {
     );
     expect(r.friendAdvanceInHand).toBe(-750);
   });
+
+  it('counts self-funded card payments toward out-of-pocket amount', () => {
+    // When you pay the bank from your own pocket (holder_id='me'), that cash leaving should
+    // reduce the advance and show you're out of pocket by that much.
+    const r = run(
+      [ME, ALICE],
+      [txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000 })],
+      [{ holder_id: 'alice', amount: 250 }],
+      [{ card_id: 'cardA', holder_id: 'me', amount: 10000 }],
+    );
+    // Collected 250, spent 1000 unsettled. Self-funded payment of 10000 can only count as 1000
+    // (the amount of unsettled spend). So: 250 - 1000 = -750.
+    expect(r.friendAdvanceInHand).toBe(-750);
+    // Friend's debt is unaffected: you paying the bank is not them paying you.
+    expect(r.friendRemainingToPay).toBe(750);
+  });
+
+  it('counts self-funded payment only against remaining unsettled spend', () => {
+    // Alice paid 600 of the 1000 unsettled, leaving 400. Your self-funded payment of 10000
+    // can only count as 400 (the remaining unsettled).
+    const r = run(
+      [ME, ALICE],
+      [txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000 })],
+      [{ holder_id: 'alice', amount: 1000 }],
+      [
+        { card_id: 'cardA', holder_id: 'alice', amount: 600 },
+        { card_id: 'cardA', holder_id: 'me', amount: 10000 },
+      ],
+    );
+    // Collected 1000, Alice's card payment covered 600, your payment covered the remaining 400.
+    // So: 1000 - 600 - 400 = 0.
+    expect(r.friendAdvanceInHand).toBe(0);
+    expect(r.friendRemainingToPay).toBe(0);
+  });
 });
 
 describe('computeFriendDebts — aggregates and shape', () => {

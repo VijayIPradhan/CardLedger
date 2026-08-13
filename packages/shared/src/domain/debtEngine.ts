@@ -161,6 +161,20 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   const toCollectByCard: Record<string, number> = {};
   const friendDebts: FriendDebt[] = [];
 
+  // Aggregate unsettled spend by card across all friends. Needed to correctly meter card
+  // payments made from your own pocket: a self-funded payment can only reduce Advance In Hand
+  // as far as there is unsettled spend for it to pay off, and that spend might belong to any
+  // friend.
+  const globalUnsettledByCard: Record<string, number> = {};
+  for (const txn of transactions) {
+    if ((txn.type === 'spend' || txn.type === 'refund') && !txn.is_paid) {
+      const delta = txn.type === 'refund' ? -money(txn.amount) : money(txn.amount);
+      globalUnsettledByCard[txn.card_id] = roundMoney(
+        (globalUnsettledByCard[txn.card_id] || 0) + delta,
+      );
+    }
+  }
+
   for (const friend of friends) {
     const friendTxns = txnsByHolder.get(friend.id) ?? [];
     const friendPayments = paymentsByHolder.get(friend.id) ?? [];
@@ -211,7 +225,14 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     // so the figure never double-counts and never needs a reconciliation pass.
     for (const cId of Object.keys(cardPaymentByCard)) {
       const unsettled = Math.max(0, unsettledByCard[cId] || 0);
-      friendTotalForwarded += Math.min(unsettled, cardPaymentByCard[cId]);
+      const counted = Math.min(unsettled, cardPaymentByCard[cId]);
+      friendTotalForwarded += counted;
+      // Drain the global pool: this friend's card payment has consumed some of the card's
+      // unsettled spend, leaving less for non-friend payments to settle.
+      globalUnsettledByCard[cId] = Math.max(
+        0,
+        roundMoney((globalUnsettledByCard[cId] || 0) - counted),
+      );
     }
 
     friendTotalSpend += expenses;
@@ -256,6 +277,22 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   }
 
   friendDebts.sort((a, b) => b.remainingToPay - a.remainingToPay);
+
+  // Self-funded card payments: when you pay from your own pocket (holder_id with
+  // relationship='me' or other non-friends), those were not counted in the friend loop above.
+  // Count them now against whatever unsettled spend remains after friend card payments.
+  const nonFriendHolders = holders.filter((h) => h.relationship !== 'friend');
+  for (const holder of nonFriendHolders) {
+    const holderCardPayments = cardPaymentsByHolder.get(holder.id) ?? [];
+    for (const cp of holderCardPayments) {
+      const unsettled = Math.max(0, globalUnsettledByCard[cp.card_id] || 0);
+      const counted = Math.min(unsettled, money(cp.amount));
+      friendTotalForwarded += counted;
+      // Drain as we count: if multiple non-friends paid the same card, the second payment
+      // can only reduce the advance by whatever unsettled spend is left.
+      globalUnsettledByCard[cp.card_id] = Math.max(0, roundMoney(unsettled - counted));
+    }
+  }
 
   const totalToCollect = roundMoney(Object.values(toCollectByCard).reduce((a, b) => a + b, 0));
   const friendRemainingToPay = Math.max(0, roundMoney(friendTotalSpend - friendTotalPaid));
