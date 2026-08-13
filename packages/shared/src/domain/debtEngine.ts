@@ -18,7 +18,8 @@
  * Settled Spend   a transaction flagged is_paid — its bill has been paid to the bank
  * To Collect      per card: unsettled spend, less cash and card payments against it
  * Outstanding     per friend: gross spend less every rupee of cash received
- * Advance In Hand cash received that has not yet gone out as a settled bill
+ * Advance In Hand cash received that has not yet gone out as a settled bill; negative when
+ *                 bills were paid before the cash came in, i.e. out of my own pocket
  *
  * ── Two different questions, two different answers ────────────────────────────
  * "What does this friend owe me?" is friend-level: gross spend less every rupee they have
@@ -108,6 +109,10 @@ export interface FriendDebtResult {
   friendTotalSpend: number;
   friendTotalPaid: number;
   friendRemainingToPay: number;
+  /**
+   * Collected cash still sitting with me. Signed: negative means I paid bills ahead of the cash
+   * arriving and am that much out of pocket.
+   */
   friendAdvanceInHand: number;
 }
 
@@ -267,9 +272,13 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   // friend's behalf. It is deliberately the only figure a card payment moves besides the card's
   // own to-collect — friend-level Outstanding and the dashboard's To Collect stay put, because a
   // card payment is not the friend paying you.
-  const friendAdvanceInHand = Math.max(
-    0,
-    roundMoney(friendTotalPaid - friendTotalSettled - friendTotalForwarded),
+  //
+  // Signed, not floored. Going negative is the meaningful case: paying a bill before collecting
+  // for it means more has left than came in, and that money came out of my own pocket. Clamping
+  // it at zero reported "nothing in hand" for both being square and being out of pocket, which
+  // are the two states this figure exists to tell apart.
+  const friendAdvanceInHand = roundMoney(
+    friendTotalPaid - friendTotalSettled - friendTotalForwarded,
   );
 
   return {

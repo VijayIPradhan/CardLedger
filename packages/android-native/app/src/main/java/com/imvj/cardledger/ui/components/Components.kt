@@ -36,6 +36,14 @@ import java.util.Locale
 fun money(v: Double): String =
     "₹" + NumberFormat.getNumberInstance(Locale("en", "IN")).format(Math.round(v))
 
+/**
+ * Money that carries its direction. `money(-1740)` renders "₹-1,740", burying the sign between
+ * the symbol and the digits where it is easy to miss on a figure that is meant to read as a
+ * shortfall; this puts it in front and marks a credit explicitly.
+ */
+fun signedMoney(v: Double): String =
+    (if (v < 0) "−" else "+") + money(kotlin.math.abs(v))
+
 // TextStyle that enables tabular/monospaced number rendering — prevents column jump
 // when digit count changes (e.g. ₹999 → ₹1,000 in a live counter).
 val TabularNumStyle = TextStyle(fontFeatureSettings = "tnum")
