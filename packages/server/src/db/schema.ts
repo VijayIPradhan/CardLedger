@@ -120,6 +120,10 @@ export const transactions = pgTable(
     reward_earned: numeric('reward_earned', { precision: 12, scale: 2 }),
     reward_currency: varchar('reward_currency', { length: 20 }),
     is_paid: boolean('is_paid').default(false).notNull(),
+    /** Total card_payments received against this transaction. Auto-sets is_paid when >= amount */
+    payments_received: numeric('payments_received', { precision: 12, scale: 2 })
+      .default('0')
+      .notNull(),
     holder_id_at_time: uuid('holder_id_at_time')
       .references(() => holders.id)
       .notNull(),
@@ -166,8 +170,6 @@ export const card_payments = pgTable(
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     payment_date: date('payment_date').notNull(),
     notes: varchar('notes', { length: 200 }),
-    /** Tracks which transactions this payment settled: [{transaction_id, amount}] */
-    settled_transactions: jsonb('settled_transactions'),
     created_at: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
