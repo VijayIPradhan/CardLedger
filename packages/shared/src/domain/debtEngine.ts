@@ -214,6 +214,15 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     }
     const cardPaymentByCard: Record<string, number> = {};
     for (const cp of friendCardPayments) {
+      // Skip card payments linked to already-paid transactions: those are counted in `settled`
+      // above. Counting them again would subtract the same outflow twice from advance in hand.
+      if (cp.transaction_id) {
+        const txn = txnById.get(cp.transaction_id);
+        if (txn && txn.is_paid) {
+          continue;
+        }
+      }
+
       settlementByCard[cp.card_id] = (settlementByCard[cp.card_id] || 0) + money(cp.amount);
       cardPaymentByCard[cp.card_id] = (cardPaymentByCard[cp.card_id] || 0) + money(cp.amount);
     }
@@ -285,6 +294,14 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   for (const holder of nonFriendHolders) {
     const holderCardPayments = cardPaymentsByHolder.get(holder.id) ?? [];
     for (const cp of holderCardPayments) {
+      // Skip card payments linked to already-paid transactions
+      if (cp.transaction_id) {
+        const txn = txnById.get(cp.transaction_id);
+        if (txn && txn.is_paid) {
+          continue;
+        }
+      }
+
       const unsettled = Math.max(0, globalUnsettledByCard[cp.card_id] || 0);
       const counted = Math.min(unsettled, money(cp.amount));
       friendTotalForwarded += counted;

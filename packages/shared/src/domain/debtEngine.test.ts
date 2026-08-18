@@ -420,6 +420,35 @@ describe('computeFriendDebts — advance in hand', () => {
     expect(r.friendAdvanceInHand).toBe(0);
     expect(r.friendRemainingToPay).toBe(0);
   });
+
+  it('does not double-count card payments linked to paid transactions', () => {
+    // Transaction is marked is_paid=true AND has a card_payment linked to it.
+    // The card_payment should NOT be counted in friendTotalForwarded because the
+    // is_paid flag already accounts for this money leaving.
+    const r = run(
+      [ME, ALICE],
+      [txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true })],
+      [{ holder_id: 'alice', amount: 1000 }],
+      [{ card_id: 'cardA', holder_id: 'alice', amount: 1000, transaction_id: 't1' }],
+    );
+    // Collected 1000, settled 1000. Card payment is linked to the paid transaction, so it
+    // should NOT reduce advance in hand again: 1000 - 1000 = 0 (not -1000).
+    expect(r.friendAdvanceInHand).toBe(0);
+    expect(r.friendRemainingToPay).toBe(0);
+  });
+
+  it('does not double-count self-funded card payments linked to paid transactions', () => {
+    // You paid from your own pocket and the transaction is marked paid. Should not double-count.
+    const r = run(
+      [ME, ALICE],
+      [txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true })],
+      [{ holder_id: 'alice', amount: 0 }],
+      [{ card_id: 'cardA', holder_id: 'me', amount: 1000, transaction_id: 't1' }],
+    );
+    // Collected 0, settled 1000. Card payment is linked to paid transaction, should not count:
+    // 0 - 1000 - 0 = -1000 (out of pocket by 1000, not 2000).
+    expect(r.friendAdvanceInHand).toBe(-1000);
+  });
 });
 
 describe('computeFriendDebts — aggregates and shape', () => {
