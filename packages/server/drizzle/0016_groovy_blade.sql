@@ -1,0 +1,1 @@
+ALTER TABLE "card_payments" ADD COLUMN "settled_transactions" jsonb;

@@ -222,20 +222,59 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     if (rest.type === 'bill_payment') {
-      // Fast path for bill payments: create a card_payment instead of a transaction
-      const [newCardPayment] = await db
-        .insert(card_payments)
-        .values({
-          card_id: parsed.data.card_id,
-          holder_id: funded_by_holder_id || finalHolderId,
-          transaction_id: linked_transaction_id || null,
-          amount: String(amount),
-          payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
-          notes: rest.merchant || 'Bill Payment',
-        })
-        .returning();
+      // Fast path for bill payments: create a card_payment, settle transactions, and mark them is_paid
+      const result = await db.transaction(async (tx) => {
+        // Find all unsettled transactions on this card (oldest first)
+        const unsettledTxns = await tx
+          .select()
+          .from(transactions)
+          .where(
+            and(eq(transactions.card_id, parsed.data.card_id), eq(transactions.is_paid, false)),
+          )
+          .orderBy(transactions.txn_date);
+
+        // Allocate the payment amount to transactions (FIFO)
+        let remainingAmount = amount;
+        const settledTransactions: Array<{ transaction_id: string; amount: number }> = [];
+
+        for (const txn of unsettledTxns) {
+          if (remainingAmount <= 0) break;
+
+          const txnAmount = parseFloat(String(txn.amount));
+          const settleAmount = Math.min(remainingAmount, txnAmount);
+
+          settledTransactions.push({
+            transaction_id: txn.id,
+            amount: settleAmount,
+          });
+
+          // If fully settled, mark is_paid=true
+          if (settleAmount >= txnAmount) {
+            await tx.update(transactions).set({ is_paid: true }).where(eq(transactions.id, txn.id));
+          }
+
+          remainingAmount -= settleAmount;
+        }
+
+        // Create the card_payment with settled_transactions tracking
+        const [newCardPayment] = await tx
+          .insert(card_payments)
+          .values({
+            card_id: parsed.data.card_id,
+            holder_id: funded_by_holder_id || finalHolderId,
+            transaction_id: linked_transaction_id || null,
+            amount: String(amount),
+            payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
+            notes: rest.merchant || 'Bill Payment',
+            settled_transactions: settledTransactions.length > 0 ? settledTransactions : null,
+          })
+          .returning();
+
+        return newCardPayment;
+      });
+
       return {
-        id: newCardPayment.id,
+        id: result.id,
         card_id: parsed.data.card_id,
         amount: String(amount),
         merchant: rest.merchant || 'Payment to Bank',
@@ -245,7 +284,7 @@ export async function transactionRoutes(app: FastifyInstance) {
         is_paid: true,
         holder_id_at_time: funded_by_holder_id || finalHolderId,
         linked_transaction_id: linked_transaction_id || null,
-        created_at: newCardPayment.created_at,
+        created_at: result.created_at,
       };
     }
 
@@ -371,18 +410,86 @@ export async function transactionRoutes(app: FastifyInstance) {
         holder_id_at_time,
         linked_transaction_id: cpLinkedTxnId,
       } = parsed.data;
-      const updateCp: any = {};
-      if (amount !== undefined) updateCp.amount = String(amount);
-      if (txn_date !== undefined) updateCp.payment_date = txn_date;
-      if (merchant !== undefined) updateCp.notes = merchant;
-      if (holder_id_at_time !== undefined) updateCp.holder_id = holder_id_at_time;
-      if (cpLinkedTxnId !== undefined) updateCp.transaction_id = cpLinkedTxnId;
 
-      const [updatedCp] = await db
-        .update(card_payments)
-        .set(updateCp)
-        .where(eq(card_payments.id, req.params.id))
-        .returning();
+      // If amount changed, need to re-settle transactions
+      const updatedCp = await db.transaction(async (tx) => {
+        // Get the old card_payment
+        const [oldCp] = await tx
+          .select()
+          .from(card_payments)
+          .where(eq(card_payments.id, req.params.id));
+
+        // Undo previous settlement if amount changed
+        if (amount !== undefined && oldCp.settled_transactions) {
+          const settledTxns = oldCp.settled_transactions as Array<{
+            transaction_id: string;
+            amount: number;
+          }>;
+
+          for (const settled of settledTxns) {
+            await tx
+              .update(transactions)
+              .set({ is_paid: false })
+              .where(eq(transactions.id, settled.transaction_id));
+          }
+        }
+
+        // Update basic fields
+        const updateCp: any = {};
+        if (txn_date !== undefined) updateCp.payment_date = txn_date;
+        if (merchant !== undefined) updateCp.notes = merchant;
+        if (holder_id_at_time !== undefined) updateCp.holder_id = holder_id_at_time;
+        if (cpLinkedTxnId !== undefined) updateCp.transaction_id = cpLinkedTxnId;
+
+        // If amount changed, re-settle transactions
+        if (amount !== undefined) {
+          updateCp.amount = String(amount);
+
+          // Find unsettled transactions on this card (FIFO)
+          const unsettledTxns = await tx
+            .select()
+            .from(transactions)
+            .where(and(eq(transactions.card_id, oldCp.card_id), eq(transactions.is_paid, false)))
+            .orderBy(transactions.txn_date);
+
+          // Allocate the new payment amount
+          let remainingAmount = amount;
+          const newSettledTransactions: Array<{ transaction_id: string; amount: number }> = [];
+
+          for (const txn of unsettledTxns) {
+            if (remainingAmount <= 0) break;
+
+            const txnAmount = parseFloat(String(txn.amount));
+            const settleAmount = Math.min(remainingAmount, txnAmount);
+
+            newSettledTransactions.push({
+              transaction_id: txn.id,
+              amount: settleAmount,
+            });
+
+            // If fully settled, mark is_paid=true
+            if (settleAmount >= txnAmount) {
+              await tx
+                .update(transactions)
+                .set({ is_paid: true })
+                .where(eq(transactions.id, txn.id));
+            }
+
+            remainingAmount -= settleAmount;
+          }
+
+          updateCp.settled_transactions =
+            newSettledTransactions.length > 0 ? newSettledTransactions : null;
+        }
+
+        const [result] = await tx
+          .update(card_payments)
+          .set(updateCp)
+          .where(eq(card_payments.id, req.params.id))
+          .returning();
+
+        return result;
+      });
 
       // Return transaction-compatible shape for consistency
       let pd = updatedCp.payment_date as any;
@@ -437,14 +544,33 @@ export async function transactionRoutes(app: FastifyInstance) {
 
     if (!existing) {
       const [existingCp] = await db
-        .select({ id: card_payments.id })
+        .select()
         .from(card_payments)
         .innerJoin(cards, eq(card_payments.card_id, cards.id))
         .where(and(eq(card_payments.id, req.params.id), eq(cards.user_id, userId)));
 
       if (!existingCp) return reply.status(404).send({ error: 'Not found' });
 
-      await db.delete(card_payments).where(eq(card_payments.id, req.params.id));
+      // Unsettle transactions that were settled by this payment
+      await db.transaction(async (tx) => {
+        const settledTxns = existingCp.card_payments.settled_transactions as Array<{
+          transaction_id: string;
+          amount: number;
+        }> | null;
+
+        if (settledTxns && settledTxns.length > 0) {
+          for (const settled of settledTxns) {
+            // Mark transaction as unpaid
+            await tx
+              .update(transactions)
+              .set({ is_paid: false })
+              .where(eq(transactions.id, settled.transaction_id));
+          }
+        }
+
+        await tx.delete(card_payments).where(eq(card_payments.id, req.params.id));
+      });
+
       return reply.send({ success: true });
     }
 
