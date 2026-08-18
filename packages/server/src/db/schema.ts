@@ -166,6 +166,8 @@ export const card_payments = pgTable(
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     payment_date: date('payment_date').notNull(),
     notes: varchar('notes', { length: 200 }),
+    /** Tracks which transactions this payment settled: [{transaction_id, amount}] */
+    settled_transactions: jsonb('settled_transactions'),
     created_at: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
