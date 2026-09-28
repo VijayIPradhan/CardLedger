@@ -770,6 +770,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                     val isParentExpanded = expandedParentPayments.contains(parent.id)
                                     var showParentMenu by remember { mutableStateOf(false) }
                                     var showDeleteDialog by remember { mutableStateOf(false) }
+                                    var showEditDialog by remember { mutableStateOf(false) }
 
                                     // Parent payment row
                                     Surface(
@@ -911,7 +912,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                     text = { Text("Edit Payment") },
                                                                     onClick = {
                                                                         showParentMenu = false
-                                                                        // TODO: Open edit dialog
+                                                                        showEditDialog = true
                                                                     },
                                                                     leadingIcon = {
                                                                         Icon(Icons.Default.Edit, contentDescription = null)
@@ -1042,6 +1043,69 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                             dismissButton = {
                                                 androidx.compose.material3.TextButton(
                                                     onClick = { showDeleteDialog = false }
+                                                ) {
+                                                    Text("Cancel")
+                                                }
+                                            }
+                                        )
+                                    }
+
+                                    // Edit payment dialog
+                                    if (showEditDialog) {
+                                        var editAmount by remember { mutableStateOf(parent.amount) }
+                                        var editDate by remember { mutableStateOf(parent.txn_date) }
+                                        var editMerchant by remember { mutableStateOf(parent.merchant) }
+
+                                        AlertDialog(
+                                            onDismissRequest = { showEditDialog = false },
+                                            title = { Text("Edit Payment") },
+                                            text = {
+                                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                    OutlinedTextField(
+                                                        value = editAmount,
+                                                        onValueChange = { editAmount = it },
+                                                        label = { Text("Amount") },
+                                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = editDate,
+                                                        onValueChange = { editDate = it },
+                                                        label = { Text("Date (YYYY-MM-DD)") },
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = editMerchant,
+                                                        onValueChange = { editMerchant = it },
+                                                        label = { Text("Description") },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        maxLines = 3
+                                                    )
+                                                    if (children.isNotEmpty()) {
+                                                        Text(
+                                                            "Note: Editing the amount will not redistribute to allocations",
+                                                            color = Muted,
+                                                            fontSize = 12.sp
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            confirmButton = {
+                                                androidx.compose.material3.TextButton(
+                                                    onClick = {
+                                                        val amount = editAmount.toDoubleOrNull()
+                                                        if (amount != null && amount > 0) {
+                                                            vm.updatePayment(parent.id, cardId, amount, editDate, editMerchant)
+                                                            showEditDialog = false
+                                                        }
+                                                    }
+                                                ) {
+                                                    Text("Save", fontWeight = FontWeight.Bold)
+                                                }
+                                            },
+                                            dismissButton = {
+                                                androidx.compose.material3.TextButton(
+                                                    onClick = { showEditDialog = false }
                                                 ) {
                                                     Text("Cancel")
                                                 }

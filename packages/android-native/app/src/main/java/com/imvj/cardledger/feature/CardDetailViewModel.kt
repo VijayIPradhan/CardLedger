@@ -150,6 +150,23 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
+    fun updatePayment(paymentId: String, cardId: String, amount: Double, date: String, merchant: String) {
+        viewModelScope.launch {
+            c.transactionRepo.update(
+                paymentId,
+                UpdateTransactionDto(
+                    amount = amount,
+                    txn_date = date,
+                    merchant = merchant
+                )
+            ).onSuccess {
+                load(cardId)
+            }.onFailure {
+                _state.value = _state.value.copy(error = "Could not update payment.")
+            }
+        }
+    }
+
     fun updateTxn(
         txnId: String,
         cardId: String,
