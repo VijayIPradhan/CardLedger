@@ -61,3 +61,64 @@ export interface Payment {
   notes: string | null;
   created_at: string;
 }
+
+export type ReminderType = 'payment_due' | 'statement_date' | 'overdue' | 'cycle_usage_threshold';
+
+export type ReminderStatus = 'scheduled' | 'fired' | 'dismissed' | 'cancelled';
+
+export interface Reminder {
+  id: string;
+  user_id: string;
+  card_id?: string;
+  reminder_type: ReminderType;
+  scheduled_for: string;
+  card_cycle_start?: string;
+  card_cycle_end?: string;
+  threshold_amount?: number;
+  requires_usage: boolean;
+  status: ReminderStatus;
+  fired_at?: string;
+  dismissed_at?: string;
+  notified_via?: ('push' | 'email')[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationPreference {
+  id: string;
+  user_id: string;
+  card_id?: string;
+  reminder_type: ReminderType;
+  days_before?: number;
+  enabled: boolean;
+  push_enabled: boolean;
+  email_enabled: boolean;
+  preferred_time: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BillingCycleStatus = 'projected' | 'generated' | 'paid' | 'overdue';
+
+export interface BillingCycle {
+  id: string;
+  user_id: string;
+  card_id: string;
+  cycle_start: string;
+  cycle_end: string;
+  statement_date: string;
+  payment_due_date: string;
+  total_spend: number;
+  total_refunds: number;
+  previous_balance: number;
+  statement_amount: number;
+  minimum_due?: number;
+  paid_amount: number;
+  paid_on?: string;
+  status: BillingCycleStatus;
+  is_locked: boolean;
+  statement_pdf_url?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}

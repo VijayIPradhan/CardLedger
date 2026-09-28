@@ -16,6 +16,8 @@ import { summaryDetailRoutes } from './routes/summaryDetail.js';
 import { budgetRoutes } from './routes/budgets.js';
 import { cardRecommendRoutes } from './routes/cards_recommend.js';
 import { statementRoutes } from './routes/statements.js';
+import { reminderRoutes, notificationPreferenceRoutes } from './routes/reminders.js';
+import { billingCycleRoutes } from './routes/billingCycles.js';
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -69,6 +71,9 @@ export async function buildApp() {
   await app.register(smsRoutes, { prefix: '/sms' });
   await app.register(summaryRoutes, { prefix: '/dashboard' });
   await app.register(summaryDetailRoutes, { prefix: '/dashboard' });
+  await app.register(reminderRoutes, { prefix: '/reminders' });
+  await app.register(notificationPreferenceRoutes, { prefix: '/notification-preferences' });
+  await app.register(billingCycleRoutes, { prefix: '/billing-cycles' });
 
   return app;
 }

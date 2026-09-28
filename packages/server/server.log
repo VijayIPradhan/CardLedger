@@ -1,0 +1,14 @@
+
+> @cardledger/server@0.0.1 dev
+> dotenv -e ../../.env -- tsx watch src/index.ts
+
+[DB] Connecting to Postgres at: postgresql://cardledger:***@cardledger-postgres-80-225-193-198.sslip.io:5432/cardledger
+{"level":40,"time":1790598146656,"pid":18716,"hostname":"VijayIPradhan","msg":"No AI provider configured — set GEMINI_API_KEY or OPENROUTER_API_KEY"}
+{"level":30,"time":1790598146662,"pid":18716,"hostname":"VijayIPradhan","msg":"Migrations complete"}
+{"level":30,"time":1790598146767,"pid":18716,"hostname":"VijayIPradhan","msg":"Seed complete"}
+[Jobs] Initializing scheduled jobs
+[Jobs] Cycle manager scheduled to run daily at 01:00 UTC
+[Jobs] Reminder scheduler scheduled to run daily at 00:00 UTC
+[Jobs] Reminder dispatcher scheduled to run every 15 minutes
+{"level":30,"time":1790598146798,"pid":18716,"hostname":"VijayIPradhan","msg":"Background jobs initialized"}
+{"level":30,"time":1790598146803,"pid":18716,"hostname":"VijayIPradhan","msg":"Server listening at http://0.0.0.0:3002"}

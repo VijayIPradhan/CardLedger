@@ -15,4 +15,7 @@ object Routes {
     const val CARDS = "cards"
     const val BUDGETS = "budgets"
     const val RECOMMENDER = "recommender"
+    const val BILLING_CYCLES = "billing_cycles"
+    const val BILLING_CYCLE_DETAIL = "billing_cycle_detail"
+    const val NOTIFICATION_SETTINGS = "notification_settings"
 }

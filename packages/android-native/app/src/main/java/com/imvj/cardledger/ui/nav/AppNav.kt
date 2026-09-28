@@ -69,6 +69,12 @@ fun AppNav() {
             val reviewQueue by container.reviewStore.queue.collectAsState(initial = emptyList())
             RecommenderScreen(nav, recommenderVm, reviewQueue.size)
         }
+        composable(Routes.BILLING_CYCLES) {
+            BillingCyclesScreen(nav)
+        }
+        composable("${Routes.BILLING_CYCLE_DETAIL}/{id}") {
+            BillingCycleDetailScreen(nav, it.arguments?.getString("id")!!)
+        }
     }
 
     if (locked && token) {

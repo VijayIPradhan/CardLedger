@@ -5,6 +5,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db, pool } from './db/index.js';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { initializeJobs, stopAllJobs } from './jobs/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -34,6 +35,10 @@ app.log.info('Migrations complete');
 await seed(app.log);
 app.log.info('Seed complete');
 
+// Initialize scheduled jobs
+const jobs = initializeJobs();
+app.log.info('Background jobs initialized');
+
 const port = Number(process.env.PORT ?? 3001);
 await app.listen({ port, host: '0.0.0.0' });
 // Fastify pino logs the address automatically — no extra console.log needed
@@ -41,6 +46,7 @@ await app.listen({ port, host: '0.0.0.0' });
 ['SIGINT', 'SIGTERM'].forEach((signal) => {
   process.on(signal, async () => {
     app.log.info(`${signal} received — shutting down`);
+    stopAllJobs(jobs);
     await app.close();
     await pool.end();
     process.exit(0);

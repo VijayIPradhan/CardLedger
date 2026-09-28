@@ -45,6 +45,7 @@ class AppContainer(context: Context) {
     val metadataRepo = MetadataRepository(api)
     val paymentRepo = PaymentRepository(api)
     val dashboardRepo = DashboardRepository(api)
+    val billingCycleRepo = BillingCycleRepository(api)
 
     val reviewStore = ReviewStore(prefsStore, appScope)
 

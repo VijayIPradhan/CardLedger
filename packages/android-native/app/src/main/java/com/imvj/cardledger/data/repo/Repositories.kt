@@ -70,3 +70,11 @@ class DashboardRepository(private val api: ApiService) {
     suspend fun getCardDetail(cardId: String) = call { api.getCardDetail(cardId) }
     suspend fun getHolderDetails() = call { api.getHolderDetails() }
 }
+
+class BillingCycleRepository(private val api: ApiService) {
+    suspend fun list(cardId: String? = null, status: String? = null) = call { api.getBillingCycles(cardId, status) }
+    suspend fun get(id: String) = call { api.getBillingCycleDetail(id) }
+    suspend fun create(b: CreateBillingCycleDto) = call { api.createBillingCycle(b) }
+    suspend fun update(id: String, b: UpdateBillingCycleDto) = call { api.updateBillingCycle(id, b) }
+    suspend fun close(id: String) = call { api.closeBillingCycle(id) }
+}

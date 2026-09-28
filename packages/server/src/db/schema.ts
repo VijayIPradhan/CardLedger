@@ -127,6 +127,7 @@ export const transactions = pgTable(
     holder_id_at_time: uuid('holder_id_at_time')
       .references(() => holders.id)
       .notNull(),
+    billing_cycle_id: uuid('billing_cycle_id').references(() => billing_cycles.id),
     raw_sms_encrypted: text('raw_sms_encrypted'),
     dedupe_hash: varchar('dedupe_hash', { length: 64 }),
     created_at: timestamp('created_at').defaultNow().notNull(),
@@ -135,6 +136,7 @@ export const transactions = pgTable(
     cardIdIdx: index('transactions_card_id_idx').on(table.card_id),
     holderIdIdx: index('transactions_holder_id_idx').on(table.holder_id_at_time),
     txnDateIdx: index('transactions_txn_date_idx').on(table.txn_date),
+    cycleIdx: index('idx_transactions_cycle').on(table.billing_cycle_id),
   }),
 );
 
@@ -167,6 +169,7 @@ export const card_payments = pgTable(
       .references(() => holders.id)
       .notNull(),
     transaction_id: uuid('transaction_id').references(() => transactions.id),
+    billing_cycle_id: uuid('billing_cycle_id').references(() => billing_cycles.id),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     payment_date: date('payment_date').notNull(),
     notes: varchar('notes', { length: 200 }),
@@ -175,5 +178,89 @@ export const card_payments = pgTable(
   (table) => ({
     cardIdIdx: index('card_payments_card_id_idx').on(table.card_id),
     holderIdIdx: index('card_payments_holder_id_idx').on(table.holder_id),
+    cycleIdx: index('idx_card_payments_cycle').on(table.billing_cycle_id),
+  }),
+);
+
+export const reminders = pgTable(
+  'reminders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    user_id: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    card_id: uuid('card_id').references(() => cards.id, { onDelete: 'cascade' }),
+    reminder_type: varchar('reminder_type', { length: 30 }).notNull(),
+    scheduled_for: timestamp('scheduled_for').notNull(),
+    card_cycle_start: date('card_cycle_start'),
+    card_cycle_end: date('card_cycle_end'),
+    threshold_amount: numeric('threshold_amount', { precision: 12, scale: 2 }),
+    requires_usage: boolean('requires_usage').default(false),
+    status: varchar('status', { length: 20 }).default('scheduled').notNull(),
+    fired_at: timestamp('fired_at'),
+    dismissed_at: timestamp('dismissed_at'),
+    notified_via: jsonb('notified_via'),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+    updated_at: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userScheduledIdx: index('idx_reminders_user_scheduled').on(table.user_id, table.scheduled_for),
+    cardCycleIdx: index('idx_reminders_card_cycle').on(
+      table.card_id,
+      table.card_cycle_start,
+      table.card_cycle_end,
+    ),
+  }),
+);
+
+export const notification_preferences = pgTable('notification_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  card_id: uuid('card_id').references(() => cards.id, { onDelete: 'cascade' }),
+  reminder_type: varchar('reminder_type', { length: 30 }).notNull(),
+  days_before: integer('days_before'),
+  enabled: boolean('enabled').default(true).notNull(),
+  push_enabled: boolean('push_enabled').default(true).notNull(),
+  email_enabled: boolean('email_enabled').default(false).notNull(),
+  preferred_time: varchar('preferred_time', { length: 8 }).default('09:00:00'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const billing_cycles = pgTable(
+  'billing_cycles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    user_id: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    card_id: uuid('card_id')
+      .references(() => cards.id, { onDelete: 'cascade' })
+      .notNull(),
+    cycle_start: date('cycle_start').notNull(),
+    cycle_end: date('cycle_end').notNull(),
+    statement_date: date('statement_date').notNull(),
+    payment_due_date: date('payment_due_date').notNull(),
+    total_spend: numeric('total_spend', { precision: 12, scale: 2 }).default('0').notNull(),
+    total_refunds: numeric('total_refunds', { precision: 12, scale: 2 }).default('0').notNull(),
+    previous_balance: numeric('previous_balance', { precision: 12, scale: 2 })
+      .default('0')
+      .notNull(),
+    statement_amount: numeric('statement_amount', { precision: 12, scale: 2 }).notNull(),
+    minimum_due: numeric('minimum_due', { precision: 12, scale: 2 }),
+    paid_amount: numeric('paid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+    paid_on: date('paid_on'),
+    status: varchar('status', { length: 20 }).default('projected').notNull(),
+    is_locked: boolean('is_locked').default(false).notNull(),
+    statement_pdf_url: text('statement_pdf_url'),
+    notes: text('notes'),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+    updated_at: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    cardDateIdx: index('idx_cycles_card_date').on(table.card_id, table.statement_date),
+    dueDateIdx: index('idx_cycles_due_date').on(table.payment_due_date),
   }),
 );

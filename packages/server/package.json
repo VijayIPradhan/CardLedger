@@ -27,9 +27,11 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.11.0",
     "dotenv-cli": "^7.4.0",
     "drizzle-kit": "^0.31.10",
+    "node-cron": "^3.0.3",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"

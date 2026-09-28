@@ -62,4 +62,27 @@ interface ApiService {
         @Query("card_id") cardId: String,
         @Part file: okhttp3.MultipartBody.Part
     ): okhttp3.ResponseBody
+
+    // Reminders
+    @GET("reminders") suspend fun getReminders(@Query("status") status: String? = null): List<ReminderDto>
+    @POST("reminders") suspend fun createReminder(@Body body: CreateReminderDto): ReminderDto
+    @PATCH("reminders/{id}/dismiss") suspend fun dismissReminder(@Path("id") id: String): ReminderDto
+    @DELETE("reminders/{id}") suspend fun deleteReminder(@Path("id") id: String): Response<Unit>
+
+    // Notification Preferences
+    @GET("notification-preferences") suspend fun getNotificationPreferences(): List<NotificationPreferenceDto>
+    @POST("notification-preferences") suspend fun updateNotificationPreference(@Body body: UpdateNotificationPreferenceDto): NotificationPreferenceDto
+
+    // FCM Token Registration
+    @POST("fcm/register") suspend fun registerFcmToken(@Body body: FcmTokenRequest): Response<Unit>
+
+    // Billing Cycles
+    @GET("billing-cycles") suspend fun getBillingCycles(
+        @Query("card_id") cardId: String? = null,
+        @Query("status") status: String? = null
+    ): List<BillingCycleDto>
+    @GET("billing-cycles/{id}") suspend fun getBillingCycleDetail(@Path("id") id: String): BillingCycleDetailDto
+    @POST("billing-cycles") suspend fun createBillingCycle(@Body body: CreateBillingCycleDto): BillingCycleDto
+    @PATCH("billing-cycles/{id}") suspend fun updateBillingCycle(@Path("id") id: String, @Body body: UpdateBillingCycleDto): BillingCycleDto
+    @POST("billing-cycles/{id}/close") suspend fun closeBillingCycle(@Path("id") id: String): BillingCycleDto
 }

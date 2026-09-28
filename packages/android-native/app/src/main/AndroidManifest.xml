@@ -23,6 +23,16 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!-- Firebase Cloud Messaging Service -->
+        <service
+            android:name=".service.CardLedgerFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <activity android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.CardLedger">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

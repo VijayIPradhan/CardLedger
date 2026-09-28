@@ -384,3 +384,151 @@ data class DashboardSummaryDto(
     val totalForex: Double = 0.0,
     val budgetProgress: List<BudgetProgressDto> = emptyList(),
 )
+
+// Reminder DTOs
+@Serializable
+data class ReminderDto(
+    val id: String,
+    val user_id: String,
+    val card_id: String? = null,
+    val reminder_type: String,
+    val scheduled_for: String,
+    val card_cycle_start: String? = null,
+    val card_cycle_end: String? = null,
+    val threshold_amount: Double? = null,
+    val requires_usage: Boolean = false,
+    val status: String,
+    val fired_at: String? = null,
+    val dismissed_at: String? = null,
+    val notified_via: List<String>? = null,
+    val created_at: String,
+    val updated_at: String,
+)
+
+@Serializable
+data class CreateReminderDto(
+    val card_id: String? = null,
+    val reminder_type: String,
+    val scheduled_for: String,
+    val card_cycle_start: String? = null,
+    val card_cycle_end: String? = null,
+    val threshold_amount: Double? = null,
+    val requires_usage: Boolean? = null,
+)
+
+@Serializable
+data class NotificationPreferenceDto(
+    val id: String,
+    val user_id: String,
+    val card_id: String? = null,
+    val reminder_type: String,
+    val days_before: Int? = null,
+    val enabled: Boolean = true,
+    val push_enabled: Boolean = true,
+    val email_enabled: Boolean = false,
+    val preferred_time: String = "09:00:00",
+    val created_at: String,
+    val updated_at: String,
+)
+
+@Serializable
+data class UpdateNotificationPreferenceDto(
+    val card_id: String? = null,
+    val reminder_type: String,
+    val days_before: Int? = null,
+    val enabled: Boolean = true,
+    val push_enabled: Boolean? = null,
+    val email_enabled: Boolean? = null,
+    val preferred_time: String? = null,
+)
+
+// Billing Cycle DTOs
+@Serializable
+data class BillingCycleDto(
+    val id: String,
+    val user_id: String,
+    val card_id: String,
+    val cycle_start: String,
+    val cycle_end: String,
+    val statement_date: String,
+    val payment_due_date: String,
+    val total_spend: Double = 0.0,
+    val total_refunds: Double = 0.0,
+    val previous_balance: Double = 0.0,
+    val statement_amount: Double,
+    val minimum_due: Double? = null,
+    val paid_amount: Double = 0.0,
+    val paid_on: String? = null,
+    val status: String,
+    val is_locked: Boolean = false,
+    val statement_pdf_url: String? = null,
+    val notes: String? = null,
+    val created_at: String,
+    val updated_at: String,
+    val transaction_count: Int? = null,
+    val card_payment_count: Int? = null,
+)
+
+@Serializable
+data class BillingCycleDetailDto(
+    val id: String,
+    val user_id: String,
+    val card_id: String,
+    val cycle_start: String,
+    val cycle_end: String,
+    val statement_date: String,
+    val payment_due_date: String,
+    val total_spend: Double = 0.0,
+    val total_refunds: Double = 0.0,
+    val previous_balance: Double = 0.0,
+    val statement_amount: Double,
+    val minimum_due: Double? = null,
+    val paid_amount: Double = 0.0,
+    val paid_on: String? = null,
+    val status: String,
+    val is_locked: Boolean = false,
+    val statement_pdf_url: String? = null,
+    val notes: String? = null,
+    val created_at: String,
+    val updated_at: String,
+    val transactions: List<TransactionDto> = emptyList(),
+    val card_payments: List<CardPaymentItemDto> = emptyList(),
+)
+
+@Serializable
+data class CardPaymentItemDto(
+    val id: String,
+    val amount: Double,
+    val payment_date: String,
+    val holder_name: String,
+    val notes: String? = null,
+)
+
+@Serializable
+data class CreateBillingCycleDto(
+    val card_id: String,
+    val cycle_start: String,
+    val cycle_end: String,
+    val statement_date: String,
+    val payment_due_date: String,
+    val statement_amount: Double,
+    val minimum_due: Double? = null,
+    val notes: String? = null,
+)
+
+@Serializable
+data class UpdateBillingCycleDto(
+    val paid_amount: Double? = null,
+    val paid_on: String? = null,
+    val status: String? = null,
+    val is_locked: Boolean? = null,
+    val statement_amount: Double? = null,
+    val notes: String? = null,
+)
+
+// FCM Token Registration
+@Serializable
+data class FcmTokenRequest(
+    val token: String,
+    val device_type: String = "android",
+)

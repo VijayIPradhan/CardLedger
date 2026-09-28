@@ -5,6 +5,7 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.serialization'
     id 'org.jetbrains.kotlin.plugin.compose'
+    id 'com.google.gms.google-services'
 }
 
 def localProps = new Properties()
@@ -76,6 +77,12 @@ dependencies {
     implementation 'androidx.credentials:credentials:1.3.0-rc01'
     implementation 'androidx.credentials:credentials-play-services-auth:1.3.0-rc01'
     implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
+
+    // Firebase Cloud Messaging
+    // NOTE: Add google-services.json from Firebase Console to app/ directory
+    def firebaseBom = platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation firebaseBom
+    implementation 'com.google.firebase:firebase-messaging'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.jetbrains.kotlin:kotlin-test:1.9.22'

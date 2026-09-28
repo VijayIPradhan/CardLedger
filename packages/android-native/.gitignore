@@ -5,3 +5,4 @@ build/
 .idea/
 .kotlin/
 app/build/
+app/google-services.json
