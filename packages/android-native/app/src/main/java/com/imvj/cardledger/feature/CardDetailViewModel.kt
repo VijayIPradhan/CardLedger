@@ -271,22 +271,9 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
 
     fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, funderId: String?, linkedTransactionIds: List<String>, onDone: () -> Unit) {
         viewModelScope.launch {
-            val bills = linkedTransactionIds.mapNotNull { txnId ->
-                val txn = _state.value.transactions.find { it.id == txnId }
-                txn?.let {
-                    val remaining = (it.amount.toDoubleOrNull() ?: 0.0) - (it.bank_paid_amount ?: 0.0)
-                    BillAmount(it.id, remaining)
-                }
-            }
-
-            val distribution = distributePayment(amount, bills)
-
-            var allSuccessful = true
-            var parentPaymentId: String? = null
-
-            // Step 1: Create parent payment record with full amount (no linked transaction)
-            if (distribution.allocations.isNotEmpty() || distribution.excess > 0.0) {
-                val parentResult = c.transactionRepo.create(
+            if (linkedTransactionIds.isEmpty()) {
+                // Unallocated payment (no specific transactions selected)
+                val result = c.transactionRepo.create(
                     CreateTransactionDto(
                         card_id = cardId,
                         amount = amount,
@@ -300,17 +287,27 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                     )
                 )
 
-                if (parentResult.isSuccess) {
-                    parentPaymentId = parentResult.getOrNull()?.id
-                } else {
-                    allSuccessful = false
-                    _state.value = _state.value.copy(error = "Could not create parent payment.")
-                    onDone()
-                    return@launch
+                if (result.isFailure) {
+                    _state.value = _state.value.copy(error = "Could not create payment.")
+                }
+                load(cardId)
+                onDone()
+                return@launch
+            }
+
+            // Distribute payment across selected transactions based on their remaining balances
+            val bills = linkedTransactionIds.mapNotNull { txnId ->
+                val txn = _state.value.transactions.find { it.id == txnId }
+                txn?.let {
+                    val remaining = (it.amount.toDoubleOrNull() ?: 0.0) - (it.bank_paid_amount ?: 0.0)
+                    BillAmount(it.id, remaining)
                 }
             }
 
-            // Step 2: Create child allocation records linked to parent
+            val distribution = distributePayment(amount, bills)
+            var allSuccessful = true
+
+            // Create one payment per allocated transaction
             for (allocation in distribution.allocations) {
                 val result = c.transactionRepo.create(
                     CreateTransactionDto(
@@ -322,7 +319,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                         type = "bill_payment",
                         funded_by_holder_id = funderId,
                         linked_transaction_id = allocation.transactionId,
-                        parent_payment_id = parentPaymentId
+                        parent_payment_id = null
                     )
                 )
                 if (result.isFailure) {
@@ -331,7 +328,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 }
             }
 
-            // Step 3: Create excess allocation if any (unallocated portion)
+            // If there's excess, create an unallocated payment
             if (allSuccessful && distribution.excess > 0.0) {
                 val result = c.transactionRepo.create(
                     CreateTransactionDto(
@@ -343,7 +340,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                         type = "bill_payment",
                         funded_by_holder_id = funderId,
                         linked_transaction_id = null,
-                        parent_payment_id = parentPaymentId
+                        parent_payment_id = null
                     )
                 )
                 if (result.isFailure) {
