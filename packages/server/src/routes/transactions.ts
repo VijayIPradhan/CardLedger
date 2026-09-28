@@ -545,11 +545,49 @@ export async function transactionRoutes(app: FastifyInstance) {
 
       if (!existingCp) return reply.status(404).send({ error: 'Not found' });
 
-      // Reduce payments_received on linked transaction
+      // Reduce payments_received on linked transaction and handle parent-child cascading
       await db.transaction(async (tx) => {
-        const txnId = existingCp.card_payments.transaction_id;
-        const paymentAmount = parseFloat(String(existingCp.card_payments.amount));
+        const payment = existingCp.card_payments;
+        const txnId = payment.transaction_id;
+        const paymentAmount = parseFloat(String(payment.amount));
 
+        // If this is a parent payment, find and delete all children first
+        if (payment.is_parent) {
+          const childPayments = await tx
+            .select()
+            .from(card_payments)
+            .where(eq(card_payments.parent_payment_id, req.params.id));
+
+          // Revert is_paid status for each child's linked transaction
+          for (const child of childPayments) {
+            if (child.transaction_id) {
+              const childAmount = parseFloat(String(child.amount));
+              const [linkedTxn] = await tx
+                .select()
+                .from(transactions)
+                .where(eq(transactions.id, child.transaction_id));
+
+              if (linkedTxn) {
+                const currentPayments = parseFloat(String(linkedTxn.payments_received || 0));
+                const updatedPayments = Math.max(0, currentPayments - childAmount);
+                const txnAmount = parseFloat(String(linkedTxn.amount));
+
+                await tx
+                  .update(transactions)
+                  .set({
+                    payments_received: String(updatedPayments),
+                    is_paid: updatedPayments >= txnAmount,
+                  })
+                  .where(eq(transactions.id, child.transaction_id));
+              }
+            }
+          }
+
+          // Delete all child payments
+          await tx.delete(card_payments).where(eq(card_payments.parent_payment_id, req.params.id));
+        }
+
+        // Revert the parent/standalone payment's linked transaction if any
         if (txnId) {
           const [txn] = await tx.select().from(transactions).where(eq(transactions.id, txnId));
 
@@ -568,6 +606,7 @@ export async function transactionRoutes(app: FastifyInstance) {
           }
         }
 
+        // Finally, delete the parent/standalone payment itself
         await tx.delete(card_payments).where(eq(card_payments.id, req.params.id));
       });
 
