@@ -15,6 +15,16 @@ import {
   resolveHolder,
 } from '@cardledger/shared';
 
+/**
+ * Check if a transaction should be marked as paid, rounding to avoid floating point issues.
+ * Rounds to 2 decimal places (cents) before comparison.
+ */
+function isPaid(paymentsReceived: number, transactionAmount: number): boolean {
+  const roundedPayments = Math.round(paymentsReceived * 100) / 100;
+  const roundedAmount = Math.round(transactionAmount * 100) / 100;
+  return roundedPayments >= roundedAmount;
+}
+
 export async function transactionRoutes(app: FastifyInstance) {
   const auth = { onRequest: [app.authenticate] };
 
@@ -261,7 +271,7 @@ export async function transactionRoutes(app: FastifyInstance) {
               .update(transactions)
               .set({
                 payments_received: String(newPayments),
-                is_paid: newPayments >= txnAmount,
+                is_paid: isPaid(newPayments, txnAmount),
               })
               .where(eq(transactions.id, linked_transaction_id));
           }
@@ -448,7 +458,7 @@ export async function transactionRoutes(app: FastifyInstance) {
               .update(transactions)
               .set({
                 payments_received: String(updatedPayments),
-                is_paid: updatedPayments >= txnAmount,
+                is_paid: isPaid(updatedPayments, txnAmount),
               })
               .where(eq(transactions.id, oldTxnId));
           }
@@ -470,7 +480,7 @@ export async function transactionRoutes(app: FastifyInstance) {
               .update(transactions)
               .set({
                 payments_received: String(updatedPayments),
-                is_paid: updatedPayments >= txnAmount,
+                is_paid: isPaid(updatedPayments, txnAmount),
               })
               .where(eq(transactions.id, newTxnId));
           }
@@ -576,7 +586,7 @@ export async function transactionRoutes(app: FastifyInstance) {
                   .update(transactions)
                   .set({
                     payments_received: String(updatedPayments),
-                    is_paid: updatedPayments >= txnAmount,
+                    is_paid: isPaid(updatedPayments, txnAmount),
                   })
                   .where(eq(transactions.id, child.transaction_id));
               }
@@ -600,7 +610,7 @@ export async function transactionRoutes(app: FastifyInstance) {
               .update(transactions)
               .set({
                 payments_received: String(updatedPayments),
-                is_paid: updatedPayments >= txnAmount,
+                is_paid: isPaid(updatedPayments, txnAmount),
               })
               .where(eq(transactions.id, txnId));
           }
@@ -676,7 +686,7 @@ export async function transactionRoutes(app: FastifyInstance) {
                 .update(transactions)
                 .set({
                   payments_received: String(updatedPayments),
-                  is_paid: updatedPayments >= txnAmount,
+                  is_paid: isPaid(updatedPayments, txnAmount),
                 })
                 .where(eq(transactions.id, child.linked_transaction_id));
             }
