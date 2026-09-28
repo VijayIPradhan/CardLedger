@@ -30,7 +30,7 @@ fun cardSpend(card: CardDto, fromDashboard: Double?): Double =
     fromDashboard?.takeIf { it > 0.0 } ?: (card.current_spend?.toDoubleOrNull() ?: 0.0)
 
 @Composable
-fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend: Double, limitRank: Int? = null, toCollect: Double = 0.0, friendUsage: Double = 0.0) {
+fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend: Double, limitRank: Int? = null, toCollect: Double = 0.0, usage: Double = 0.0) {
     val white60 = Color.White.copy(alpha = 0.6f)
     Box(
         Modifier.fillMaxWidth().aspectRatio(1.586f)
@@ -120,11 +120,11 @@ fun CardTile(card: CardDto, holderInitials: String?, holderIsMe: Boolean, spend:
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                 Column {
                     Text("•••• ${card.last4}", color = white60, fontSize = 12.sp)
-                    if (toCollect > 0 || friendUsage > 0) {
+                    if (toCollect > 0 || usage > 0) {
                         Spacer(Modifier.height(4.dp))
                         Surface(color = Color.Black.copy(alpha = 0.3f), shape = RoundedCornerShape(4.dp)) {
-                            val badgeText = if (friendUsage > toCollect + 0.5) {
-                                "To collect: ${com.imvj.cardledger.ui.components.money(toCollect)} (Usage: ${com.imvj.cardledger.ui.components.money(friendUsage)})"
+                            val badgeText = if (usage > toCollect + 0.5) {
+                                "To collect: ${com.imvj.cardledger.ui.components.money(toCollect)} (Usage: ${com.imvj.cardledger.ui.components.money(usage)})"
                             } else {
                                 "To collect: ${com.imvj.cardledger.ui.components.money(toCollect)}"
                             }

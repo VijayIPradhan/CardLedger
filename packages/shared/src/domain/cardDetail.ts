@@ -178,6 +178,12 @@ export interface CardDetailResult {
    */
   friendUsage: number;
   /**
+   * Total unpaid usage on this card across ALL holders (friends + me), net of refunds.
+   * This is what appears on the card statement - the full balance regardless of who spent it.
+   * For shared limit cards, this reflects only this card's usage (not the shared partner).
+   */
+  totalCardUsage: number;
+  /**
    * Friend usage inside the current billing cycle — what the next bill will ask for, as opposed
    * to `friendUsage`, which carries every unpaid cycle. Future-dated transactions count towards
    * the cycle in progress, matching `cycles[0]`.
@@ -282,6 +288,16 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     else if (t.type === 'refund') friendCycleUsage -= money(t.amount);
   }
 
+  // Total unpaid usage across ALL holders (friends + me). This is what will appear on the card
+  // statement — the full balance regardless of who spent it.
+  let totalCardUsage = 0;
+  for (const t of cardTxns) {
+    if (!t.is_paid) {
+      if (t.type === 'spend') totalCardUsage += money(t.amount);
+      else if (t.type === 'refund') totalCardUsage -= money(t.amount);
+    }
+  }
+
   const activeAssignment = input.assignments.find((a) => a.card_id === cardId && !a.returned_date);
   const currentHolderId =
     activeAssignment?.holder_id ?? holders.find((h) => h.relationship === 'me')?.id ?? null;
@@ -291,6 +307,7 @@ export function computeCardDetail(input: CardDetailInput): CardDetailResult {
     toCollect,
     collectedInHand,
     friendUsage,
+    totalCardUsage: roundMoney(totalCardUsage),
     friendCycleUsage: roundMoney(friendCycleUsage),
     friendBreakdown,
     cycles: buildCycleGroups(billingCycleDay, cycleRows, today),

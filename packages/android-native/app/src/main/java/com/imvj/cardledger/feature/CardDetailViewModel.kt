@@ -6,6 +6,8 @@ import com.imvj.cardledger.AppContainer
 import com.imvj.cardledger.data.net.*
 import com.imvj.cardledger.data.repo.isConflict
 import com.imvj.cardledger.domain.today
+import com.imvj.cardledger.domain.BillAmount
+import com.imvj.cardledger.domain.distributePayment
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +36,8 @@ data class CardDetailUiState(
     val collectedInHand: Double = 0.0,
     /** Unpaid friend usage of this card, served rather than derived. */
     val friendUsage: Double = 0.0,
+    /** Total unpaid usage on this card (all holders including me), served rather than derived. */
+    val totalCardUsage: Double = 0.0,
     /** Friend usage inside the cycle now running — what the next bill will ask for. */
     val friendCycleUsage: Double = 0.0,
     val friendBreakdown: List<FriendCollectable> = emptyList(),
@@ -89,6 +93,7 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 toCollect = cardToCollect,
                 collectedInHand = cardCollectedInHand,
                 friendUsage = detail?.friendUsage ?: 0.0,
+                totalCardUsage = detail?.totalCardUsage ?: 0.0,
                 friendCycleUsage = detail?.friendCycleUsage ?: 0.0,
                 friendBreakdown = detail?.friendBreakdown.orEmpty().map { fb ->
                     FriendCollectable(fb.holderId, fb.holderName, fb.owed, fb.collectedInHand, fb.usage)
@@ -237,24 +242,61 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, funderId: String?, linkedTransactionId: String?, onDone: () -> Unit) {
+    fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, funderId: String?, linkedTransactionIds: List<String>, onDone: () -> Unit) {
         viewModelScope.launch {
-            c.transactionRepo.create(
-                CreateTransactionDto(
-                    card_id = cardId,
-                    amount = amount,
-                    merchant = "Payment to Bank",
-                    txn_date = date,
-                    source = "manual",
-                    type = "bill_payment",
-                    funded_by_holder_id = funderId,
-                    linked_transaction_id = linkedTransactionId
+            val bills = linkedTransactionIds.mapNotNull { txnId ->
+                val txn = _state.value.transactions.find { it.id == txnId }
+                txn?.let {
+                    val remaining = (it.amount.toDoubleOrNull() ?: 0.0) - (it.bank_paid_amount ?: 0.0)
+                    BillAmount(it.id, remaining)
+                }
+            }
+
+            val distribution = distributePayment(amount, bills)
+
+            var allSuccessful = true
+            for (allocation in distribution.allocations) {
+                val result = c.transactionRepo.create(
+                    CreateTransactionDto(
+                        card_id = cardId,
+                        amount = allocation.amount,
+                        merchant = notes ?: "Payment to Bank",
+                        txn_date = date,
+                        source = "manual",
+                        type = "bill_payment",
+                        funded_by_holder_id = funderId,
+                        linked_transaction_id = allocation.transactionId
+                    )
                 )
-            ).onSuccess {
+                if (result.isFailure) {
+                    allSuccessful = false
+                    break
+                }
+            }
+
+            if (distribution.excess > 0.0) {
+                val result = c.transactionRepo.create(
+                    CreateTransactionDto(
+                        card_id = cardId,
+                        amount = distribution.excess,
+                        merchant = notes ?: "Payment to Bank",
+                        txn_date = date,
+                        source = "manual",
+                        type = "bill_payment",
+                        funded_by_holder_id = funderId,
+                        linked_transaction_id = null
+                    )
+                )
+                if (result.isFailure) {
+                    allSuccessful = false
+                }
+            }
+
+            if (allSuccessful) {
                 load(cardId)
                 onDone()
-            }.onFailure {
-                _state.value = _state.value.copy(error = "Could not record payment.")
+            } else {
+                _state.value = _state.value.copy(error = "Could not record all payments.")
                 onDone()
             }
         }

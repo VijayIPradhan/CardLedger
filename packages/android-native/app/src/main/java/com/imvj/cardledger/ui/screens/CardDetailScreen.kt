@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.imvj.cardledger.data.net.TransactionDto
+import com.imvj.cardledger.domain.BillAmount
 import com.imvj.cardledger.feature.CardDetailViewModel
 import com.imvj.cardledger.feature.app
 import com.imvj.cardledger.ui.components.*
@@ -398,11 +399,11 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                     // Unpaid usage, shown whenever it exceeds what is left to collect —
                                     // cash and card payments come off toCollect but not off usage, so the
                                     // two differ as soon as anything has been collected.
-                                    if (s.friendUsage > s.toCollect + 0.5) {
+                                    if (s.totalCardUsage > s.toCollect + 0.5) {
                                         val collected =
                                             if (s.collectedInHand > 0.5) " · Collected: +${money(s.collectedInHand)}" else ""
                                         Text(
-                                            "Unpaid Friend Usage: ${money(s.friendUsage)}$collected",
+                                            "Usage: ${money(s.totalCardUsage)}$collected",
                                             color = Success,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontSize = 11.sp
@@ -1036,8 +1037,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
         var pmtNotes by remember { mutableStateOf("") }
         var pmtFunderId by remember(preselectedPmtTxn) { mutableStateOf(preselectedPmtTxn?.holder_id_at_time ?: s.holders.firstOrNull { it.relationship == "me" }?.id ?: "") }
         var funderExpanded by remember { mutableStateOf(false) }
-        var linkedTxnId by remember(preselectedPmtTxn) { mutableStateOf<String?>(preselectedPmtTxn?.id) }
-        var linkedTxnExpanded by remember { mutableStateOf(false) }
+        var selectedTxnIds by remember(preselectedPmtTxn) { mutableStateOf<Set<String>>(preselectedPmtTxn?.id?.let { setOf(it) } ?: emptySet()) }
         var loading by remember { mutableStateOf(false) }
         val selectedFunder = s.holders.firstOrNull { it.id == pmtFunderId }
 
@@ -1108,54 +1108,112 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                 }
 
                 val meId = s.holders.firstOrNull { it.relationship == "me" }?.id
-                val eligibleSpends = s.transactions.filter { 
-                    (!it.is_paid || it.id == linkedTxnId) && it.type == "spend" &&
-                    (pmtFunderId == meId || it.holder_id_at_time == pmtFunderId)
-                }
-                
-                ExposedDropdownMenuBox(
-                    expanded = eligibleSpends.isNotEmpty() && linkedTxnExpanded,
-                    onExpandedChange = { if (eligibleSpends.isNotEmpty()) linkedTxnExpanded = it },
-                ) {
-                    val selectedSpend = eligibleSpends.firstOrNull { it.id == linkedTxnId }
-                    val displayValue = if (eligibleSpends.isEmpty()) {
-                        "No unpaid spends found"
-                    } else {
-                        selectedSpend?.let { "${it.merchant} (${money(it.amount.toDoubleOrNull() ?: 0.0)})" } ?: "None (General Payment)"
+                val eligibleSpends = s.transactions.filter {
+                    val remaining = (it.amount.toDoubleOrNull() ?: 0.0) - (it.bank_paid_amount ?: 0.0)
+                    it.type == "spend" && remaining > 0.01 && (pmtFunderId == meId || it.holder_id_at_time == pmtFunderId)
+                }.sortedByDescending { it.txn_date }
+
+                val paymentAmt = pmtAmount.toDoubleOrNull() ?: 0.0
+                val selectedBills = selectedTxnIds.mapNotNull { txnId ->
+                    eligibleSpends.find { it.id == txnId }?.let { txn ->
+                        val remaining = (txn.amount.toDoubleOrNull() ?: 0.0) - (txn.bank_paid_amount ?: 0.0)
+                        BillAmount(txn.id, remaining)
                     }
-                    OutlinedTextField(
-                        value = displayValue,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Pays For (Optional)") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = linkedTxnExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        enabled = eligibleSpends.isNotEmpty()
-                    )
-                    if (eligibleSpends.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = linkedTxnExpanded,
-                            onDismissRequest = { linkedTxnExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("None (General Payment)") },
-                                onClick = {
-                                    linkedTxnId = null
-                                    linkedTxnExpanded = false
+                }
+                val selectedTotal = selectedBills.sumOf { it.remainingAmount }
+                val remainingPayment = paymentAmt - selectedTotal
+
+                if (eligibleSpends.isNotEmpty()) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Select Bills to Pay (Optional)", color = Muted, style = MaterialTheme.typography.labelMedium)
+
+                        if (paymentAmt > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Gold.copy(alpha = 0.1f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.3f))
+                            ) {
+                                Row(
+                                    Modifier.padding(12.dp).fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("Payment Amount", color = Muted, fontSize = 11.sp)
+                                        Text("₹${money(paymentAmt)}", color = OnDark, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text("Selected Total", color = Muted, fontSize = 11.sp)
+                                        Text("₹${money(selectedTotal)}", color = Gold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(if (remainingPayment >= 0) "Remaining" else "Over", color = Muted, fontSize = 11.sp)
+                                        Text(
+                                            "₹${money(kotlin.math.abs(remainingPayment))}",
+                                            color = if (remainingPayment >= 0) Success else Danger,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                    }
                                 }
-                            )
-                            eligibleSpends.forEach { spend ->
-                                DropdownMenuItem(
-                                    text = { Text("${spend.merchant} (${money(spend.amount.toDoubleOrNull() ?: 0.0)})") },
-                                    onClick = {
-                                        linkedTxnId = spend.id
-                                        linkedTxnExpanded = false
-                                    },
-                                )
                             }
                         }
-                    } else {
-                        linkedTxnId = null
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Elevated
+                        ) {
+                            Column(Modifier.verticalScroll(rememberScrollState()).padding(8.dp)) {
+                                eligibleSpends.forEach { spend ->
+                                    val remaining = (spend.amount.toDoubleOrNull() ?: 0.0) - (spend.bank_paid_amount ?: 0.0)
+                                    val isSelected = selectedTxnIds.contains(spend.id)
+                                    val canSelect = isSelected || selectedTxnIds.isEmpty() || remainingPayment > 0.01
+
+                                    Row(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = canSelect) {
+                                                selectedTxnIds = if (isSelected) {
+                                                    selectedTxnIds - spend.id
+                                                } else {
+                                                    selectedTxnIds + spend.id
+                                                }
+                                            }
+                                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = isSelected,
+                                            onCheckedChange = {
+                                                if (canSelect) {
+                                                    selectedTxnIds = if (it) {
+                                                        selectedTxnIds + spend.id
+                                                    } else {
+                                                        selectedTxnIds - spend.id
+                                                    }
+                                                }
+                                            },
+                                            enabled = canSelect,
+                                            colors = CheckboxDefaults.colors(checkedColor = Gold)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(spend.merchant, color = if (canSelect) OnDark else Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                            Text(spend.txn_date, color = Muted, fontSize = 11.sp)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("₹${money(spend.amount.toDoubleOrNull() ?: 0.0)}", color = if (canSelect) OnDark else Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            if (remaining < (spend.amount.toDoubleOrNull() ?: 0.0)) {
+                                                Text("Remaining: ₹${money(remaining)}", color = Gold, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    if (spend != eligibleSpends.last()) {
+                                        HorizontalDivider(color = SurfaceTint, thickness = 1.dp)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1163,7 +1221,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                     onClick = {
                         val amt = pmtAmount.toDoubleOrNull() ?: return@Button
                         loading = true
-                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, pmtFunderId, linkedTxnId) {
+                        vm.recordBillPayment(cardId, amt, pmtDate, pmtNotes.ifBlank { null }, pmtFunderId, selectedTxnIds.toList()) {
                             loading = false
                             showCardPaymentSheet = false
                             android.widget.Toast.makeText(context, "Card payment recorded", android.widget.Toast.LENGTH_SHORT).show()

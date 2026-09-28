@@ -112,11 +112,19 @@ export async function summaryDetailRoutes(app: FastifyInstance) {
         }, 0),
       );
 
+    // Card payments should only reduce the balance if they're against unpaid transactions.
+    // Payments linked to already-paid transactions are already excluded from the unpaid spend sum.
+    const txnById = new Map(ledger.transactions.map((t) => [t.id, t]));
     const groupCardPayments = round(
-      ledger.cardPayments.reduce(
-        (sum, p) => (groupCardIds.has(p.card_id) ? sum + (Number(p.amount) || 0) : sum),
-        0,
-      ),
+      ledger.cardPayments.reduce((sum, p) => {
+        if (!groupCardIds.has(p.card_id)) return sum;
+        // Only count payments that are unlinked OR linked to unpaid transactions
+        if (p.transaction_id) {
+          const txn = txnById.get(p.transaction_id);
+          if (!txn || txn.is_paid) return sum; // Skip if linked to paid transaction
+        }
+        return sum + (Number(p.amount) || 0);
+      }, 0),
     );
 
     return {

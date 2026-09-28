@@ -320,6 +320,8 @@ data class CardDetailDto(
     val collectedInHand: Double = 0.0,
     /** Unpaid friend usage of this card, net of refunds. Not derivable from the two above. */
     val friendUsage: Double = 0.0,
+    /** Total unpaid usage on this card across ALL holders (friends + me), net of refunds. */
+    val totalCardUsage: Double = 0.0,
     /** Friend usage inside the cycle now running — what the next bill will ask for. */
     val friendCycleUsage: Double = 0.0,
     val friendBreakdown: List<CardFriendBreakdownDto> = emptyList(),

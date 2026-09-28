@@ -111,6 +111,20 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
             }
         }
     }
+    // Total unpaid usage per card (all holders including me), computed from transactions
+    val totalUsageByCardId = remember(s.transactions) {
+        buildMap<String, Double> {
+            s.transactions.filter { !it.is_paid }.forEach { txn ->
+                val amount = txn.amount.toDoubleOrNull() ?: 0.0
+                val current = get(txn.card_id) ?: 0.0
+                when (txn.type) {
+                    "spend" -> put(txn.card_id, current + amount)
+                    "refund" -> put(txn.card_id, current - amount)
+                    else -> {} // bill_payment and others don't count
+                }
+            }
+        }
+    }
     val cardById = remember(s.cards) { s.cards.associateBy { it.id } }
 
     Scaffold(
@@ -555,8 +569,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel) {
                                                     }
                                                 }
                                         ) {
-                                            val friendUsage = friendUsageByCardId[card.id] ?: 0.0
-                                            CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0, friendUsage)
+                                            val totalUsage = totalUsageByCardId[card.id] ?: 0.0
+                                            CardTile(card, initials, isMe, spend, limitRank, s.toCollectByCard[card.id] ?: 0.0, totalUsage)
                                         }
                                     }
                                 }
