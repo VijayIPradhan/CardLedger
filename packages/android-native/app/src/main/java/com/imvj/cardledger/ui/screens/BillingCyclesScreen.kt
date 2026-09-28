@@ -20,6 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -140,7 +142,7 @@ fun BillingCyclesScreen(nav: NavHostController) {
                 containerColor = Gold,
                 shape = CircleShape
             ) {
-                Text("+", fontSize = 26.sp, color = Base, fontWeight = FontWeight.Bold)
+                Text("+", fontSize = 24.sp, color = Base, fontWeight = FontWeight.Bold)
             }
         }
     ) { innerPadding ->
@@ -229,6 +231,9 @@ fun BillingCyclesScreen(nav: NavHostController) {
                                             selected = s.selectedCardId == null,
                                             onClick = { vm.setCardFilter(null) },
                                             label = { Text("All Cards") },
+                                            modifier = Modifier.semantics {
+                                                contentDescription = if (s.selectedCardId == null) "All Cards filter selected" else "Filter by All Cards"
+                                            },
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = Gold.copy(alpha = 0.2f),
                                                 selectedLabelColor = Gold,
@@ -242,6 +247,12 @@ fun BillingCyclesScreen(nav: NavHostController) {
                                             selected = s.selectedCardId == card.id,
                                             onClick = { vm.setCardFilter(card.id) },
                                             label = { Text(card.nickname) },
+                                            modifier = Modifier.semantics {
+                                                contentDescription = if (s.selectedCardId == card.id)
+                                                    "${card.nickname} filter selected"
+                                                else
+                                                    "Filter by ${card.nickname}"
+                                            },
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = Gold.copy(alpha = 0.2f),
                                                 selectedLabelColor = Gold,
@@ -268,6 +279,12 @@ fun BillingCyclesScreen(nav: NavHostController) {
                                             selected = s.selectedStatus == status,
                                             onClick = { vm.setStatusFilter(status) },
                                             label = { Text(status) },
+                                            modifier = Modifier.semantics {
+                                                contentDescription = if (s.selectedStatus == status)
+                                                    "$status status filter selected"
+                                                else
+                                                    "Filter by $status status"
+                                            },
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = Gold.copy(alpha = 0.2f),
                                                 selectedLabelColor = Gold,
@@ -356,7 +373,7 @@ fun BillingCycleCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         color = Surface1,

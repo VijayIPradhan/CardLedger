@@ -158,13 +158,13 @@ fun BillingCycleDetailScreen(nav: NavHostController, cycleId: String) {
                 title = { Text("Billing Cycle", color = OnDark) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "back", tint = OnDark)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnDark)
                     }
                 },
                 actions = {
                     Box {
                         IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, "menu", tint = OnDark)
+                            Icon(Icons.Default.MoreVert, "Menu", tint = OnDark)
                         }
                         DropdownMenu(
                             expanded = showOverflowMenu,
@@ -411,7 +411,7 @@ private fun CyclePeriodBanner(cycle: BillingCycleDetailDto) {
         border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.4f))
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
@@ -483,7 +483,7 @@ private fun LockIndicator() {
         border = androidx.compose.foundation.BorderStroke(1.dp, Danger.copy(alpha = 0.4f))
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -557,7 +557,7 @@ private fun MetricCard(label: String, value: String, color: Color, modifier: Mod
         color = Surface1
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
@@ -849,7 +849,7 @@ private fun ActionButtons(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Success,
-                    contentColor = Color.White
+                    contentColor = OnDark
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
