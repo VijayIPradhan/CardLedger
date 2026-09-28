@@ -140,6 +140,16 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch { c.transactionRepo.delete(txnId).onSuccess { load(cardId) } }
     }
 
+    fun deletePayment(paymentId: String, cardId: String) {
+        viewModelScope.launch {
+            c.transactionRepo.delete(paymentId).onSuccess {
+                load(cardId)
+            }.onFailure {
+                _state.value = _state.value.copy(error = "Could not delete payment.")
+            }
+        }
+    }
+
     fun updateTxn(
         txnId: String,
         cardId: String,

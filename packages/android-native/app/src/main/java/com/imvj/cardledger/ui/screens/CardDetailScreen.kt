@@ -15,8 +15,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -765,6 +768,8 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                 parentPayments.forEach { parent ->
                                     val children = childrenByParent[parent.id] ?: emptyList()
                                     val isParentExpanded = expandedParentPayments.contains(parent.id)
+                                    var showParentMenu by remember { mutableStateOf(false) }
+                                    var showDeleteDialog by remember { mutableStateOf(false) }
 
                                     // Parent payment row
                                     Surface(
@@ -863,20 +868,66 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                         }
                                                     }
 
-                                                    Column(horizontalAlignment = Alignment.End) {
-                                                        Text(
-                                                            "+${money(parent.amount.toDoubleOrNull() ?: 0.0)}",
-                                                            color = Success,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 16.sp,
-                                                        )
-                                                        if (children.isNotEmpty()) {
-                                                            Icon(
-                                                                imageVector = if (isParentExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                                                contentDescription = if (isParentExpanded) "Collapse" else "Expand",
-                                                                tint = Muted,
-                                                                modifier = Modifier.size(18.dp)
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Column(horizontalAlignment = Alignment.End) {
+                                                            Text(
+                                                                "+${money(parent.amount.toDoubleOrNull() ?: 0.0)}",
+                                                                color = Success,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 16.sp,
                                                             )
+                                                            if (children.isNotEmpty()) {
+                                                                Icon(
+                                                                    imageVector = if (isParentExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                                    contentDescription = if (isParentExpanded) "Collapse" else "Expand",
+                                                                    tint = Muted,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
+                                                        }
+
+                                                        // Overflow menu
+                                                        Box {
+                                                            IconButton(
+                                                                onClick = { showParentMenu = true },
+                                                                modifier = Modifier.size(32.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.MoreVert,
+                                                                    contentDescription = "Payment options",
+                                                                    tint = Muted,
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
+                                                            }
+
+                                                            DropdownMenu(
+                                                                expanded = showParentMenu,
+                                                                onDismissRequest = { showParentMenu = false }
+                                                            ) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Edit Payment") },
+                                                                    onClick = {
+                                                                        showParentMenu = false
+                                                                        // TODO: Open edit dialog
+                                                                    },
+                                                                    leadingIcon = {
+                                                                        Icon(Icons.Default.Edit, contentDescription = null)
+                                                                    }
+                                                                )
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Delete Payment", color = Danger) },
+                                                                    onClick = {
+                                                                        showParentMenu = false
+                                                                        showDeleteDialog = true
+                                                                    },
+                                                                    leadingIcon = {
+                                                                        Icon(Icons.Default.Delete, contentDescription = null, tint = Danger)
+                                                                    }
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -959,6 +1010,43 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                 }
                                             }
                                         }
+                                    }
+
+                                    // Delete confirmation dialog
+                                    if (showDeleteDialog) {
+                                        AlertDialog(
+                                            onDismissRequest = { showDeleteDialog = false },
+                                            title = { Text("Delete Payment?") },
+                                            text = {
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Text("Are you sure you want to delete this payment of ${money(parent.amount.toDoubleOrNull() ?: 0.0)}?")
+                                                    if (children.isNotEmpty()) {
+                                                        Text(
+                                                            "This will also delete ${children.size} allocation${if (children.size > 1) "s" else ""} and revert the linked transactions.",
+                                                            color = Danger,
+                                                            fontSize = 13.sp
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            confirmButton = {
+                                                androidx.compose.material3.TextButton(
+                                                    onClick = {
+                                                        vm.deletePayment(parent.id, cardId)
+                                                        showDeleteDialog = false
+                                                    }
+                                                ) {
+                                                    Text("Delete", color = Danger, fontWeight = FontWeight.Bold)
+                                                }
+                                            },
+                                            dismissButton = {
+                                                androidx.compose.material3.TextButton(
+                                                    onClick = { showDeleteDialog = false }
+                                                ) {
+                                                    Text("Cancel")
+                                                }
+                                            }
+                                        )
                                     }
                                 }
                             }
