@@ -770,121 +770,191 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 2.dp)
-                                            .clickable {
-                                                expandedParentPayments = if (isParentExpanded) {
-                                                    expandedParentPayments - parent.id
-                                                } else {
-                                                    expandedParentPayments + parent.id
-                                                }
-                                            },
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Gold.copy(alpha = 0.08f),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.3f))
+                                            .padding(vertical = 3.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Elevated,
+                                        tonalElevation = if (children.isNotEmpty()) 2.dp else 0.dp
                                     ) {
-                                        Row(
-                                            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                verticalAlignment = Alignment.CenterVertically
+                                        Column {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable(enabled = children.isNotEmpty()) {
+                                                        expandedParentPayments = if (isParentExpanded) {
+                                                            expandedParentPayments - parent.id
+                                                        } else {
+                                                            expandedParentPayments + parent.id
+                                                        }
+                                                    },
+                                                color = Color.Transparent
                                             ) {
-                                                if (children.isNotEmpty()) {
-                                                    Icon(
-                                                        imageVector = if (isParentExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                                        contentDescription = if (isParentExpanded) "Collapse" else "Expand",
-                                                        tint = Gold,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                } else {
-                                                    Spacer(modifier = Modifier.width(20.dp))
-                                                }
-                                                Text("🏦", fontSize = 16.sp)
-                                                Column {
-                                                    Text(
-                                                        parent.merchant,
-                                                        color = Success,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 14.sp,
-                                                    )
-                                                    Text(
-                                                        "Paid on ${parent.txn_date}",
-                                                        color = Muted,
-                                                        fontSize = 11.sp,
-                                                    )
-                                                    if (children.isNotEmpty()) {
-                                                        Text(
-                                                            "Distributed to ${children.size} transaction${if (children.size > 1) "s" else ""}",
-                                                            color = Gold,
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Medium
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            Text(
-                                                "+${money(parent.amount.toDoubleOrNull() ?: 0.0)}",
-                                                color = Success,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp,
-                                            )
-                                        }
-                                    }
-
-                                    // Child payment allocations
-                                    AnimatedVisibility(visible = isParentExpanded && children.isNotEmpty()) {
-                                        Column(modifier = Modifier.padding(start = 24.dp, top = 4.dp)) {
-                                            children.forEach { child ->
-                                                val linkedTxn = allTxns.find { it.id == child.linked_transaction_id }
-                                                Surface(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(vertical = 2.dp),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = Elevated,
+                                                Row(
+                                                    Modifier.padding(16.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically,
                                                 ) {
                                                     Row(
-                                                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
                                                     ) {
-                                                        Row(
-                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text("├─", color = Gold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                                            Column(Modifier.weight(1f)) {
-                                                                if (linkedTxn != null) {
-                                                                    Text(
-                                                                        linkedTxn.merchant,
-                                                                        color = OnDark,
-                                                                        fontWeight = FontWeight.Medium,
-                                                                        fontSize = 13.sp,
-                                                                    )
-                                                                    Text(
-                                                                        "${linkedTxn.txn_date}",
-                                                                        color = Muted,
-                                                                        fontSize = 11.sp,
-                                                                    )
-                                                                } else {
-                                                                    Text(
-                                                                        child.merchant,
-                                                                        color = Muted,
-                                                                        fontWeight = FontWeight.Medium,
-                                                                        fontSize = 13.sp,
-                                                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                                                                    )
+                                                        // Payment icon with badge
+                                                        Box {
+                                                            Surface(
+                                                                shape = androidx.compose.foundation.shape.CircleShape,
+                                                                color = Success.copy(alpha = 0.15f),
+                                                                modifier = Modifier.size(40.dp)
+                                                            ) {
+                                                                Box(contentAlignment = Alignment.Center) {
+                                                                    Text("💳", fontSize = 18.sp)
+                                                                }
+                                                            }
+                                                            if (children.isNotEmpty()) {
+                                                                Surface(
+                                                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                                                    color = Gold,
+                                                                    modifier = Modifier
+                                                                        .size(16.dp)
+                                                                        .align(Alignment.BottomEnd)
+                                                                ) {
+                                                                    Box(contentAlignment = Alignment.Center) {
+                                                                        Text(
+                                                                            "${children.size}",
+                                                                            color = Base,
+                                                                            fontSize = 9.sp,
+                                                                            fontWeight = FontWeight.Bold
+                                                                        )
+                                                                    }
                                                                 }
                                                             }
                                                         }
+
+                                                        Column(Modifier.weight(1f)) {
+                                                            Text(
+                                                                parent.merchant,
+                                                                color = OnDark,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                fontSize = 15.sp,
+                                                            )
+                                                            Text(
+                                                                parent.txn_date,
+                                                                color = Muted,
+                                                                fontSize = 12.sp,
+                                                            )
+                                                            if (children.isNotEmpty()) {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                ) {
+                                                                    Surface(
+                                                                        color = Gold.copy(alpha = 0.15f),
+                                                                        shape = RoundedCornerShape(4.dp)
+                                                                    ) {
+                                                                        Text(
+                                                                            "${children.size} allocated",
+                                                                            color = Gold,
+                                                                            fontSize = 10.sp,
+                                                                            fontWeight = FontWeight.Medium,
+                                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Column(horizontalAlignment = Alignment.End) {
                                                         Text(
-                                                            "+${money(child.amount.toDoubleOrNull() ?: 0.0)}",
+                                                            "+${money(parent.amount.toDoubleOrNull() ?: 0.0)}",
                                                             color = Success,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 16.sp,
                                                         )
+                                                        if (children.isNotEmpty()) {
+                                                            Icon(
+                                                                imageVector = if (isParentExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                                contentDescription = if (isParentExpanded) "Collapse" else "Expand",
+                                                                tint = Muted,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+
+                                            // Child payment allocations
+                                            AnimatedVisibility(visible = isParentExpanded && children.isNotEmpty()) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp)
+                                                ) {
+                                                    HorizontalDivider(
+                                                        thickness = 1.dp,
+                                                        color = SurfaceTint,
+                                                        modifier = Modifier.padding(vertical = 8.dp)
+                                                    )
+
+                                                    children.forEachIndexed { index, child ->
+                                                        val linkedTxn = allTxns.find { it.id == child.linked_transaction_id }
+                                                        val isLast = index == children.size - 1
+
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(start = 12.dp, bottom = if (isLast) 0.dp else 8.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Row(
+                                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                modifier = Modifier.weight(1f)
+                                                            ) {
+                                                                // Subtle indicator line
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .width(3.dp)
+                                                                        .height(24.dp)
+                                                                        .background(
+                                                                            Gold.copy(alpha = 0.3f),
+                                                                            RoundedCornerShape(2.dp)
+                                                                        )
+                                                                )
+
+                                                                Column(Modifier.weight(1f)) {
+                                                                    if (linkedTxn != null) {
+                                                                        Text(
+                                                                            linkedTxn.merchant,
+                                                                            color = OnDark,
+                                                                            fontWeight = FontWeight.Medium,
+                                                                            fontSize = 13.sp,
+                                                                        )
+                                                                        Text(
+                                                                            linkedTxn.txn_date,
+                                                                            color = Muted,
+                                                                            fontSize = 11.sp,
+                                                                        )
+                                                                    } else {
+                                                                        Text(
+                                                                            child.merchant,
+                                                                            color = Muted,
+                                                                            fontWeight = FontWeight.Medium,
+                                                                            fontSize = 13.sp,
+                                                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            Text(
+                                                                money(child.amount.toDoubleOrNull() ?: 0.0),
+                                                                color = Success,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                fontSize = 14.sp,
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
