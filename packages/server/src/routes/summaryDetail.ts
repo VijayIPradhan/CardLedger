@@ -114,10 +114,14 @@ export async function summaryDetailRoutes(app: FastifyInstance) {
 
     // Card payments should only reduce the balance if they're against unpaid transactions.
     // Payments linked to already-paid transactions are already excluded from the unpaid spend sum.
+    // IMPORTANT: Exclude child payments (parent_payment_id set) to avoid double-counting.
+    // Only parent or standalone payments should reduce the balance.
     const txnById = new Map(ledger.transactions.map((t) => [t.id, t]));
     const groupCardPayments = round(
       ledger.cardPayments.reduce((sum, p) => {
         if (!groupCardIds.has(p.card_id)) return sum;
+        // Skip child payments - they're just allocations of the parent payment
+        if (p.parent_payment_id) return sum;
         // Only count payments that are unlinked OR linked to unpaid transactions
         if (p.transaction_id) {
           const txn = txnById.get(p.transaction_id);
