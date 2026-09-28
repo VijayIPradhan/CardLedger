@@ -59,6 +59,41 @@ jobs:
             echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> local.properties
           fi
 
+      - name: Create placeholder google-services.json
+        working-directory: packages/android-native/app
+        run: |
+          cat > google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "123456789",
+              "project_id": "cardledger-placeholder",
+              "storage_bucket": "cardledger-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789:android:abcdef1234567890",
+                  "android_client_info": {
+                    "package_name": "com.imvj.cardledger"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDummyKeyForBuildPurposesOnly"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
       - name: Build Debug APK
         if: inputs.build_type == 'debug' || inputs.build_type == 'both' || github.event_name != 'workflow_dispatch'
         working-directory: packages/android-native
