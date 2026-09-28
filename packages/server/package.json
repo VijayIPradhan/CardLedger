@@ -23,6 +23,7 @@
     "fastify": "^4.26.0",
     "fastify-plugin": "^4.5.0",
     "google-auth-library": "^10.7.0",
+    "node-cron": "^3.0.3",
     "pg": "^8.11.0",
     "zod": "^3.22.0"
   },
@@ -31,7 +32,6 @@
     "@types/pg": "^8.11.0",
     "dotenv-cli": "^7.4.0",
     "drizzle-kit": "^0.31.10",
-    "node-cron": "^3.0.3",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
