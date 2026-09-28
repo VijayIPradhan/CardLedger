@@ -255,6 +255,35 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
             val distribution = distributePayment(amount, bills)
 
             var allSuccessful = true
+            var parentPaymentId: String? = null
+
+            // Step 1: Create parent payment record with full amount (no linked transaction)
+            if (distribution.allocations.isNotEmpty() || distribution.excess > 0.0) {
+                val parentResult = c.transactionRepo.create(
+                    CreateTransactionDto(
+                        card_id = cardId,
+                        amount = amount,
+                        merchant = notes ?: "Payment to Bank",
+                        txn_date = date,
+                        source = "manual",
+                        type = "bill_payment",
+                        funded_by_holder_id = funderId,
+                        linked_transaction_id = null,
+                        parent_payment_id = null
+                    )
+                )
+
+                if (parentResult.isSuccess) {
+                    parentPaymentId = parentResult.getOrNull()?.id
+                } else {
+                    allSuccessful = false
+                    _state.value = _state.value.copy(error = "Could not create parent payment.")
+                    onDone()
+                    return@launch
+                }
+            }
+
+            // Step 2: Create child allocation records linked to parent
             for (allocation in distribution.allocations) {
                 val result = c.transactionRepo.create(
                     CreateTransactionDto(
@@ -265,7 +294,8 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                         source = "manual",
                         type = "bill_payment",
                         funded_by_holder_id = funderId,
-                        linked_transaction_id = allocation.transactionId
+                        linked_transaction_id = allocation.transactionId,
+                        parent_payment_id = parentPaymentId
                     )
                 )
                 if (result.isFailure) {
@@ -274,17 +304,19 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
                 }
             }
 
-            if (distribution.excess > 0.0) {
+            // Step 3: Create excess allocation if any (unallocated portion)
+            if (allSuccessful && distribution.excess > 0.0) {
                 val result = c.transactionRepo.create(
                     CreateTransactionDto(
                         card_id = cardId,
                         amount = distribution.excess,
-                        merchant = notes ?: "Payment to Bank",
+                        merchant = notes ?: "Payment to Bank (Unallocated)",
                         txn_date = date,
                         source = "manual",
                         type = "bill_payment",
                         funded_by_holder_id = funderId,
-                        linked_transaction_id = null
+                        linked_transaction_id = null,
+                        parent_payment_id = parentPaymentId
                     )
                 )
                 if (result.isFailure) {

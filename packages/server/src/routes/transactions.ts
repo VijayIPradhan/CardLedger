@@ -91,6 +91,8 @@ export async function transactionRoutes(app: FastifyInstance) {
         is_paid: true, // bill payments don't have is_paid
         holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
         linked_transaction_id: p.transaction_id || null,
+        parent_payment_id: p.parent_payment_id || null,
+        is_parent: p.is_parent || false,
         raw_sms_encrypted: null,
         dedupe_hash: null,
         created_at: p.created_at,
@@ -224,6 +226,10 @@ export async function transactionRoutes(app: FastifyInstance) {
     if (rest.type === 'bill_payment') {
       // Create card_payment and update linked transaction's payments_received
       const result = await db.transaction(async (tx) => {
+        // Determine if this is a parent payment (no linked transaction and no parent)
+        // or a child allocation (has parent_payment_id)
+        const isParent = !linked_transaction_id && !(parsed.data as any).parent_payment_id;
+
         // Create the card_payment
         const [newCardPayment] = await tx
           .insert(card_payments)
@@ -231,6 +237,8 @@ export async function transactionRoutes(app: FastifyInstance) {
             card_id: parsed.data.card_id,
             holder_id: funded_by_holder_id || finalHolderId,
             transaction_id: linked_transaction_id || null,
+            parent_payment_id: (parsed.data as any).parent_payment_id || null,
+            is_parent: isParent,
             amount: String(amount),
             payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
             notes: rest.merchant || 'Bill Payment',

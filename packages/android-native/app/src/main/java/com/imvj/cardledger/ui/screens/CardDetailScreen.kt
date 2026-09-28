@@ -78,6 +78,7 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
     var showCyclePaidSheet by remember { mutableStateOf<String?>(null) }
     var showCardPaymentSheet by remember { mutableStateOf(false) }
     var expandedCycles by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var expandedParentPayments by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(s.cycles) {
         if (expandedCycles.isEmpty() && s.cycles.isNotEmpty()) {
             expandedCycles = setOf(s.cycles.first().label)
@@ -528,7 +529,15 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
 
                         AnimatedVisibility(visible = isExpanded) {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                cycle.txns.sortedByDescending { it.txn_date }.forEach { txn ->
+                                // Group transactions by parent-child payment relationship
+                                val allTxns = cycle.txns.sortedByDescending { it.txn_date }
+                                val parentPayments = allTxns.filter { it.type == "bill_payment" && (it.is_parent == true || it.parent_payment_id == null) }
+                                val childPayments = allTxns.filter { it.type == "bill_payment" && it.parent_payment_id != null }
+                                val childrenByParent = childPayments.groupBy { it.parent_payment_id }
+                                val nonPayments = allTxns.filter { it.type != "bill_payment" }
+
+                                // Render non-payment transactions first
+                                nonPayments.forEach { txn ->
                                     val holderName = holderMap[txn.holder_id_at_time]?.name ?: txn.holder_id_at_time
                                     var swipeOffset by remember { mutableFloatStateOf(0f) }
                                     val animatedOffsetX by animateFloatAsState(targetValue = swipeOffset, label = "swipeOffsetX")
@@ -745,6 +754,137 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
                                                                 }
                                                             }
                                                         }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Render parent payments with collapsible children
+                                parentPayments.forEach { parent ->
+                                    val children = childrenByParent[parent.id] ?: emptyList()
+                                    val isParentExpanded = expandedParentPayments.contains(parent.id)
+
+                                    // Parent payment row
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clickable {
+                                                expandedParentPayments = if (isParentExpanded) {
+                                                    expandedParentPayments - parent.id
+                                                } else {
+                                                    expandedParentPayments + parent.id
+                                                }
+                                            },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Gold.copy(alpha = 0.08f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.3f))
+                                    ) {
+                                        Row(
+                                            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (children.isNotEmpty()) {
+                                                    Icon(
+                                                        imageVector = if (isParentExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                                        contentDescription = if (isParentExpanded) "Collapse" else "Expand",
+                                                        tint = Gold,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                } else {
+                                                    Spacer(modifier = Modifier.width(20.dp))
+                                                }
+                                                Text("🏦", fontSize = 16.sp)
+                                                Column {
+                                                    Text(
+                                                        parent.merchant,
+                                                        color = Success,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 14.sp,
+                                                    )
+                                                    Text(
+                                                        "Paid on ${parent.txn_date}",
+                                                        color = Muted,
+                                                        fontSize = 11.sp,
+                                                    )
+                                                    if (children.isNotEmpty()) {
+                                                        Text(
+                                                            "Distributed to ${children.size} transaction${if (children.size > 1) "s" else ""}",
+                                                            color = Gold,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                "+${money(parent.amount.toDoubleOrNull() ?: 0.0)}",
+                                                color = Success,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp,
+                                            )
+                                        }
+                                    }
+
+                                    // Child payment allocations
+                                    AnimatedVisibility(visible = isParentExpanded && children.isNotEmpty()) {
+                                        Column(modifier = Modifier.padding(start = 24.dp, top = 4.dp)) {
+                                            children.forEach { child ->
+                                                val linkedTxn = allTxns.find { it.id == child.linked_transaction_id }
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 2.dp),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Elevated,
+                                                ) {
+                                                    Row(
+                                                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                    ) {
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text("├─", color = Gold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                                            Column(Modifier.weight(1f)) {
+                                                                if (linkedTxn != null) {
+                                                                    Text(
+                                                                        linkedTxn.merchant,
+                                                                        color = OnDark,
+                                                                        fontWeight = FontWeight.Medium,
+                                                                        fontSize = 13.sp,
+                                                                    )
+                                                                    Text(
+                                                                        "${linkedTxn.txn_date}",
+                                                                        color = Muted,
+                                                                        fontSize = 11.sp,
+                                                                    )
+                                                                } else {
+                                                                    Text(
+                                                                        child.merchant,
+                                                                        color = Muted,
+                                                                        fontWeight = FontWeight.Medium,
+                                                                        fontSize = 13.sp,
+                                                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                        Text(
+                                                            "+${money(child.amount.toDoubleOrNull() ?: 0.0)}",
+                                                            color = Success,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            fontSize = 13.sp,
+                                                        )
                                                     }
                                                 }
                                             }

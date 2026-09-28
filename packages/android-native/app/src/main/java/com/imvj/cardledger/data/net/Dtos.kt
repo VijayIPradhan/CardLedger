@@ -81,6 +81,8 @@ data class TransactionDto(
     val is_paid: Boolean = false,
     val holder_id_at_time: String,
     val linked_transaction_id: String? = null,
+    val parent_payment_id: String? = null,
+    val is_parent: Boolean? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
     val category: String? = null,
@@ -106,6 +108,7 @@ data class CreateTransactionDto(
     val holder_id_at_time: String? = null,
     val funded_by_holder_id: String? = null,
     val linked_transaction_id: String? = null,
+    val parent_payment_id: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
     val category: String? = null,
@@ -502,6 +505,15 @@ data class CardPaymentItemDto(
     val payment_date: String,
     val holder_name: String,
     val notes: String? = null,
+    val parent_payment_id: String? = null,
+    val is_parent: Boolean? = null,
+    val transaction_id: String? = null,
+)
+
+@Serializable
+data class CardPaymentWithChildren(
+    val parent: CardPaymentItemDto,
+    val children: List<CardPaymentItemDto> = emptyList(),
 )
 
 @Serializable

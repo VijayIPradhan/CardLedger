@@ -58,6 +58,7 @@ export const CreateTransactionSchema = z.object({
   holder_id_at_time: z.string().uuid().optional(), // "who used" — manual override
   funded_by_holder_id: z.string().uuid().optional(), // "who funded the payment"
   linked_transaction_id: z.string().uuid().optional(), // specific spend transaction paid by this
+  parent_payment_id: z.string().uuid().optional(), // links child payment allocation to parent payment
   raw_sms_encrypted: z.string().nullable().optional(),
   dedupe_hash: z.string().nullable().optional(),
   category: z.string().max(100).optional(),

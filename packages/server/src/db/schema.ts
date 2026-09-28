@@ -170,6 +170,8 @@ export const card_payments = pgTable(
       .notNull(),
     transaction_id: uuid('transaction_id').references(() => transactions.id),
     billing_cycle_id: uuid('billing_cycle_id').references(() => billing_cycles.id),
+    parent_payment_id: uuid('parent_payment_id'),
+    is_parent: boolean('is_parent').default(false),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     payment_date: date('payment_date').notNull(),
     notes: varchar('notes', { length: 200 }),
@@ -179,6 +181,8 @@ export const card_payments = pgTable(
     cardIdIdx: index('card_payments_card_id_idx').on(table.card_id),
     holderIdIdx: index('card_payments_holder_id_idx').on(table.holder_id),
     cycleIdx: index('idx_card_payments_cycle').on(table.billing_cycle_id),
+    parentIdx: index('idx_card_payments_parent').on(table.parent_payment_id),
+    isParentIdx: index('idx_card_payments_is_parent').on(table.is_parent),
   }),
 );
 
