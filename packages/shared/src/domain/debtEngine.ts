@@ -68,6 +68,48 @@ export interface DebtCardPayment {
   amount: number | string;
   /** ISO date. Debt is date-independent; this only places the row in a billing cycle. */
   payment_date?: string;
+  /**
+   * A split payment is stored as a parent row holding the full amount plus child rows holding
+   * the allocations. The children are the money; the parent only groups them for display, so
+   * counting both reports the same cash leaving twice.
+   */
+  is_parent?: boolean | null;
+  parent_payment_id?: string | null;
+  /**
+   * How the payment is applied to spend (card_payment_allocations). When present it replaces
+   * `transaction_id` as the source of truth; see effectiveCardPaymentAmount.
+   */
+  allocations?: CardPaymentAllocation[];
+}
+
+export interface CardPaymentAllocation {
+  transaction_id: string;
+  amount: number | string;
+}
+
+/**
+ * The part of a card payment that still reduces what is owed, i.e. that is not already
+ * reflected by a transaction being flagged is_paid. Settled spend has left the unpaid sums
+ * already; subtracting the payment that settled it too would count the same money twice.
+ *
+ * With allocations: amount less whatever is allocated to settled transactions. Unallocated
+ * money and money allocated to unsettled spend both count.
+ * Without (legacy rows): all of it, unless the row is linked to a settled transaction.
+ */
+export function effectiveCardPaymentAmount(
+  cp: DebtCardPayment,
+  txnById: Map<string, Pick<DebtTransaction, 'is_paid'>>,
+): number {
+  if (cp.is_parent) return 0;
+  if (cp.allocations) {
+    const settled = cp.allocations.reduce(
+      (sum, a) => (txnById.get(a.transaction_id)?.is_paid ? sum + money(a.amount) : sum),
+      0,
+    );
+    return Math.max(0, roundMoney(money(cp.amount) - settled));
+  }
+  if (cp.transaction_id && txnById.get(cp.transaction_id)?.is_paid) return 0;
+  return money(cp.amount);
 }
 
 export interface FriendDebt {
@@ -214,17 +256,12 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
     }
     const cardPaymentByCard: Record<string, number> = {};
     for (const cp of friendCardPayments) {
-      // Skip card payments linked to already-paid transactions: those are counted in `settled`
-      // above. Counting them again would subtract the same outflow twice from advance in hand.
-      if (cp.transaction_id) {
-        const txn = txnById.get(cp.transaction_id);
-        if (txn && txn.is_paid) {
-          continue;
-        }
-      }
-
-      settlementByCard[cp.card_id] = (settlementByCard[cp.card_id] || 0) + money(cp.amount);
-      cardPaymentByCard[cp.card_id] = (cardPaymentByCard[cp.card_id] || 0) + money(cp.amount);
+      // Only the part not already behind a settled transaction: settled spend is counted in
+      // `settled` above, and counting its payment too would subtract the outflow twice.
+      const effective = effectiveCardPaymentAmount(cp, txnById);
+      if (effective <= 0) continue;
+      settlementByCard[cp.card_id] = (settlementByCard[cp.card_id] || 0) + effective;
+      cardPaymentByCard[cp.card_id] = (cardPaymentByCard[cp.card_id] || 0) + effective;
     }
 
     // Card payments only count as cash leaving the hand where there is still-unsettled spend for
@@ -294,16 +331,11 @@ export function computeFriendDebts(input: FriendDebtInput): FriendDebtResult {
   for (const holder of nonFriendHolders) {
     const holderCardPayments = cardPaymentsByHolder.get(holder.id) ?? [];
     for (const cp of holderCardPayments) {
-      // Skip card payments linked to already-paid transactions
-      if (cp.transaction_id) {
-        const txn = txnById.get(cp.transaction_id);
-        if (txn && txn.is_paid) {
-          continue;
-        }
-      }
+      const effective = effectiveCardPaymentAmount(cp, txnById);
+      if (effective <= 0) continue;
 
       const unsettled = Math.max(0, globalUnsettledByCard[cp.card_id] || 0);
-      const counted = Math.min(unsettled, money(cp.amount));
+      const counted = Math.min(unsettled, effective);
       friendTotalForwarded += counted;
       // Drain as we count: if multiple non-friends paid the same card, the second payment
       // can only reduce the advance by whatever unsettled spend is left.

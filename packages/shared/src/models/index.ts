@@ -51,6 +51,9 @@ export interface Transaction {
   created_at: string;
   bank_paid_amount?: number;
   linked_transaction_id?: string;
+  /** bill_payment rows only: the spend this payment settles, and what is left unallocated. */
+  allocations?: Array<{ transaction_id: string; amount: string }>;
+  unallocated_amount?: string;
 }
 
 export interface Payment {

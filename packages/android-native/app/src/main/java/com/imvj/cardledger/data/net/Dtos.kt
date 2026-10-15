@@ -96,6 +96,20 @@ data class TransactionDto(
     val bank_paid_amount: Double? = null,
 )
 
+/**
+ * POST card-payments: one payment to the bank. The server splits it across transaction_ids in
+ * order (each up to what it still owes) and keeps any rest unallocated, in one request.
+ */
+@Serializable
+data class CreateCardPaymentDto(
+    val card_id: String,
+    val amount: Double,
+    val payment_date: String,
+    val funded_by_holder_id: String? = null,
+    val notes: String? = null,
+    val transaction_ids: List<String>? = null,
+)
+
 @Serializable
 data class CreateTransactionDto(
     val card_id: String,

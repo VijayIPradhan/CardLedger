@@ -6,7 +6,8 @@ let app: FastifyInstance;
 let token: string;
 
 beforeAll(async () => {
-  process.env.POSTGRES_URL = process.env.POSTGRES_URL ?? 'postgresql://cardledger:cardledger@localhost:5432/cardledger';
+  process.env.POSTGRES_URL =
+    process.env.POSTGRES_URL ?? 'postgresql://cardledger:cardledger@localhost:5432/cardledger';
   process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-32-chars-minimum!!xx';
   app = await buildApp();
   await app.ready();
@@ -101,5 +102,88 @@ describe('Cards CRUD', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('current_spend with parent-child bill payments', () => {
+  let cardId: string;
+  let spendId: string;
+  let parentId: string;
+  const headers = () => ({ authorization: `Bearer ${token}` });
+
+  it('does not subtract the parent payment once its child settles the spend', async () => {
+    const card = await app.inject({
+      method: 'POST',
+      url: '/cards',
+      headers: headers(),
+      payload: {
+        last4: '8888',
+        network: 'Visa',
+        bank: 'HDFC',
+        nickname: 'Parent Payment Test',
+        billing_cycle_day: 5,
+        payment_due_day: 25,
+        credit_limit: 100000,
+      },
+    });
+    cardId = card.json().id;
+
+    const spend = await app.inject({
+      method: 'POST',
+      url: '/transactions',
+      headers: headers(),
+      payload: {
+        card_id: cardId,
+        amount: 14321.6,
+        merchant: 'LIC',
+        txn_date: '2026-09-20',
+        source: 'manual',
+        type: 'spend',
+      },
+    });
+    spendId = spend.json().id;
+
+    const parent = await app.inject({
+      method: 'POST',
+      url: '/transactions',
+      headers: headers(),
+      payload: {
+        card_id: cardId,
+        amount: 14321.6,
+        merchant: 'Payment to Bank',
+        txn_date: '2026-09-28',
+        source: 'manual',
+        type: 'bill_payment',
+      },
+    });
+    parentId = parent.json().id;
+
+    const child = await app.inject({
+      method: 'POST',
+      url: '/transactions',
+      headers: headers(),
+      payload: {
+        card_id: cardId,
+        amount: 14321.6,
+        merchant: 'Payment to Bank',
+        txn_date: '2026-09-28',
+        source: 'manual',
+        type: 'bill_payment',
+        linked_transaction_id: spendId,
+        parent_payment_id: parentId,
+      },
+    });
+    expect(child.statusCode).toBe(200);
+
+    const res = await app.inject({ method: 'GET', url: `/cards/${cardId}`, headers: headers() });
+    expect(parseFloat(res.json().current_spend)).toBe(0);
+  });
+
+  afterAll(async () => {
+    if (parentId)
+      await app.inject({ method: 'DELETE', url: `/transactions/${parentId}`, headers: headers() });
+    if (spendId)
+      await app.inject({ method: 'DELETE', url: `/transactions/${spendId}`, headers: headers() });
+    if (cardId) await app.inject({ method: 'DELETE', url: `/cards/${cardId}`, headers: headers() });
   });
 });

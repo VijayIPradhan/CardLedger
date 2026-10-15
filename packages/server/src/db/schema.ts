@@ -10,7 +10,11 @@ import {
   boolean,
   jsonb,
   index,
+  uniqueIndex,
+  check,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -128,9 +132,14 @@ export const transactions = pgTable(
       .references(() => holders.id)
       .notNull(),
     billing_cycle_id: uuid('billing_cycle_id').references(() => billing_cycles.id),
-    parent_payment_id: uuid('parent_payment_id'),
+    parent_payment_id: uuid('parent_payment_id').references((): AnyPgColumn => transactions.id, {
+      onDelete: 'cascade',
+    }),
     is_parent: boolean('is_parent').default(false),
-    linked_transaction_id: uuid('linked_transaction_id'),
+    linked_transaction_id: uuid('linked_transaction_id').references(
+      (): AnyPgColumn => transactions.id,
+      { onDelete: 'set null' },
+    ),
     raw_sms_encrypted: text('raw_sms_encrypted'),
     dedupe_hash: varchar('dedupe_hash', { length: 64 }),
     created_at: timestamp('created_at').defaultNow().notNull(),
@@ -176,7 +185,9 @@ export const card_payments = pgTable(
       .notNull(),
     transaction_id: uuid('transaction_id').references(() => transactions.id),
     billing_cycle_id: uuid('billing_cycle_id').references(() => billing_cycles.id),
-    parent_payment_id: uuid('parent_payment_id'),
+    parent_payment_id: uuid('parent_payment_id').references((): AnyPgColumn => card_payments.id, {
+      onDelete: 'cascade',
+    }),
     is_parent: boolean('is_parent').default(false),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     payment_date: date('payment_date').notNull(),
@@ -189,6 +200,36 @@ export const card_payments = pgTable(
     cycleIdx: index('idx_card_payments_cycle').on(table.billing_cycle_id),
     parentIdx: index('idx_card_payments_parent').on(table.parent_payment_id),
     isParentIdx: index('idx_card_payments_is_parent').on(table.is_parent),
+  }),
+);
+
+/**
+ * How a card payment is applied to spend. Carries no money of its own: the payment's amount
+ * lives on card_payments, once. See docs/design/bill-payment-allocations.md.
+ *
+ * Phase 1: rebuilt from the legacy parent/child card_payments rows on every write
+ * (src/db/allocations.ts); nothing reads it yet.
+ */
+export const card_payment_allocations = pgTable(
+  'card_payment_allocations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    card_payment_id: uuid('card_payment_id')
+      .references(() => card_payments.id, { onDelete: 'cascade' })
+      .notNull(),
+    transaction_id: uuid('transaction_id')
+      .references(() => transactions.id, { onDelete: 'cascade' })
+      .notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    paymentTxnIdx: uniqueIndex('card_payment_allocations_payment_txn_idx').on(
+      table.card_payment_id,
+      table.transaction_id,
+    ),
+    txnIdx: index('card_payment_allocations_transaction_id_idx').on(table.transaction_id),
+    amountPositive: check('card_payment_allocations_amount_positive', sql`${table.amount} > 0`),
   }),
 );
 

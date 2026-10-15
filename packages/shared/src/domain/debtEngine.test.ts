@@ -449,6 +449,129 @@ describe('computeFriendDebts — advance in hand', () => {
     // 0 - 1000 - 0 = -1000 (out of pocket by 1000, not 2000).
     expect(r.friendAdvanceInHand).toBe(-1000);
   });
+
+  it('does not count a split parent payment on top of its children', () => {
+    // One 1000 bank payment split onto t1. Android writes it as a parent row (full amount, no
+    // transaction) plus a child row linked to t1. t2 is other unsettled spend on the card, which
+    // used to absorb the parent's 1000 and report the same money leaving twice.
+    const r = run(
+      [ME, ALICE],
+      [
+        txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true }),
+        txn({ id: 't2', holder_id_at_time: 'alice', amount: 5000 }),
+      ],
+      [],
+      [
+        { id: 'p', card_id: 'cardA', holder_id: 'me', amount: 1000, is_parent: true },
+        {
+          id: 'c',
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 1000,
+          transaction_id: 't1',
+          parent_payment_id: 'p',
+        },
+      ],
+    );
+    // Collected 0, settled 1000 (t1), nothing else forwarded: out of pocket by 1000, not 2000.
+    expect(r.friendAdvanceInHand).toBe(-1000);
+  });
+
+  it('counts a "pay total" payment once, not as parent plus unallocated child', () => {
+    // Paying with no transactions selected writes a parent and an unallocated child, both for
+    // the full amount.
+    const r = run(
+      [ME, ALICE],
+      [txn({ id: 't1', holder_id_at_time: 'alice', amount: 5000 })],
+      [],
+      [
+        { id: 'p', card_id: 'cardA', holder_id: 'me', amount: 2000, is_parent: true },
+        { id: 'c', card_id: 'cardA', holder_id: 'me', amount: 2000, parent_payment_id: 'p' },
+      ],
+    );
+    expect(r.friendAdvanceInHand).toBe(-2000);
+  });
+});
+
+describe('computeFriendDebts — allocated card payments', () => {
+  const spends = [
+    txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true }),
+    txn({ id: 't2', holder_id_at_time: 'alice', amount: 5000 }),
+  ];
+
+  it('one allocated payment gives the same answer as its legacy parent and children', () => {
+    // 1500 paid: 1000 settles t1, 500 left unallocated.
+    const legacy = run(
+      [ME, ALICE],
+      spends,
+      [{ holder_id: 'alice', amount: 3000 }],
+      [
+        { id: 'p', card_id: 'cardA', holder_id: 'me', amount: 1500, is_parent: true },
+        {
+          id: 'c1',
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 1000,
+          transaction_id: 't1',
+          parent_payment_id: 'p',
+        },
+        { id: 'c2', card_id: 'cardA', holder_id: 'me', amount: 500, parent_payment_id: 'p' },
+      ],
+    );
+    const allocated = run(
+      [ME, ALICE],
+      spends,
+      [{ holder_id: 'alice', amount: 3000 }],
+      [
+        {
+          id: 'p',
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 1500,
+          allocations: [{ transaction_id: 't1', amount: 1000 }],
+        },
+      ],
+    );
+    expect(allocated).toEqual(legacy);
+    // Collected 3000, settled 1000, 500 forwarded against t2: 1500 in hand.
+    expect(allocated.friendAdvanceInHand).toBe(1500);
+  });
+
+  it('money allocated to unsettled spend still counts as forwarded', () => {
+    const r = run(
+      [ME, ALICE],
+      spends,
+      [],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 800,
+          allocations: [{ transaction_id: 't2', amount: 800 }],
+        },
+      ],
+    );
+    // Settled 1000 (t1) plus 800 forwarded against t2.
+    expect(r.friendAdvanceInHand).toBe(-1800);
+  });
+
+  it('allocations take precedence over a stale legacy transaction_id', () => {
+    const r = run(
+      [ME, ALICE],
+      spends,
+      [],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 800,
+          transaction_id: 't1',
+          allocations: [{ transaction_id: 't2', amount: 800 }],
+        },
+      ],
+    );
+    expect(r.friendAdvanceInHand).toBe(-1800);
+  });
 });
 
 describe('computeFriendDebts — aggregates and shape', () => {

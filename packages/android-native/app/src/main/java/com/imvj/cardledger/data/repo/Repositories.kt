@@ -45,6 +45,7 @@ class AssignmentRepository(private val api: ApiService) {
 class TransactionRepository(private val api: ApiService) {
     suspend fun list(cardId: String? = null, holderId: String? = null) = call { api.getTransactions(cardId, holderId) }
     suspend fun create(b: CreateTransactionDto) = call { api.createTransaction(b) }
+    suspend fun createCardPayment(b: CreateCardPaymentDto) = call { api.createCardPayment(b) }
     suspend fun update(id: String, b: UpdateTransactionDto) = call { api.updateTransaction(id, b) }
     suspend fun delete(id: String) = call { api.deleteTransaction(id); Unit }
 }

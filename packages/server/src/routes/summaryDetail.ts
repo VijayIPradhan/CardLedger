@@ -9,7 +9,12 @@ import {
   card_payments,
 } from '../db/schema.js';
 import { eq, desc, getTableColumns } from 'drizzle-orm';
-import { computeCardDetail, computeHolderDetails } from '@cardledger/shared';
+import {
+  computeCardDetail,
+  computeHolderDetails,
+  effectiveCardPaymentAmount,
+} from '@cardledger/shared';
+import { withAllocations } from '../db/allocations.js';
 
 /**
  * Detail views for a single card and for the friends list.
@@ -62,7 +67,10 @@ export async function summaryDetailRoutes(app: FastifyInstance) {
       payments: userPayments,
       // The date matters only for placing a card payment in a billing cycle on the card screen,
       // but it has to arrive as an ISO string like every other date the engine sees.
-      cardPayments: userCardPayments.map((p) => ({ ...p, payment_date: isoDate(p.payment_date) })),
+      cardPayments: (await withAllocations(userCardPayments)).map((p) => ({
+        ...p,
+        payment_date: isoDate(p.payment_date),
+      })),
       assignments: userAssignments,
     };
   }
@@ -112,27 +120,15 @@ export async function summaryDetailRoutes(app: FastifyInstance) {
         }, 0),
       );
 
-    // Card payments should only reduce the balance if they're against unpaid transactions.
-    // Payments linked to already-paid transactions are already excluded from the unpaid spend sum.
-    // CRITICAL: Parent payments should NOT be counted - only their children (which are linked
-    // to specific transactions) should count. Counting the parent would double-subtract since
-    // the children already reduce payments_received on their linked transactions.
+    // A card payment reduces the balance only by the part not already behind a settled
+    // transaction; same rule as currentSpendSql, from the one shared definition.
     const txnById = new Map(ledger.transactions.map((t) => [t.id, t]));
     const groupCardPayments = round(
-      ledger.cardPayments.reduce((sum, p) => {
-        if (!groupCardIds.has(p.card_id)) return sum;
-
-        // Skip parent payments - they're grouping records, not actual payments to transactions
-        if (p.is_parent) return sum;
-
-        // For children and standalone payments: only count if linked to unpaid transaction
-        if (p.transaction_id) {
-          const txn = txnById.get(p.transaction_id);
-          if (!txn || txn.is_paid) return sum; // Skip if linked to paid transaction
-        }
-
-        return sum + (Number(p.amount) || 0);
-      }, 0),
+      ledger.cardPayments.reduce(
+        (sum, p) =>
+          groupCardIds.has(p.card_id) ? sum + effectiveCardPaymentAmount(p, txnById) : sum,
+        0,
+      ),
     );
 
     return {

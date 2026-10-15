@@ -33,6 +33,7 @@ interface ApiService {
     @POST("transactions") suspend fun createTransaction(@Body body: CreateTransactionDto): TransactionDto
     @PATCH("transactions/{id}") suspend fun updateTransaction(@Path("id") id: String, @Body body: UpdateTransactionDto): TransactionDto
     @DELETE("transactions/{id}") suspend fun deleteTransaction(@Path("id") id: String): Response<Unit>
+    @POST("card-payments") suspend fun createCardPayment(@Body body: CreateCardPaymentDto): TransactionDto
 
     @GET("metadata/banks") suspend fun getBankMetadata(): BankVariantMetadataDto
     @POST("metadata/detect-palette") suspend fun detectPalette(@Body body: DetectPaletteRequest): PaletteResponse

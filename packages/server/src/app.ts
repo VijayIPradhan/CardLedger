@@ -8,6 +8,7 @@ import { cardRoutes } from './routes/cards.js';
 import { holderRoutes } from './routes/holders.js';
 import { assignmentRoutes } from './routes/assignments.js';
 import { transactionRoutes } from './routes/transactions.js';
+import { cardPaymentRoutes } from './routes/cardPayments.js';
 import { paymentRoutes } from './routes/payments.js';
 import { metadataRoutes } from './routes/metadata.js';
 import { smsRoutes } from './routes/sms.js';
@@ -63,6 +64,7 @@ export async function buildApp() {
   await app.register(holderRoutes, { prefix: '/holders' });
   await app.register(assignmentRoutes, { prefix: '/assignments' });
   await app.register(transactionRoutes, { prefix: '/transactions' });
+  await app.register(cardPaymentRoutes, { prefix: '/card-payments' });
   await app.register(paymentRoutes, { prefix: '/payments' });
   await app.register(budgetRoutes, { prefix: '/budgets' });
   await app.register(cardRecommendRoutes, { prefix: '/cards' }); // will mount on /cards/recommend

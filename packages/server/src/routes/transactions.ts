@@ -1,19 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import {
-  transactions,
-  assignments,
-  holders,
-  cards,
-  payments,
-  card_payments,
-} from '../db/schema.js';
+import { transactions, holders, cards, payments, card_payments } from '../db/schema.js';
 import { eq, and, getTableColumns, desc } from 'drizzle-orm';
+import { withAllocations, recomputeSettlement } from '../db/allocations.js';
 import {
-  CreateTransactionSchema,
-  UpdateTransactionSchema,
-  resolveHolder,
-} from '@cardledger/shared';
+  addShareToPayment,
+  billPaymentRow,
+  createCardPayment,
+  deleteCardPayment,
+  findCardPayment,
+  updateCardPayment,
+} from '../lib/cardPayments.js';
+import { resolveCardHolder } from '../lib/holders.js';
+import { handle } from './cardPayments.js';
+import { CreateTransactionSchema, UpdateTransactionSchema } from '@cardledger/shared';
 
 /**
  * Check if a transaction should be marked as paid, rounding to avoid floating point issues.
@@ -47,17 +47,20 @@ export async function transactionRoutes(app: FastifyInstance) {
     const cpConditions: ReturnType<typeof eq>[] = [eq(cards.user_id, userId)];
     if (card_id) cpConditions.push(eq(card_payments.card_id, card_id));
 
-    // Fetch card_payments to merge as 'bill_payment' transactions
-    const cPayments = await db
-      .select({ ...getTableColumns(card_payments) })
-      .from(card_payments)
-      .innerJoin(cards, eq(card_payments.card_id, cards.id))
-      .where(and(...cpConditions));
+    // Fetch card_payments to merge as 'bill_payment' transactions: one row per payment, with
+    // its allocations attached rather than a row per allocation.
+    const cPayments = await withAllocations(
+      await db
+        .select({ ...getTableColumns(card_payments) })
+        .from(card_payments)
+        .innerJoin(cards, eq(card_payments.card_id, cards.id))
+        .where(and(...cpConditions)),
+    );
 
     const cpMap = new Map<string, number>();
     cPayments.forEach((p) => {
-      if (p.transaction_id) {
-        cpMap.set(p.transaction_id, (cpMap.get(p.transaction_id) || 0) + Number(p.amount));
+      for (const a of p.allocations) {
+        cpMap.set(a.transaction_id, (cpMap.get(a.transaction_id) || 0) + Number(a.amount));
       }
     });
 
@@ -76,39 +79,7 @@ export async function transactionRoutes(app: FastifyInstance) {
       };
     });
 
-    const formattedPayments = cPayments.map((p) => {
-      let pd = p.payment_date as any;
-      if (pd instanceof Date) {
-        pd = pd.toISOString().split('T')[0];
-      } else if (typeof pd === 'string') {
-        pd = pd.split('T')[0];
-      }
-      return {
-        id: p.id,
-        card_id: p.card_id,
-        amount: p.amount,
-        merchant: p.notes || 'Payment to Bank',
-        txn_date: pd,
-        source: 'manual',
-        type: 'bill_payment',
-        category: null,
-        tags: null,
-        original_currency: null,
-        original_amount: null,
-        forex_markup_fee: null,
-        reward_earned: null,
-        reward_currency: null,
-        is_paid: true, // bill payments don't have is_paid
-        holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
-        linked_transaction_id: p.transaction_id || null,
-        parent_payment_id: p.parent_payment_id || null,
-        is_parent: p.is_parent || false,
-        raw_sms_encrypted: null,
-        dedupe_hash: null,
-        created_at: p.created_at,
-        bank_paid_amount: 0,
-      };
-    });
+    const formattedPayments = cPayments.map(billPaymentRow);
 
     // A card payment belongs to a card's history, never a holder's. Its holder_id only records
     // whose spend the money was forwarded against — the holder did not pay the bank, they paid
@@ -158,28 +129,7 @@ export async function transactionRoutes(app: FastifyInstance) {
     let holderId = parsed.data.holder_id_at_time ?? null;
 
     if (!holderId) {
-      const allAssignments = await db
-        .select()
-        .from(assignments)
-        .where(eq(assignments.card_id, parsed.data.card_id));
-      const mapped = allAssignments.map((a) => ({
-        id: a.id,
-        card_id: a.card_id,
-        holder_id: a.holder_id,
-        handed_over_date: String(a.handed_over_date),
-        returned_date: a.returned_date ? String(a.returned_date) : null,
-        created_at: String(a.created_at),
-      }));
-      holderId = resolveHolder(parsed.data.card_id, parsed.data.txn_date, mapped);
-      if (!holderId && mapped.length > 0) holderId = mapped[0].holder_id;
-      if (!holderId) {
-        const [me] = await db
-          .select()
-          .from(holders)
-          .where(and(eq(holders.relationship, 'me'), eq(holders.user_id, userId)))
-          .limit(1);
-        if (me) holderId = me.id;
-      }
+      holderId = await resolveCardHolder(userId, parsed.data.card_id, parsed.data.txn_date);
     }
 
     if (!holderId) {
@@ -234,65 +184,27 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
 
     if (rest.type === 'bill_payment') {
-      // Create card_payment and update linked transaction's payments_received
-      const result = await db.transaction(async (tx) => {
-        // Determine if this is a parent payment (no linked transaction and no parent)
-        // or a child allocation (has parent_payment_id)
-        const isParent = !linked_transaction_id && !(parsed.data as any).parent_payment_id;
-
-        // Create the card_payment
-        const [newCardPayment] = await tx
-          .insert(card_payments)
-          .values({
-            card_id: parsed.data.card_id,
-            holder_id: funded_by_holder_id || finalHolderId,
-            transaction_id: linked_transaction_id || null,
-            parent_payment_id: (parsed.data as any).parent_payment_id || null,
-            is_parent: isParent,
-            amount: String(amount),
-            payment_date: rest.txn_date || new Date().toISOString().split('T')[0],
-            notes: rest.merchant || 'Bill Payment',
-          })
-          .returning();
-
-        // If linked to a transaction, update its payments_received
-        if (linked_transaction_id) {
-          const [txn] = await tx
-            .select()
-            .from(transactions)
-            .where(eq(transactions.id, linked_transaction_id));
-
-          if (txn) {
-            const currentPayments = parseFloat(String(txn.payments_received || 0));
-            const newPayments = currentPayments + amount;
-            const txnAmount = parseFloat(String(txn.amount));
-
-            await tx
-              .update(transactions)
-              .set({
-                payments_received: String(newPayments),
-                is_paid: isPaid(newPayments, txnAmount),
-              })
-              .where(eq(transactions.id, linked_transaction_id));
-          }
-        }
-
-        return newCardPayment;
+      // Older clients' bill payments: one payment, settling at most the linked transaction (any
+      // excess stays unallocated). A request naming a parent is a share of an existing payment.
+      return handle(reply, async () => {
+        const payment = parsed.data.parent_payment_id
+          ? await addShareToPayment(
+              userId,
+              parsed.data.parent_payment_id,
+              parsed.data.card_id,
+              linked_transaction_id,
+              amount,
+            )
+          : await createCardPayment(userId, {
+              card_id: parsed.data.card_id,
+              amount,
+              payment_date: rest.txn_date,
+              funded_by_holder_id: funded_by_holder_id ?? parsed.data.holder_id_at_time,
+              notes: rest.merchant,
+              transaction_ids: linked_transaction_id ? [linked_transaction_id] : undefined,
+            });
+        return billPaymentRow(payment);
       });
-
-      return {
-        id: result.id,
-        card_id: parsed.data.card_id,
-        amount: String(amount),
-        merchant: rest.merchant || 'Payment to Bank',
-        txn_date: rest.txn_date || new Date().toISOString().split('T')[0],
-        source: 'manual',
-        type: 'bill_payment',
-        is_paid: true,
-        holder_id_at_time: funded_by_holder_id || finalHolderId,
-        linked_transaction_id: linked_transaction_id || null,
-        created_at: result.created_at,
-      };
     }
 
     const txn = await db.transaction(async (tx) => {
@@ -402,117 +314,28 @@ export async function transactionRoutes(app: FastifyInstance) {
 
     if (!existing) {
       // Fallback to card_payments
-      const [existingCp] = await db
-        .select({ id: card_payments.id })
-        .from(card_payments)
-        .innerJoin(cards, eq(card_payments.card_id, cards.id))
-        .where(and(eq(card_payments.id, req.params.id), eq(cards.user_id, userId)));
-
-      if (!existingCp) return reply.status(404).send({ error: 'Not found' });
-
+      if (!(await findCardPayment(userId, req.params.id))) {
+        return reply.status(404).send({ error: 'Not found' });
+      }
       const {
         amount,
         txn_date,
         merchant,
         holder_id_at_time,
-        linked_transaction_id: cpLinkedTxnId,
+        linked_transaction_id: link,
       } = parsed.data;
-
-      // Update card_payment and adjust linked transaction's payments_received
-      const updatedCp = await db.transaction(async (tx) => {
-        // Get the old card_payment
-        const [oldCp] = await tx
-          .select()
-          .from(card_payments)
-          .where(eq(card_payments.id, req.params.id));
-
-        // Update basic fields
-        const updateCp: any = {};
-        if (txn_date !== undefined) updateCp.payment_date = txn_date;
-        if (merchant !== undefined) updateCp.notes = merchant;
-        if (holder_id_at_time !== undefined) updateCp.holder_id = holder_id_at_time;
-
-        // Handle transaction_id or amount changes
-        const oldTxnId = oldCp.transaction_id;
-        const newTxnId = cpLinkedTxnId !== undefined ? cpLinkedTxnId : oldTxnId;
-        const oldAmount = parseFloat(String(oldCp.amount));
-        const newAmount = amount !== undefined ? amount : oldAmount;
-
-        if (cpLinkedTxnId !== undefined) updateCp.transaction_id = cpLinkedTxnId;
-        if (amount !== undefined) updateCp.amount = String(amount);
-
-        // If transaction link or amount changed, update payments_received
-        if (oldTxnId && (cpLinkedTxnId !== undefined || amount !== undefined)) {
-          // Remove old payment from old transaction
-          const [oldTxn] = await tx
-            .select()
-            .from(transactions)
-            .where(eq(transactions.id, oldTxnId));
-
-          if (oldTxn) {
-            const currentPayments = parseFloat(String(oldTxn.payments_received || 0));
-            const updatedPayments = Math.max(0, currentPayments - oldAmount);
-            const txnAmount = parseFloat(String(oldTxn.amount));
-
-            await tx
-              .update(transactions)
-              .set({
-                payments_received: String(updatedPayments),
-                is_paid: isPaid(updatedPayments, txnAmount),
-              })
-              .where(eq(transactions.id, oldTxnId));
-          }
-        }
-
-        // Add new payment to new transaction
-        if (newTxnId && (cpLinkedTxnId !== undefined || amount !== undefined)) {
-          const [newTxn] = await tx
-            .select()
-            .from(transactions)
-            .where(eq(transactions.id, newTxnId));
-
-          if (newTxn) {
-            const currentPayments = parseFloat(String(newTxn.payments_received || 0));
-            const updatedPayments = currentPayments + newAmount;
-            const txnAmount = parseFloat(String(newTxn.amount));
-
-            await tx
-              .update(transactions)
-              .set({
-                payments_received: String(updatedPayments),
-                is_paid: isPaid(updatedPayments, txnAmount),
-              })
-              .where(eq(transactions.id, newTxnId));
-          }
-        }
-
-        const [result] = await tx
-          .update(card_payments)
-          .set(updateCp)
-          .where(eq(card_payments.id, req.params.id))
-          .returning();
-
-        return result;
-      });
-
-      // Return transaction-compatible shape for consistency
-      let pd = updatedCp.payment_date as any;
-      if (pd instanceof Date) pd = pd.toISOString().split('T')[0];
-      else if (typeof pd === 'string') pd = pd.split('T')[0];
-
-      return {
-        id: updatedCp.id,
-        card_id: updatedCp.card_id,
-        amount: updatedCp.amount,
-        merchant: updatedCp.notes || 'Payment to Bank',
-        txn_date: pd,
-        source: 'manual',
-        type: 'bill_payment',
-        is_paid: true,
-        holder_id_at_time: updatedCp.holder_id,
-        linked_transaction_id: updatedCp.transaction_id || null,
-        created_at: updatedCp.created_at,
-      };
+      return handle(reply, async () =>
+        billPaymentRow(
+          await updateCardPayment(userId, req.params.id, {
+            amount,
+            payment_date: txn_date,
+            notes: merchant,
+            funded_by_holder_id: holder_id_at_time,
+            // Relinking settles the new transaction as far as the payment covers it.
+            transaction_ids: link === undefined ? undefined : link ? [link] : [],
+          }),
+        ),
+      );
     }
 
     const { amount, txn_date, linked_transaction_id, ...rest } = parsed.data;
@@ -534,6 +357,13 @@ export async function transactionRoutes(app: FastifyInstance) {
       await db.update(payments).set(paymentUpdate).where(eq(payments.transaction_id, txn.id));
     }
 
+    // A new amount can make the payments against it cover it, or stop covering it. An explicit
+    // is_paid in the same request is the user's own call and is left alone.
+    if (amount !== undefined && rest.is_paid === undefined) {
+      await db.transaction((tx) => recomputeSettlement(tx, [txn.id]));
+      return (await db.select().from(transactions).where(eq(transactions.id, txn.id)))[0];
+    }
+
     return txn;
   });
 
@@ -547,79 +377,9 @@ export async function transactionRoutes(app: FastifyInstance) {
       .where(and(eq(transactions.id, req.params.id), eq(cards.user_id, userId)));
 
     if (!existing) {
-      const [existingCp] = await db
-        .select()
-        .from(card_payments)
-        .innerJoin(cards, eq(card_payments.card_id, cards.id))
-        .where(and(eq(card_payments.id, req.params.id), eq(cards.user_id, userId)));
-
-      if (!existingCp) return reply.status(404).send({ error: 'Not found' });
-
-      // Reduce payments_received on linked transaction and handle parent-child cascading
-      await db.transaction(async (tx) => {
-        const payment = existingCp.card_payments;
-        const txnId = payment.transaction_id;
-        const paymentAmount = parseFloat(String(payment.amount));
-
-        // If this is a parent payment, find and delete all children first
-        if (payment.is_parent) {
-          const childPayments = await tx
-            .select()
-            .from(card_payments)
-            .where(eq(card_payments.parent_payment_id, req.params.id));
-
-          // Revert is_paid status for each child's linked transaction
-          for (const child of childPayments) {
-            if (child.transaction_id) {
-              const childAmount = parseFloat(String(child.amount));
-              const [linkedTxn] = await tx
-                .select()
-                .from(transactions)
-                .where(eq(transactions.id, child.transaction_id));
-
-              if (linkedTxn) {
-                const currentPayments = parseFloat(String(linkedTxn.payments_received || 0));
-                const updatedPayments = Math.max(0, currentPayments - childAmount);
-                const txnAmount = parseFloat(String(linkedTxn.amount));
-
-                await tx
-                  .update(transactions)
-                  .set({
-                    payments_received: String(updatedPayments),
-                    is_paid: isPaid(updatedPayments, txnAmount),
-                  })
-                  .where(eq(transactions.id, child.transaction_id));
-              }
-            }
-          }
-
-          // Delete all child payments
-          await tx.delete(card_payments).where(eq(card_payments.parent_payment_id, req.params.id));
-        }
-
-        // Revert the parent/standalone payment's linked transaction if any
-        if (txnId) {
-          const [txn] = await tx.select().from(transactions).where(eq(transactions.id, txnId));
-
-          if (txn) {
-            const currentPayments = parseFloat(String(txn.payments_received || 0));
-            const updatedPayments = Math.max(0, currentPayments - paymentAmount);
-            const txnAmount = parseFloat(String(txn.amount));
-
-            await tx
-              .update(transactions)
-              .set({
-                payments_received: String(updatedPayments),
-                is_paid: isPaid(updatedPayments, txnAmount),
-              })
-              .where(eq(transactions.id, txnId));
-          }
-        }
-
-        // Finally, delete the parent/standalone payment itself
-        await tx.delete(card_payments).where(eq(card_payments.id, req.params.id));
-      });
-
+      if (!(await deleteCardPayment(userId, req.params.id))) {
+        return reply.status(404).send({ error: 'Not found' });
+      }
       return reply.send({ success: true });
     }
 

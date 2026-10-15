@@ -6,8 +6,6 @@ import com.imvj.cardledger.AppContainer
 import com.imvj.cardledger.data.net.*
 import com.imvj.cardledger.data.repo.isConflict
 import com.imvj.cardledger.domain.today
-import com.imvj.cardledger.domain.BillAmount
-import com.imvj.cardledger.domain.distributePayment
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -269,95 +267,30 @@ class CardDetailViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * One request per bank payment. The server splits it across the selected transactions in the
+     * order given (each up to what it still owes) and keeps any rest unallocated, atomically, so a
+     * dropped connection can no longer leave a payment half recorded. The sheet's preview uses
+     * distributePayment, which follows the same rule.
+     */
     fun recordBillPayment(cardId: String, amount: Double, date: String, notes: String?, funderId: String?, linkedTransactionIds: List<String>, onDone: () -> Unit) {
         viewModelScope.launch {
-            val bills = linkedTransactionIds.mapNotNull { txnId ->
-                val txn = _state.value.transactions.find { it.id == txnId }
-                txn?.let {
-                    val remaining = (it.amount.toDoubleOrNull() ?: 0.0) - (it.bank_paid_amount ?: 0.0)
-                    BillAmount(it.id, remaining)
-                }
-            }
-
-            val distribution = distributePayment(amount, bills)
-
-            var allSuccessful = true
-            var parentPaymentId: String? = null
-
-            // Step 1: Create parent payment record with full amount (no linked transaction)
-            if (distribution.allocations.isNotEmpty() || distribution.excess > 0.0) {
-                val parentResult = c.transactionRepo.create(
-                    CreateTransactionDto(
-                        card_id = cardId,
-                        amount = amount,
-                        merchant = notes ?: "Payment to Bank",
-                        txn_date = date,
-                        source = "manual",
-                        type = "bill_payment",
-                        funded_by_holder_id = funderId,
-                        linked_transaction_id = null,
-                        parent_payment_id = null
-                    )
+            val result = c.transactionRepo.createCardPayment(
+                CreateCardPaymentDto(
+                    card_id = cardId,
+                    amount = amount,
+                    payment_date = date,
+                    funded_by_holder_id = funderId,
+                    notes = notes ?: "Payment to Bank",
+                    transaction_ids = linkedTransactionIds.ifEmpty { null },
                 )
-
-                if (parentResult.isSuccess) {
-                    parentPaymentId = parentResult.getOrNull()?.id
-                } else {
-                    allSuccessful = false
-                    _state.value = _state.value.copy(error = "Could not create parent payment.")
-                    onDone()
-                    return@launch
-                }
-            }
-
-            // Step 2: Create child allocation records linked to parent
-            for (allocation in distribution.allocations) {
-                val result = c.transactionRepo.create(
-                    CreateTransactionDto(
-                        card_id = cardId,
-                        amount = allocation.amount,
-                        merchant = notes ?: "Payment to Bank",
-                        txn_date = date,
-                        source = "manual",
-                        type = "bill_payment",
-                        funded_by_holder_id = funderId,
-                        linked_transaction_id = allocation.transactionId,
-                        parent_payment_id = parentPaymentId
-                    )
-                )
-                if (result.isFailure) {
-                    allSuccessful = false
-                    break
-                }
-            }
-
-            // Step 3: Create excess allocation if any (unallocated portion)
-            if (allSuccessful && distribution.excess > 0.0) {
-                val result = c.transactionRepo.create(
-                    CreateTransactionDto(
-                        card_id = cardId,
-                        amount = distribution.excess,
-                        merchant = notes ?: "Payment to Bank (Unallocated)",
-                        txn_date = date,
-                        source = "manual",
-                        type = "bill_payment",
-                        funded_by_holder_id = funderId,
-                        linked_transaction_id = null,
-                        parent_payment_id = parentPaymentId
-                    )
-                )
-                if (result.isFailure) {
-                    allSuccessful = false
-                }
-            }
-
-            if (allSuccessful) {
+            )
+            if (result.isSuccess) {
                 load(cardId)
-                onDone()
             } else {
-                _state.value = _state.value.copy(error = "Could not record all payments.")
-                onDone()
+                _state.value = _state.value.copy(error = "Could not record payment.")
             }
+            onDone()
         }
     }
 
