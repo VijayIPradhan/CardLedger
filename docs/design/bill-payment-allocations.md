@@ -1,6 +1,6 @@
 # Bill payments: one row per payment, allocations in their own table
 
-Status: phases 1-3 implemented, not yet deployed (2026-10-15)
+Status: phases 1-4 implemented, not yet deployed (2026-10-15)
 
 ## Problem
 
@@ -46,9 +46,9 @@ card_payment_allocations           how a payment is applied to spend; carries no
   UNIQUE (card_payment_id, transaction_id)
 ```
 
-Removed after rollout: `card_payments.transaction_id`, `card_payments.parent_payment_id`,
-`card_payments.is_parent`, and the unused `transactions.parent_payment_id`,
-`transactions.is_parent`, `transactions.linked_transaction_id` (verify unused first).
+Removed by 0024: `card_payments.transaction_id`, `card_payments.parent_payment_id`,
+`card_payments.is_parent`, and `transactions.parent_payment_id`, `transactions.is_parent`,
+`transactions.linked_transaction_id` (the last three only if no row uses them; see below).
 
 Invariants, enforced by the server inside one DB transaction (`SELECT ... FOR UPDATE` on the
 payment and the affected transactions):
@@ -137,10 +137,25 @@ Compatibility for installed builds:
   transaction's `payments_received` / `is_paid` into `*_phase1_backup` tables; rebuilds the
   allocations from the legacy rows; deletes child rows; turns parents into ordinary payments;
   recomputes `payments_received` / `is_paid` where they change.
-- Phase 4 (later): drop the legacy columns and the backup tables.
+- `0024_drop_legacy_payment_links` (phase 4): carries over any payment link not yet in the
+  allocations (none expected), then drops the old link columns. The `transactions` ones are
+  dropped only if no row uses them; otherwise they stay, unread, and the server log at startup
+  says so. Drops columns by name only, because production's foreign keys on them have
+  Postgres-generated names. The `*_phase1_backup` tables are kept as an archive.
 
-Both run automatically at server start. Deploying phases 1 and 2 together is fine: 0023
-rebuilds the allocations itself.
+All of these run automatically at server start, in order.
+
+### Deploy order
+
+Phases 1-3 and phase 4 are separate commits so they can be deployed separately:
+
+- **Recommended:** deploy up to phase 3 (migrations 0022-0023), run the after-deploy checks, use
+  the app for a while, then deploy phase 4 (0024). Until 0024 runs, phase 2 can be rolled back.
+- **All at once:** fine if the before-deploy preview is clean, but the only way back is the
+  database backup taken beforehand: the phase 2 rollback needs the columns 0024 drops.
+
+Release the new Android build only after the server is deployed: it calls `/card-payments`.
+Older Android builds keep working against the new server in every phase.
 
 ### Rollout
 
@@ -150,7 +165,8 @@ rebuilds the allocations itself.
    settlement; old-client split requests are folded into allocations; migration 0023.
 3. Done: `/card-payments` with server-side distribution; web and Android record a payment in
    one request.
-4. Drop legacy columns and backups.
+4. Done: migration 0024; no code reads or writes the old link columns; Android builds a
+   payment's expandable rows from its `allocations`.
 
 ### Before deploying phase 2 (read-only, on production as it is now)
 
@@ -197,6 +213,8 @@ FROM card_payments;
 
 ### After deploying phase 2 (read-only)
 
+If phase 4 is deployed together with it, skip the first query: the columns it reads are gone.
+
 All three should return zero rows:
 
 ```sql
@@ -215,6 +233,8 @@ GROUP BY p.id, p.amount HAVING SUM(a.amount) > p.amount;
 ```
 
 ### Rollback of phase 2
+
+Only possible before 0024 has run; after that, restore the database backup instead.
 
 Redeploy the previous server build, then restore from the backup tables in one transaction.
 Payments recorded after the phase 2 deploy are kept; one that was split across several
@@ -243,6 +263,32 @@ The renames keep the backups but free their names, and the last statement forget
 phase 2 applies cleanly on its next deploy. Check that the newest migrations row really is 0023
 before running it, and drop the `*_rolled_back` tables once they are no longer needed.
 
+### After deploying phase 4 (read-only)
+
+Columns 0024 kept on `transactions`, if any (expected: no rows):
+
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'transactions'
+  AND column_name IN ('parent_payment_id', 'is_parent', 'linked_transaction_id');
+```
+
+If it lists them, these rows used them; look at them before deciding whether to drop the
+columns by hand:
+
+```sql
+SELECT id, card_id, type, amount, txn_date, is_parent, parent_payment_id, linked_transaction_id
+FROM transactions
+WHERE parent_payment_id IS NOT NULL OR is_parent OR linked_transaction_id IS NOT NULL;
+```
+
+When the archive is no longer wanted (irreversible):
+
+```sql
+DROP TABLE card_payments_phase1_backup, card_payment_allocations_phase1_backup,
+           transactions_settlement_phase1_backup;
+```
+
 ### Migration chain repair (found while testing phase 1)
 
 A fresh database could not be migrated: 0012 drops `card_payments` and nothing recreated it
@@ -263,6 +309,11 @@ snapshot. Production has already applied 0015 and never re-runs it.
   become 6 payments; the preview, after-deploy and rollback SQL in this doc were executed as
   written, and phase 2 re-applies after a rollback. A fresh database migrates 0000-0023.
 
+- phase 4: the migration run above continues through 0024: columns dropped, allocations
+  unchanged, and card balances, friend debts, Advance In Hand and settlement still equal the
+  legacy engine's figures for the same data. A second run with a `transactions` row using the
+  0021 columns confirms they are kept then. Fresh databases migrate 0000-0024 with no schema
+  drift (`db:generate` reports nothing to do).
 - phase 3: `paymentDistribution.test.ts` (exact, partial, overpay, nothing selected, settled
   bills); `cardPayments.test.ts` (one-request split of the 22,803 case, overpayment kept
   unallocated, both invariants, cross-card rejection, replace/delete resettle both sides, spend

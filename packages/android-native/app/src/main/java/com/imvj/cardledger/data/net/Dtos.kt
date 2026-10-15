@@ -80,9 +80,11 @@ data class TransactionDto(
     val type: String,
     val is_paid: Boolean = false,
     val holder_id_at_time: String,
+    /** bill_payment rows: set when the payment settles exactly one transaction. */
     val linked_transaction_id: String? = null,
-    val parent_payment_id: String? = null,
-    val is_parent: Boolean? = null,
+    /** bill_payment rows: the spend this payment settles, and what is left unallocated. */
+    val allocations: List<AllocationDto> = emptyList(),
+    val unallocated_amount: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
     val category: String? = null,
@@ -95,6 +97,9 @@ data class TransactionDto(
     val created_at: String? = null,
     val bank_paid_amount: Double? = null,
 )
+
+@Serializable
+data class AllocationDto(val transaction_id: String, val amount: String)
 
 /**
  * POST card-payments: one payment to the bank. The server splits it across transaction_ids in
@@ -122,7 +127,6 @@ data class CreateTransactionDto(
     val holder_id_at_time: String? = null,
     val funded_by_holder_id: String? = null,
     val linked_transaction_id: String? = null,
-    val parent_payment_id: String? = null,
     val raw_sms_encrypted: String? = null,
     val dedupe_hash: String? = null,
     val category: String? = null,
@@ -519,15 +523,6 @@ data class CardPaymentItemDto(
     val payment_date: String,
     val holder_name: String,
     val notes: String? = null,
-    val parent_payment_id: String? = null,
-    val is_parent: Boolean? = null,
-    val transaction_id: String? = null,
-)
-
-@Serializable
-data class CardPaymentWithChildren(
-    val parent: CardPaymentItemDto,
-    val children: List<CardPaymentItemDto> = emptyList(),
 )
 
 @Serializable

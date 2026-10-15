@@ -15,16 +15,6 @@ import { resolveCardHolder } from '../lib/holders.js';
 import { handle } from './cardPayments.js';
 import { CreateTransactionSchema, UpdateTransactionSchema } from '@cardledger/shared';
 
-/**
- * Check if a transaction should be marked as paid, rounding to avoid floating point issues.
- * Rounds to 2 decimal places (cents) before comparison.
- */
-function isPaid(paymentsReceived: number, transactionAmount: number): boolean {
-  const roundedPayments = Math.round(paymentsReceived * 100) / 100;
-  const roundedAmount = Math.round(transactionAmount * 100) / 100;
-  return roundedPayments >= roundedAmount;
-}
-
 export async function transactionRoutes(app: FastifyInstance) {
   const auth = { onRequest: [app.authenticate] };
 
@@ -383,80 +373,9 @@ export async function transactionRoutes(app: FastifyInstance) {
       return reply.send({ success: true });
     }
 
-    // Delete associated payments and transaction atomically
+    // Friend payments recorded against it go too. Its allocations cascade, so the card payments
+    // that settled it simply become unallocated by that much.
     await db.transaction(async (tx) => {
-      // Get the transaction details before deleting
-      const [txnToDelete] = await tx
-        .select()
-        .from(transactions)
-        .where(eq(transactions.id, req.params.id));
-
-      if (!txnToDelete) {
-        return reply.status(404).send({ error: 'Transaction not found' });
-      }
-
-      // If this is a bill_payment with a linked transaction, revert its is_paid status
-      if (txnToDelete.type === 'bill_payment' && txnToDelete.linked_transaction_id) {
-        const linkedTxnId = txnToDelete.linked_transaction_id;
-        const paymentAmount = parseFloat(String(txnToDelete.amount));
-
-        const [linkedTxn] = await tx
-          .select()
-          .from(transactions)
-          .where(eq(transactions.id, linkedTxnId));
-
-        if (linkedTxn) {
-          const currentPayments = parseFloat(String(linkedTxn.payments_received || 0));
-          const updatedPayments = Math.max(0, currentPayments - paymentAmount);
-          const txnAmount = parseFloat(String(linkedTxn.amount));
-
-          await tx
-            .update(transactions)
-            .set({
-              payments_received: String(updatedPayments),
-              is_paid: updatedPayments >= txnAmount,
-            })
-            .where(eq(transactions.id, linkedTxnId));
-        }
-      }
-
-      // If this is a parent payment, also delete all child payments
-      if (txnToDelete.is_parent) {
-        // Find all child payments
-        const childPayments = await tx
-          .select()
-          .from(transactions)
-          .where(eq(transactions.parent_payment_id, req.params.id));
-
-        // Revert is_paid status for each child's linked transaction
-        for (const child of childPayments) {
-          if (child.linked_transaction_id) {
-            const childAmount = parseFloat(String(child.amount));
-            const [linkedTxn] = await tx
-              .select()
-              .from(transactions)
-              .where(eq(transactions.id, child.linked_transaction_id));
-
-            if (linkedTxn) {
-              const currentPayments = parseFloat(String(linkedTxn.payments_received || 0));
-              const updatedPayments = Math.max(0, currentPayments - childAmount);
-              const txnAmount = parseFloat(String(linkedTxn.amount));
-
-              await tx
-                .update(transactions)
-                .set({
-                  payments_received: String(updatedPayments),
-                  is_paid: isPaid(updatedPayments, txnAmount),
-                })
-                .where(eq(transactions.id, child.linked_transaction_id));
-            }
-          }
-        }
-
-        // Delete all child payments
-        await tx.delete(transactions).where(eq(transactions.parent_payment_id, req.params.id));
-      }
-
       await tx.delete(payments).where(eq(payments.transaction_id, req.params.id));
       await tx.delete(transactions).where(eq(transactions.id, req.params.id));
     });

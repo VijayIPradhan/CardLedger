@@ -169,6 +169,13 @@
       "when": 1792062564722,
       "tag": "0023_fold_split_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792065475788,
+      "tag": "0024_drop_legacy_payment_links",
+      "breakpoints": true
     }
   ]
 }

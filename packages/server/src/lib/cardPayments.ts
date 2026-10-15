@@ -71,8 +71,6 @@ export function billPaymentRow(p: CardPaymentWithAllocations) {
     holder_id_at_time: p.holder_id, // map holder_id to holder_id_at_time
     // Older clients read a single link; only meaningful when there is exactly one.
     linked_transaction_id: p.allocations.length === 1 ? p.allocations[0].transaction_id : null,
-    parent_payment_id: null,
-    is_parent: false,
     allocations: p.allocations,
     unallocated_amount: String(Math.max(0, paise(p.amount) - allocated) / 100),
     raw_sms_encrypted: null,
@@ -329,11 +327,6 @@ async function writeAllocations(
   previouslyAllocated: string[],
 ) {
   await replaceAllocations(tx, payment.id, allocations);
-  // Kept for rollback to the pre-allocation readers, which use a single link.
-  await tx
-    .update(card_payments)
-    .set({ transaction_id: allocations.length === 1 ? allocations[0].transaction_id : null })
-    .where(eq(card_payments.id, payment.id));
   await recomputeSettlement(tx, [
     ...previouslyAllocated,
     ...allocations.map((a) => a.transaction_id),

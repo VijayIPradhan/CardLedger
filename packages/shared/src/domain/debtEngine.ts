@@ -63,22 +63,10 @@ export interface DebtCardPayment {
   id?: string;
   card_id: string;
   holder_id: string;
-  /** Present in the table but not used here: the card is what a card payment settles. */
-  transaction_id?: string | null;
   amount: number | string;
   /** ISO date. Debt is date-independent; this only places the row in a billing cycle. */
   payment_date?: string;
-  /**
-   * A split payment is stored as a parent row holding the full amount plus child rows holding
-   * the allocations. The children are the money; the parent only groups them for display, so
-   * counting both reports the same cash leaving twice.
-   */
-  is_parent?: boolean | null;
-  parent_payment_id?: string | null;
-  /**
-   * How the payment is applied to spend (card_payment_allocations). When present it replaces
-   * `transaction_id` as the source of truth; see effectiveCardPaymentAmount.
-   */
+  /** What the payment settles (card_payment_allocations). Absent or empty: all unallocated. */
   allocations?: CardPaymentAllocation[];
 }
 
@@ -88,28 +76,20 @@ export interface CardPaymentAllocation {
 }
 
 /**
- * The part of a card payment that still reduces what is owed, i.e. that is not already
- * reflected by a transaction being flagged is_paid. Settled spend has left the unpaid sums
- * already; subtracting the payment that settled it too would count the same money twice.
- *
- * With allocations: amount less whatever is allocated to settled transactions. Unallocated
+ * The part of a card payment that still reduces what is owed: its amount less whatever is
+ * allocated to transactions flagged is_paid. Settled spend has left the unpaid sums already;
+ * subtracting the payment that settled it too would count the same money twice. Unallocated
  * money and money allocated to unsettled spend both count.
- * Without (legacy rows): all of it, unless the row is linked to a settled transaction.
  */
 export function effectiveCardPaymentAmount(
   cp: DebtCardPayment,
   txnById: Map<string, Pick<DebtTransaction, 'is_paid'>>,
 ): number {
-  if (cp.is_parent) return 0;
-  if (cp.allocations) {
-    const settled = cp.allocations.reduce(
-      (sum, a) => (txnById.get(a.transaction_id)?.is_paid ? sum + money(a.amount) : sum),
-      0,
-    );
-    return Math.max(0, roundMoney(money(cp.amount) - settled));
-  }
-  if (cp.transaction_id && txnById.get(cp.transaction_id)?.is_paid) return 0;
-  return money(cp.amount);
+  const settled = (cp.allocations ?? []).reduce(
+    (sum, a) => (txnById.get(a.transaction_id)?.is_paid ? sum + money(a.amount) : sum),
+    0,
+  );
+  return Math.max(0, roundMoney(money(cp.amount) - settled));
 }
 
 export interface FriendDebt {

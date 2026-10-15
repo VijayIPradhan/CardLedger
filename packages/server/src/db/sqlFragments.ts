@@ -10,9 +10,6 @@ import { sql } from 'drizzle-orm';
  * effectiveCardPaymentAmount in @cardledger/shared, which summaryDetail.ts and the debt engine
  * use; keep the two in step.
  *
- * Legacy parent rows (is_parent) are skipped for the same reason. Migration 0023 folds them into
- * ordinary payments, so none should remain.
- *
  * Written as literal SQL text rather than with interpolated schema columns. Drizzle renders an
  * interpolated column *unqualified*, so `${transactions.card_id} = ${cards.id}` came out as
  * `"card_id" = "id"` — and inside the subquery both names resolve to `transactions`, which has
@@ -32,6 +29,6 @@ export const currentSpendSql = sql<string>`(
       JOIN transactions t2 ON t2.id = a.transaction_id
       WHERE a.card_payment_id = cp.id AND t2.is_paid = TRUE), 0)))
     FROM card_payments cp
-    WHERE cp.card_id = cards.id AND cp.is_parent IS NOT TRUE
+    WHERE cp.card_id = cards.id
   ), 0)
 )::text`;
