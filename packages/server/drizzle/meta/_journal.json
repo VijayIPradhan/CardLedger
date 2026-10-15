@@ -127,6 +127,55 @@
       "when": 1787059537902,
       "tag": "0017_fat_ma_gnuci",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790589600000,
+      "tag": "0018_add_notification_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790589660000,
+      "tag": "0019_add_billing_cycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790589720000,
+      "tag": "0020_add_parent_payment_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790589780000,
+      "tag": "0021_add_parent_tracking_to_transactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792061581235,
+      "tag": "0022_card_payment_allocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792062564722,
+      "tag": "0023_fold_split_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792065475788,
+      "tag": "0024_drop_legacy_payment_links",
+      "breakpoints": true
     }
   ]
 }

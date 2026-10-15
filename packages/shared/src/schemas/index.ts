@@ -102,6 +102,53 @@ export const CreatePaymentSchema = z.object({
 
 export const UpdatePaymentSchema = CreatePaymentSchema.partial();
 
+const CardPaymentAllocationSchema = z.object({
+  transaction_id: z.string().uuid(),
+  amount: z.number().positive(),
+});
+
+/**
+ * One payment to a card's bank (POST /card-payments). Say how it applies to spend with either
+ * explicit `allocations`, or `transaction_ids` for the server to fill in order (the Android
+ * "select bills" flow). Neither: the whole payment is unallocated.
+ */
+export const CreateCardPaymentSchema = z
+  .object({
+    card_id: z.string().uuid(),
+    amount: z.number().positive(),
+    payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    funded_by_holder_id: z.string().uuid().optional(),
+    notes: z.string().max(200).optional(),
+    allocations: z.array(CardPaymentAllocationSchema).optional(),
+    transaction_ids: z.array(z.string().uuid()).optional(),
+  })
+  .refine((p) => !(p.allocations && p.transaction_ids), {
+    message: 'Send allocations or transaction_ids, not both',
+  });
+
+/**
+ * PATCH /card-payments/:id. `allocations` or `transaction_ids`, when sent, replaces the whole
+ * set; an empty array leaves the payment unallocated.
+ */
+export const UpdateCardPaymentSchema = z
+  .object({
+    amount: z.number().positive().optional(),
+    payment_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    funded_by_holder_id: z.string().uuid().optional(),
+    notes: z.string().max(200).optional(),
+    allocations: z.array(CardPaymentAllocationSchema).optional(),
+    transaction_ids: z.array(z.string().uuid()).optional(),
+  })
+  .refine((p) => !(p.allocations && p.transaction_ids), {
+    message: 'Send allocations or transaction_ids, not both',
+  });
+
+export type CreateCardPaymentInput = z.infer<typeof CreateCardPaymentSchema>;
+export type UpdateCardPaymentInput = z.infer<typeof UpdateCardPaymentSchema>;
+
 export const CreateBudgetSchema = z.object({
   category: z.string().min(1).max(100),
   limit_amount: z.number().positive(),

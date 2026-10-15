@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS reminders (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_reminders_user_scheduled ON reminders(user_id, scheduled_for) WHERE status = 'scheduled';
-CREATE INDEX idx_reminders_card_cycle ON reminders(card_id, card_cycle_start, card_cycle_end);
+CREATE INDEX IF NOT EXISTS idx_reminders_user_scheduled ON reminders(user_id, scheduled_for) WHERE status = 'scheduled';
+CREATE INDEX IF NOT EXISTS idx_reminders_card_cycle ON reminders(card_id, card_cycle_start, card_cycle_end);
 
 -- Create notification preferences table
 CREATE TABLE IF NOT EXISTS notification_preferences (

@@ -4,6 +4,7 @@ export * from './domain/resolveHolder.js';
 export * from './domain/billingCycle.js';
 export * from './domain/analytics.js';
 export * from './domain/debtEngine.js';
+export * from './domain/paymentDistribution.js';
 export * from './domain/cardDetail.js';
 export * from './domain/cardType.js';
 export type { SmsInput, ParseResult, ParserRule } from './sms/types.js';

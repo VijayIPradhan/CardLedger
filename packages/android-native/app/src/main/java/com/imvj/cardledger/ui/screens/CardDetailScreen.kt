@@ -532,11 +532,33 @@ fun CardDetailScreen(nav: NavHostController, cardId: String) {
 
                         AnimatedVisibility(visible = isExpanded) {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                // Group transactions by parent-child payment relationship
+                                // One row per bank payment; what it settles (its allocations) expands under it,
+                                // with any unallocated rest as its own line.
                                 val allTxns = cycle.txns.sortedByDescending { it.txn_date }
-                                val parentPayments = allTxns.filter { it.type == "bill_payment" && (it.is_parent == true || it.parent_payment_id == null) }
-                                val childPayments = allTxns.filter { it.type == "bill_payment" && it.parent_payment_id != null }
-                                val childrenByParent = childPayments.groupBy { it.parent_payment_id }
+                                val parentPayments = allTxns.filter { it.type == "bill_payment" }
+                                val childrenByParent = parentPayments.associate { p ->
+                                    val shares = p.allocations.map { a ->
+                                        p.copy(
+                                            id = "${p.id}:${a.transaction_id}",
+                                            amount = a.amount,
+                                            linked_transaction_id = a.transaction_id,
+                                            allocations = emptyList(),
+                                        )
+                                    }
+                                    val rest = p.unallocated_amount?.toDoubleOrNull() ?: 0.0
+                                    val unallocated = if (shares.isNotEmpty() && rest > 0.0) {
+                                        listOf(
+                                            p.copy(
+                                                id = "${p.id}:unallocated",
+                                                amount = p.unallocated_amount ?: "0",
+                                                merchant = "Unallocated",
+                                                linked_transaction_id = null,
+                                                allocations = emptyList(),
+                                            )
+                                        )
+                                    } else emptyList()
+                                    p.id to (shares + unallocated)
+                                }
                                 val nonPayments = allTxns.filter { it.type != "bill_payment" }
 
                                 // Render non-payment transactions first

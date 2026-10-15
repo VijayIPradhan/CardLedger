@@ -182,7 +182,14 @@ describe('computeFriendDebts — card payments settle a card', () => {
       [ALICE],
       [txn({ id: 't1', amount: 1000 })],
       [],
-      [{ card_id: 'cardA', holder_id: 'alice', transaction_id: 't1', amount: 250 }],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'alice',
+          amount: 250,
+          allocations: [{ transaction_id: 't1', amount: 250 }],
+        },
+      ],
     );
     expect(r.toCollectByCard).toEqual({ cardA: 750 });
   });
@@ -429,7 +436,14 @@ describe('computeFriendDebts — advance in hand', () => {
       [ME, ALICE],
       [txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true })],
       [{ holder_id: 'alice', amount: 1000 }],
-      [{ card_id: 'cardA', holder_id: 'alice', amount: 1000, transaction_id: 't1' }],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'alice',
+          amount: 1000,
+          allocations: [{ transaction_id: 't1', amount: 1000 }],
+        },
+      ],
     );
     // Collected 1000, settled 1000. Card payment is linked to the paid transaction, so it
     // should NOT reduce advance in hand again: 1000 - 1000 = 0 (not -1000).
@@ -443,11 +457,95 @@ describe('computeFriendDebts — advance in hand', () => {
       [ME, ALICE],
       [txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true })],
       [{ holder_id: 'alice', amount: 0 }],
-      [{ card_id: 'cardA', holder_id: 'me', amount: 1000, transaction_id: 't1' }],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 1000,
+          allocations: [{ transaction_id: 't1', amount: 1000 }],
+        },
+      ],
     );
     // Collected 0, settled 1000. Card payment is linked to paid transaction, should not count:
     // 0 - 1000 - 0 = -1000 (out of pocket by 1000, not 2000).
     expect(r.friendAdvanceInHand).toBe(-1000);
+  });
+
+  it('counts a payment that settled one transaction once, not against other spend too', () => {
+    // A 1000 payment allocated to t1, which it settled. t2 is other unsettled spend on the card;
+    // it must not absorb the same 1000 a second time.
+    const r = run(
+      [ME, ALICE],
+      [
+        txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true }),
+        txn({ id: 't2', holder_id_at_time: 'alice', amount: 5000 }),
+      ],
+      [],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 1000,
+          allocations: [{ transaction_id: 't1', amount: 1000 }],
+        },
+      ],
+    );
+    // Collected 0, settled 1000 (t1), nothing else forwarded: out of pocket by 1000, not 2000.
+    expect(r.friendAdvanceInHand).toBe(-1000);
+  });
+
+  it('counts an unallocated "pay total" payment once', () => {
+    const r = run(
+      [ME, ALICE],
+      [txn({ id: 't1', holder_id_at_time: 'alice', amount: 5000 })],
+      [],
+      [{ card_id: 'cardA', holder_id: 'me', amount: 2000 }],
+    );
+    expect(r.friendAdvanceInHand).toBe(-2000);
+  });
+});
+
+describe('computeFriendDebts — allocated card payments', () => {
+  const spends = [
+    txn({ id: 't1', holder_id_at_time: 'alice', amount: 1000, is_paid: true }),
+    txn({ id: 't2', holder_id_at_time: 'alice', amount: 5000 }),
+  ];
+
+  it('counts the unallocated rest of a partly allocated payment', () => {
+    // 1500 paid: 1000 settles t1, 500 left unallocated.
+    const r = run(
+      [ME, ALICE],
+      spends,
+      [{ holder_id: 'alice', amount: 3000 }],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 1500,
+          allocations: [{ transaction_id: 't1', amount: 1000 }],
+        },
+      ],
+    );
+    // Collected 3000, settled 1000, 500 forwarded against t2: 1500 in hand.
+    expect(r.friendAdvanceInHand).toBe(1500);
+  });
+
+  it('money allocated to unsettled spend still counts as forwarded', () => {
+    const r = run(
+      [ME, ALICE],
+      spends,
+      [],
+      [
+        {
+          card_id: 'cardA',
+          holder_id: 'me',
+          amount: 800,
+          allocations: [{ transaction_id: 't2', amount: 800 }],
+        },
+      ],
+    );
+    // Settled 1000 (t1) plus 800 forwarded against t2.
+    expect(r.friendAdvanceInHand).toBe(-1800);
   });
 });
 

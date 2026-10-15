@@ -12,6 +12,7 @@ import {
 import { eq, and, desc, sql, getTableColumns } from 'drizzle-orm';
 import { currentSpendSql } from '../db/sqlFragments.js';
 import { computeFriendDebts } from '@cardledger/shared';
+import { withAllocations } from '../db/allocations.js';
 
 export async function summaryRoutes(app: FastifyInstance) {
   const auth = { onRequest: [app.authenticate] };
@@ -106,7 +107,7 @@ export async function summaryRoutes(app: FastifyInstance) {
       holders: userHolders,
       transactions: userTxns.map((t) => t.transactions),
       payments: userPayments.map((p) => p.payments),
-      cardPayments: userCardPayments.map((p) => p.card_payments),
+      cardPayments: await withAllocations(userCardPayments.map((p) => p.card_payments)),
     });
 
     // ── 3. Total Utilization & Net Position ──

@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS billing_cycles (
   UNIQUE(card_id, cycle_start, cycle_end)
 );
 
-CREATE INDEX idx_cycles_card_date ON billing_cycles(card_id, statement_date DESC);
-CREATE INDEX idx_cycles_due_date ON billing_cycles(payment_due_date) WHERE status IN ('generated', 'overdue');
+CREATE INDEX IF NOT EXISTS idx_cycles_card_date ON billing_cycles(card_id, statement_date DESC);
+CREATE INDEX IF NOT EXISTS idx_cycles_due_date ON billing_cycles(payment_due_date) WHERE status IN ('generated', 'overdue');
 
 -- Add billing_cycle_id to transactions table
 ALTER TABLE transactions

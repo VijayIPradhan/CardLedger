@@ -17,6 +17,7 @@ import {
   useUpdateTransaction,
 } from '../data/hooks/useTransactions.js';
 import { useCreateTransaction } from '../data/hooks/useTransactions.js';
+import { useCreateCardPayment } from '../data/hooks/useCardPayments.js';
 import { useUploadStatement } from '../data/hooks/useStatements.js';
 import { useCardDetail } from '../data/hooks/useDashboard.js';
 import { useUiStore } from '../store/uiStore.js';
@@ -45,6 +46,7 @@ export default function CardDetailScreen() {
   const [editHolder, setEditHolder] = useState('');
 
   const createTxn = useCreateTransaction();
+  const createCardPayment = useCreateCardPayment();
   const uploadStmt = useUploadStatement();
   const [isUploading, setIsUploading] = useState(false);
   const [cardPaymentAmount, setCardPaymentAmount] = useState('');
@@ -163,15 +165,15 @@ export default function CardDetailScreen() {
     }
     setError('');
     try {
-      await createTxn.mutateAsync({
+      await createCardPayment.mutateAsync({
         card_id: id!,
         amount,
-        txn_date: cardPaymentDate,
-        merchant: 'Payment to Bank',
-        type: 'bill_payment',
-        source: 'manual',
-        holder_id_at_time: currentHolder?.id,
-        linked_transaction_id: linkedTransactionId || undefined,
+        payment_date: cardPaymentDate,
+        notes: 'Payment to Bank',
+        funded_by_holder_id: currentHolder?.id,
+        // Settles the linked transaction as far as the payment covers it; the rest stays
+        // unallocated on the payment.
+        transaction_ids: linkedTransactionId ? [linkedTransactionId] : undefined,
       });
       closeBottomSheet();
     } catch {
@@ -556,10 +558,10 @@ export default function CardDetailScreen() {
           {error && <p className="text-danger text-xs">{error}</p>}
           <button
             type="submit"
-            disabled={createTxn.isPending}
+            disabled={createCardPayment.isPending}
             className="bg-gold text-base font-semibold py-3 rounded-input mt-2 hover:bg-gold-hi transition-colors disabled:opacity-50 text-surface"
           >
-            {createTxn.isPending ? 'Saving...' : 'Save Payment'}
+            {createCardPayment.isPending ? 'Saving...' : 'Save Payment'}
           </button>
         </form>
       </BottomSheet>
