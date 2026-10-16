@@ -97,12 +97,12 @@ jobs:
       - name: Build Debug APK
         if: inputs.build_type == 'debug' || inputs.build_type == 'both' || github.event_name != 'workflow_dispatch'
         working-directory: packages/android-native
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
 
       - name: Build Release APK
         if: inputs.build_type == 'release' || inputs.build_type == 'both' || github.event_name != 'workflow_dispatch'
         working-directory: packages/android-native
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease -PversionCode=${{ github.run_number }}
 
       - name: Check Keystore Secret Presence
         id: check_keystore
@@ -149,9 +149,56 @@ jobs:
           path: apks-to-release/*.apk
           retention-days: 30
 
+      # Which GitHub Release (if any) this run publishes to:
+      #   push to main      -> a new release android-v1.0.<run number>, marked latest
+      #   tag v* / release  -> that tag
+      #   manual run        -> the tag_name input, or none if left blank
+      - name: Decide Release Tag
+        id: release_tag
+        env:
+          INPUT_TAG: ${{ inputs.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          tag=""
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            tag="android-v1.0.${{ github.run_number }}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            tag="$RELEASE_TAG"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Release tag: ${tag:-<none, artifacts only>}"
+
+      # Only installable APKs go on a release: Android refuses unsigned ones, so an unsigned
+      # release build stays in the workflow artifacts only.
+      - name: Select APKs for Release
+        if: steps.release_tag.outputs.tag != ''
+        id: release_files
+        run: |
+          mkdir -p apks-for-release
+          [ -f apks-to-release/CardLedger-debug.apk ] && cp apks-to-release/CardLedger-debug.apk apks-for-release/
+          [ -f apks-to-release/CardLedger-release.apk ] && cp apks-to-release/CardLedger-release.apk apks-for-release/
+          if [ -f apks-for-release/CardLedger-release.apk ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+          ls -lh apks-for-release/
+
       - name: Upload APKs to GitHub Release
-        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '') }}
+        if: steps.release_tag.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag_name || github.ref_name }}
-          files: apks-to-release/*.apk
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: CardLedger Android ${{ steps.release_tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: apks-for-release/*.apk
+          body: |
+            Built from ${{ github.sha }} (version code ${{ github.run_number }}).
+
+            ${{ steps.release_files.outputs.signed == 'true' && 'Install **CardLedger-release.apk**.' || 'Install **CardLedger-debug.apk**. No signing key is configured, so there is no installable release build; add the KEYSTORE_BASE64, KEY_ALIAS, KEYSTORE_PASSWORD and KEY_PASSWORD secrets to get one.' }}
