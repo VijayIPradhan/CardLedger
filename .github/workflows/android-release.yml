@@ -116,16 +116,29 @@ jobs:
             echo "has_keystore=false" >> $GITHUB_OUTPUT
           fi
 
+      # Signs with apksigner from whichever build-tools the runner has. (r0adkll/sign-android-release
+      # pins build-tools 29.0.3, which current runners no longer ship.) Prints the certificate
+      # fingerprint so a wrong key is visible in the log.
       - name: Sign Release APK (Optional)
         if: (inputs.build_type == 'release' || inputs.build_type == 'both' || github.event_name != 'workflow_dispatch') && steps.check_keystore.outputs.has_keystore == 'true'
         id: sign_apk
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: packages/android-native/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          dir=packages/android-native/app/build/outputs/apk/release
+          unsigned=$(ls "$dir"/*-unsigned.apk | head -1)
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "Signing $unsigned with $(basename "$bt")"
+          ks="$RUNNER_TEMP/release.keystore"
+          trap 'rm -f "$ks" "$RUNNER_TEMP/aligned.apk"' EXIT
+          echo "$KEYSTORE_BASE64" | base64 -d > "$ks"
+          "$bt/zipalign" -p -f 4 "$unsigned" "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" sign --ks "$ks" --ks-type PKCS12 --ks-key-alias "$KEY_ALIAS"             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD             --out "$dir/app-release.apk" "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" verify --print-certs "$dir/app-release.apk" | grep -E "SHA-256|DN:"
 
       - name: Prepare APK files for Upload
         run: |
