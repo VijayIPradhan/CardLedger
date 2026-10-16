@@ -20,8 +20,10 @@ android {
         applicationId 'com.imvj.cardledger'
         minSdk 24
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        // CI passes -PversionCode=<run number> so every published build is a distinct, newer
+        // version; local builds stay 1 / 1.0.
+        versionCode((project.findProperty('versionCode') ?: '1') as Integer)
+        versionName project.findProperty('versionCode') ? "1.0.${project.findProperty('versionCode')}" : '1.0'
     }
     buildTypes {
         debug {
